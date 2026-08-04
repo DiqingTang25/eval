@@ -1,0 +1,240 @@
+/* ════════════════════════════════════════════
+   页面特定样式
+   ════════════════════════════════════════════ */
+
+/* ── 评测实时面板 ── */
+.live-eval {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-tertiary);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.live-eval-header {
+  background: #1e3a5f;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.live-eval-header h3 { font-size: 14px; color: var(--accent-blue); }
+.live-eval-body { padding: 12px; max-height: 480px; overflow-y: auto; }
+
+.eval-step {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+  align-items: flex-start;
+}
+.eval-step .step-icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+}
+.eval-step .step-content { flex: 1; min-width: 0; }
+.eval-step .step-label  { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.eval-step .step-text   { font-size: 12px; color: var(--text-primary); word-break: break-word; }
+.eval-step .step-text.user   { color: var(--text-secondary); }
+.eval-step .step-text.ai     { color: var(--accent-green); }
+.eval-step .step-text.error  { color: var(--accent-red); }
+.eval-step .step-meta  { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── 场景分隔线 ── */
+.scenario-divider {
+  color: var(--accent-blue);
+  font-weight: 600;
+  padding: 10px 0 4px;
+  font-size: 13px;
+  border-top: 2px solid var(--bg-tertiary);
+  margin-top: 6px;
+}
+
+/* ── 评分迷你卡片 ── */
+.score-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  padding: 8px 0 16px;
+}
+.score-mini {
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  text-align: center;
+}
+.score-mini .sm-val  { font-size: 22px; font-weight: bold; }
+.score-mini .sm-label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.score-mini .sm-exp   { font-size: 10px; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+.sm-high { color: var(--accent-green); }
+.sm-mid  { color: var(--accent-yellow); }
+.sm-low  { color: var(--accent-red); }
+
+/* ── QA 管理 ── */
+.qa-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 14px;
+  height: calc(100vh - 160px);
+}
+.qa-list {
+  overflow-y: auto;
+  border: 1px solid var(--bg-tertiary);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+}
+.qa-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bg-tertiary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.qa-item:hover { background: var(--bg-hover); }
+.qa-item.selected { background: #1e3a5f; border-left: 3px solid var(--accent-blue); }
+.qa-item .qa-q { font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-item .qa-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: flex; gap: 6px; align-items: center; }
+.qa-detail {
+  padding: 16px;
+  border: 1px solid var(--bg-tertiary);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  overflow-y: auto;
+}
+.qa-detail label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 10px 0 4px;
+  font-weight: 600;
+}
+.qa-detail textarea { width: 100%; min-height: 70px; }
+.qa-empty {
+  padding: 60px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── 报告查看 ── */
+.report-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 14px;
+  height: calc(100vh - 160px);
+}
+.report-list { overflow-y: auto; }
+.report-item {
+  padding: 10px 12px;
+  border: 1px solid var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+  background: var(--bg-secondary);
+}
+.report-item:hover { border-color: var(--accent-blue); }
+.report-item.selected { background: #1e3a5f; border-color: var(--accent-blue); }
+.report-detail {
+  padding: 16px;
+  border: 1px solid var(--bg-tertiary);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  overflow-y: auto;
+  animation: slideIn .3s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 报告详情卡片增强 ── */
+.rpt-hero {
+  background: linear-gradient(135deg, #0c1b35 0%, #0f2744 100%);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 24px 28px;
+  color: #fff;
+}
+.rpt-hero .rpt-score-ring {
+  width: 90px; height: 90px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.25);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.rpt-section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+.rpt-section:last-child { border-bottom: none; }
+.rpt-section h4 {
+  font-size: 13px; font-weight: 600;
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.rpt-badge {
+  display: inline-block; padding: 4px 10px;
+  border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+.rpt-badge.green { background: rgba(34,197,94,.12); color: var(--accent-green); }
+.rpt-badge.blue  { background: rgba(56,189,248,.12); color: var(--accent-blue); }
+.rpt-badge.red   { background: rgba(239,68,68,.12); color: var(--accent-red); }
+
+/* ── 报告详情加载动画 ── */
+.rpt-loading {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 48px 20px; gap: 14px;
+}
+.rpt-loading .rpt-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── 对报告中证据/置信度面板的折叠 ── */
+.rpt-toggle {
+  cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600;
+  padding: 8px 0; color: var(--text-secondary);
+}
+.rpt-toggle:hover { color: var(--accent-blue); }
+.rpt-toggle .arrow { transition: transform .2s; font-size: 10px; }
+.rpt-toggle.open .arrow { transform: rotate(90deg); }
+.rpt-collapse { overflow: hidden; transition: max-height .3s ease; }
+.rpt-collapse.closed { max-height: 0; }
+
+/* ── 报告列表增强 ── */
+.report-item {
+  cursor: pointer;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin: 3px 0;
+  transition: all .2s ease;
+  background: var(--bg-secondary);
+}
+.report-item:hover { border-color: var(--accent-blue); transform: translateX(3px); }
+.report-item.selected { background: #1e3a5f; border-color: var(--accent-blue); box-shadow: 0 0 12px rgba(56,189,248,.15); }
+
+/* ── 报告两栏布局优化 ── */
+.report-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .report-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 1024px) {
+  .qa-layout, .report-layout { grid-template-columns: 1fr; }
+  .qa-detail, .report-detail { max-height: none; }
+  .two-col { grid-template-columns: 1fr; }
+}

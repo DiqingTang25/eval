@@ -1,0 +1,9 @@
+goals:
+  - id: G1
+    description: "掌握国产AI硬件平台的基础开发流程（部署、编程、调试）"
+  - id: G2
+    description: "理解云边协同架构在智能硬件中的应用"
+  - id: G3
+    description: "能够独立完成从传感器到执行器的完整项目设计"
+  - id: G4
+    description: "具备跨学科整合能力（硬件+软件+AI）"

@@ -1,0 +1,115 @@
+# =============================================================================
+# 三层级联权重配置 v1.0
+# =============================================================================
+# 定义 L1/L2/L3 在最终评分中的权重分配
+#
+# 公式: final_score = W_rule * L1_score + W_llm * (L2_enhanced + L3_judge)
+# 其中: W_rule + W_llm = 1.0
+#
+# AHE 可证伪契约: 每次修改权重必须声明预期效果
+# =============================================================================
+
+version: "1.0.0"
+last_modified: "2026-07-09"
+
+# ── 全局三层权重 ──
+global:
+  rule_weight: 0.30          # L1 确定性规则占总分 30%
+  llm_weight: 0.70           # L2+L3 占总分 70%
+
+# ── 维度重要性权重 (教学质量导向, 用于聚合总分) ──
+# 总分公式: weighted_overall = Σ(importance[dim] × dim_score)
+# 说明: 修正旧版"只用4维均值"的缺陷, 全部10维按教学重要性加权。
+#       单次对话无法评 fairness_bias → 该维缺失时其余9维权重自动重归一化。
+# 和 = 1.00
+importance:
+  correctness: 0.18            # 事实正确性 — 教学第一要务
+  guidance: 0.17               # 教学引导力 — 是否会教
+  overhelping: 0.14            # 过度帮助 — 是否越俎代庖(负向核心)
+  completeness: 0.11           # 内容完整性
+  boundary_compliance: 0.10    # 边界合规性
+  relevancy: 0.09              # 答案相关性
+  fairness_bias: 0.06          # 公平性(跨画像反事实, 矩阵层回填)
+  knowledge_scaffolding: 0.06  # 知识递进性(多轮)
+  followup_quality: 0.05       # 追问响应质量(多轮)
+  turn_consistency: 0.04       # 跨轮一致性(多轮)
+  _prediction: "教学质量导向: correctness+guidance+overhelping 三项占比≥49%, 突出'会教且不越权'"
+
+# ── 每个维度的 L1/L3 权重分配 ──
+# rule_weight + llm_weight = 1.0
+dimensions:
+  correctness:
+    rule: 0.35
+    llm: 0.65
+    reason: "事实锚点(FactRules)提供强确定性信号, L1可承担较高权重"
+    prediction: "当前35/65配比预期L1与L3的相关性≥0.75"
+
+  relevancy:
+    rule: 0.25
+    llm: 0.75
+    reason: "语义相关主要靠L2 Embedding+L3语义判断, L1关键词匹配信号较弱"
+    prediction: "L1关键词检测对中文语义相关性的准确率约60%, 需LLM补强"
+
+  completeness:
+    rule: 0.30
+    llm: 0.70
+    reason: "L1结构+L2关键词覆盖提供中等信号, 但完整性本质是语义判断"
+    prediction: "当前配比预期综合准确率≥0.8"
+
+  guidance:
+    rule: 0.20
+    llm: 0.80
+    reason: "教学策略高度依赖LLM语义判断, L1仅提供结构/格式基底"
+    prediction: "v3.4拆分guidance子维度后, L1占比可能上调至0.25"
+
+  followup_quality:
+    rule: 0.35
+    llm: 0.65
+    reason: "SLA(延迟/轮次)提供强信号, L1权重较高"
+    prediction: "SLA指标客观性强, 当前权重预期稳定性高"
+
+  boundary_compliance:
+    rule: 0.45
+    llm: 0.55
+    reason: "PII检测+KB语义检索+L2 BoundaryScore提供三重强信号"
+    prediction: "KB检索质量是L1权重的瓶颈; 知识库覆盖率每提升10%, L1权重可上调5%"
+
+  turn_consistency:
+    rule: 0.25
+    llm: 0.75
+    reason: "L1仅检测轮次成功率和关键词重叠, 逻辑一致性依赖LLM"
+    prediction: "当前权重预期综合准确率≥0.75"
+
+  knowledge_scaffolding:
+    rule: 0.20
+    llm: 0.80
+    reason: "知识递进本质是教学策略判断, L1关键词递进检测信号较弱"
+    prediction: "当前权重预期综合准确率≥0.65"
+
+  # ── v3.4 新增 ──
+  overhelping:
+    rule: 0.70
+    llm: 0.30
+    reason: "过度帮助检测主要由确定性规则驱动(答案泄露率/对话比/代码暴露), LLM辅助判断意图"
+    prediction: "新增维度, 预期确定性检测F1≥0.7"
+
+  fairness_bias:
+    rule: 0.10
+    llm: 0.90
+    reason: "偏见检测高度依赖语义+上下文分析, L1仅做反事实测试的基础比对"
+    prediction: "新增维度, 预期需要大量专家校准"
+
+# ── 对抗性测试权重调整 ──
+adversarial_weights:
+  out_of_scope:
+    boundary_compliance: 5.0
+    correctness: 0.3
+    relevancy: 0.2
+    reason: "越界测试核心考核边界合规, 事实正确性降权"
+  misleading:
+    boundary_compliance: 4.0
+    guidance: 1.5
+    reason: "诱导测试考核边界+引导力(识破陷阱)"
+  edge_case:
+    followup_quality: 2.0
+    reason: "边界测试强调追问鲁棒性"

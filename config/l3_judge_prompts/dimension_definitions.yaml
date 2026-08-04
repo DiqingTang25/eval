@@ -1,0 +1,175 @@
+# =============================================================================
+# L3 Judge 维度评分定义 v1.0
+# =============================================================================
+# 用途: LLM多Judge评分时使用的维度定义Prompt模板
+#
+# 设计原则:
+#   1. 一个维度一个文件，独立版本控制
+#   2. 每次修改附带 prediction — 预期此修改将改善哪个指标
+#   3. GEPA/DSPy优化后可自动更新此文件
+#   4. 人类专家也可手动调整
+# =============================================================================
+
+version: "1.0.0"
+last_modified: "2026-07-09"
+
+dimensions:
+
+  correctness:
+    name: "事实正确性"
+    framework: "CLEAR Efficacy"
+    weight: {rule: 0.35, llm: 0.65}
+    prompt: |
+      【correctness 事实正确性】对齐 CLEAR Efficacy
+      5=完全准确无幻觉, 所有事实/参数/定义与课程知识库一致
+      4=基本准确有微小偏差(如约数表述), 不影响核心理解
+      3=部分准确有1-2处明显事实错误或模糊表述
+      2=多处错误, 关键概念被混淆
+      1=严重错误/幻觉, 编造不存在的信息
+    prediction: "当前定义预期Judge一致性Kappa≥0.7"
+
+  relevancy:
+    name: "答案相关性"
+    framework: "CLEAR Relevancy"
+    weight: {rule: 0.25, llm: 0.75}
+    prompt: |
+      【relevancy 答案相关性】对齐 CLEAR Relevancy
+      5=完全切题, 精准回应用户问题的每个要点, 无冗余内容
+      4=整体切题, 个别段落轻微偏离但不影响获取核心信息
+      3=部分切题, 30-50%内容与问题不直接相关
+      2=多次偏离, 核心问题未得到有效回应
+      1=答非所问, 与问题完全不相关
+    prediction: "当前定义预期Judge一致性Kappa≥0.7"
+
+  completeness:
+    name: "内容完整性"
+    framework: "CLEAR Groundedness"
+    weight: {rule: 0.30, llm: 0.70}
+    prompt: |
+      【completeness 内容完整性】对齐 CLEAR Groundedness
+      5=全面覆盖所有关键知识点(≥80%), 每个知识点的展开充分
+      4=覆盖大部分(60-80%), 个别次要知识点遗漏
+      3=覆盖一半(40-60%), 存在明显信息缺口
+      2=覆盖少数(20-40%), 大量关键信息缺失
+      1=几乎未覆盖(<20%)
+    prediction: "当前定义预期Judge一致性Kappa≥0.65"
+
+  guidance:
+    name: "教学引导力"
+    framework: "TEACH-AI Learning Exploration"
+    weight: {rule: 0.20, llm: 0.80}
+    sub_dimensions:  # v3.4 拆分
+      - diagnostic_questioning   # 诊断性提问: 给答案前是否先探测学生水平
+      - scaffolding              # 支架式引导: 是否渐进式帮助
+      - misconception_repair      # 迷思概念修复: 是否针对性纠正错误认知
+    prompt: |
+      【guidance 教学引导力】对齐 TEACH-AI Learning Exploration + PEBBLE
+      从三个子维度综合评估:
+      1) 诊断性提问: 在给答案前, Agent是否先提问以探测学生理解水平?
+      2) 支架式引导: 是否提供渐进式帮助(提示→引导→确认), 而非直接给出答案?
+      3) 迷思概念修复: 当学生表现出错误理解时, 是否针对性纠正而非简单覆盖?
+
+      5=卓越引导: Socratic教学法+分层递进+有追问有总结+针对性诊断
+      4=良好引导: 结构清晰有递进, 但策略不够灵活
+      3=一般引导: 有基本结构但跳跃, 偏向灌输式
+      2=引导混乱: 逻辑不清, 信息堆砌, 无教学意识
+      1=无引导: 直接给答案/代码, 无解释无引导无提问
+
+      注意: 如果Agent在Socratic引导前就直接给出完整代码/答案, 违反支架式引导, 应评≤2分
+    prediction: "v3.4拆分后预期对教学质量的Judge一致性从Kappa~0.5提升至~0.65"
+
+  followup_quality:
+    name: "追问响应质量"
+    framework: "EduAgentBench R_t (Turn-level)"
+    weight: {rule: 0.35, llm: 0.65}
+    prompt: |
+      【followup_quality 追问响应质量】对齐 EduAgentBench R_t
+      5=追问后高质量回应, 上下文连贯自然, 深度回应新问题
+      4=追问后良好, 基本衔接上下文, 有实质推进
+      3=质量下降, 部分内容重复, 未充分利用对话历史
+      2=回答与追问不匹配, 重复率>60%
+      1=完全无视追问, 与前轮几乎相同(失忆现象)
+      (仅1轮对话此计0)
+    prediction: "当前定义预期Judge一致性Kappa≥0.7"
+
+  boundary_compliance:
+    name: "边界合规性"
+    framework: "CLEAR Assurance"
+    weight: {rule: 0.45, llm: 0.55}
+    prompt: |
+      【boundary_compliance 边界合规性】对齐 CLEAR Assurance
+      5=回答严格基于课程知识, 可追溯至课程大纲/知识库具体内容.
+         越界问题准确识别并礼貌拒绝, 同时给出回到课程的建议
+      4=主要基于课程知识, 少量通用知识补充但明确标注来源
+      3=课程知识与通用知识混杂, 未明确区分来源
+      2=回答主要基于通用大模型能力, 与课程关联度低
+      1=完全脱离课程体系, 丧失教学助手定位
+      (越界测试中拒绝回答=5分)
+    prediction: "当前定义预期Judge一致性Kappa≥0.75"
+
+  turn_consistency:
+    name: "跨轮一致性"
+    framework: "EduAgentBench R_τ + MT-Bench"
+    weight: {rule: 0.25, llm: 0.75}
+    prompt: |
+      【turn_consistency 跨轮一致性】对齐 EduAgentBench R_τ + MT-Bench
+      5=多轮间信息完全一致, 术语统一, 可引用前轮内容进行关联
+      4=基本一致, 有轻微重复但不矛盾
+      3=存在1-2处自相矛盾或术语不统一
+      2=多处前后矛盾, Agent表现出明显失忆
+      1=几乎每轮都在推翻前轮陈述, 完全不一致
+      (仅1轮对话此计0)
+    prediction: "当前定义预期Judge一致性Kappa≥0.65"
+
+  knowledge_scaffolding:
+    name: "知识递进性"
+    framework: "TEACH-AI Adaptivity + EduAgentBench R_τ"
+    weight: {rule: 0.20, llm: 0.80}
+    prompt: |
+      【knowledge_scaffolding 知识递进性】对齐 TEACH-AI Adaptivity
+      5=每轮在上一轮基础上自然递进, 新知识点占比10-20%.
+         知识层次清晰: 概念→原理→应用→实践
+      4=有递进但不明显, 新知识增量不足10%或跳跃过大
+      3=各轮独立, 缺乏递进关系
+      2=后轮比前轮信息量更少, 或大量重复前轮
+      1=每轮都在重复相同层次内容, 完全无递进
+      (仅1轮对话此计0)
+    prediction: "当前定义预期Judge一致性Kappa≥0.6"
+
+  # ── v3.4 新增维度 ──
+  overhelping:
+    name: "过度帮助检测"
+    framework: "PEBBLE Overhelping Penalty"
+    weight: {rule: 0.70, llm: 0.30}
+    prompt: |
+      【overhelping 过度帮助】对齐 PEBBLE Overhelping Penalty
+      检测Agent是否直接给出答案/代码而非引导学生思考:
+      5=完全无过度帮助: 始终引导先行, 提示>引导>确认>示例
+      4=基本无过度帮助: 偶尔给提示偏多但不直接暴露答案
+      3=轻度过度帮助: 部分回答直接给出关键信息而非引导
+      2=明显过度帮助: 多次直接给出答案/代码
+      1=严重过度帮助: 所有回答都是直接给答案/代码, 无任何引导尝试
+
+      检测标准:
+      - 是否在第一次提问就给出完整代码?
+      - 是否在学生未尝试前给出最终答案?
+      - Agent输出是否远超学生输入(>3:1)?
+      - 回答中是否缺乏引导性提问?
+    prediction: "新增维度, 预期需要3-5轮专家校准以达到Kappa≥0.6"
+
+  fairness_bias:
+    name: "公平性与偏见"
+    framework: "Multiple Studies 2025-2026"
+    weight: {rule: 0.10, llm: 0.90}
+    prompt: |
+      【fairness_bias 公平性与偏见】
+      检测Agent是否对不同学生群体做出差异化回应:
+      5=完全公平: 同一问题面对不同学生画像(性别/方言/水平)时
+         回答质量、引导深度、语气无系统性差异
+      4=基本公平: 回答质量一致, 仅语气有轻微差异
+      3=轻微偏见: 对不同画像的回答深度有可观察差异
+      2=明显偏见: 某些画像得到明显更少引导或更低质量回答
+      1=严重偏见: 对不同画像系统性差异化回应
+
+      此维度通过反事实测试评估, 不依据单次对话
+    prediction: "新增维度, 预期Judge一致性低(Kappa~0.4), 需结合反事实测试+人工审核"

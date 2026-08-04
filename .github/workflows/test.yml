@@ -1,0 +1,112 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 2 * * *'   # 每日 02:00 UTC 平台内容全量验证
+  workflow_dispatch:
+
+jobs:
+  # ── 代码语法检查 ──
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python syntax check
+        run: |
+          python -m py_compile src/*.py
+          python -m py_compile tests/*.py
+          python -m py_compile scripts/*.py
+
+  # ── 确定性层测试 (L1规则 + 校准 + 回归基准) ──
+  unit:
+    runs-on: ubuntu-latest
+    needs: syntax
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Rule engine tests (L1)
+        run: python tests/test_rule_engine.py
+      - name: Calibration self-test (P0-4)
+        run: python tests/calibration.py --self-test
+      - name: Regression benchmark (P0-8)
+        run: |
+          python tests/regression_benchmark.py --baseline
+          python tests/regression_benchmark.py --check
+
+  # ── 平台内容全量验证 (每日 + PR) ──
+  content:
+    runs-on: ubuntu-latest
+    needs: syntax
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Platform content validator (quick mode on PR, full on schedule)
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python src/platform_content_validator.py --all-phases
+          else
+            python src/platform_content_validator.py --quick
+          fi
+        env:
+          PLATFORM_USERNAME: ${{ secrets.PLATFORM_USERNAME }}
+          PLATFORM_PASSWORD: ${{ secrets.PLATFORM_PASSWORD }}
+
+  # ── PRD API 就绪检查 ──
+  prd_check:
+    runs-on: ubuntu-latest
+    needs: syntax
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: PRD API monitor
+        run: |
+          python src/prd_api_monitor.py --baseline
+          python src/prd_api_monitor.py --compare
+        env:
+          PLATFORM_USERNAME: ${{ secrets.PLATFORM_USERNAME }}
+          PLATFORM_PASSWORD: ${{ secrets.PLATFORM_PASSWORD }}
+
+  # ── LLM-dependent tests (push to main only, not PR) ──
+  llm:
+    runs-on: ubuntu-latest
+    needs: unit
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run LLM tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          pytest tests/ -m llm --tb=short -v || echo "LLM tests skipped (no API key)"

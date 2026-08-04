@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI Agent 评测平台 — MySQL 数据库与前端数据流全解</title>
+<style>
+  body { font-family: 'PingFang SC','Microsoft YaHei',sans-serif; max-width:1100px; margin:0 auto; padding:40px 30px; color:#1a1a2e; line-height:1.75; background:#fff; }
+  h1 { font-size:28px; border-bottom:3px solid #2563eb; padding-bottom:12px; margin-bottom:8px; color:#0f172a; }
+  h2 { font-size:22px; margin-top:40px; padding:10px 0; border-bottom:2px solid #e2e8f0; color:#1e293b; }
+  h3 { font-size:17px; margin-top:28px; color:#334155; }
+  h4 { font-size:14px; margin-top:20px; color:#475569; }
+  p { margin:8px 0; }
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:13px; }
+  th { background:#1e293b; color:#f1f5f9; padding:10px 12px; text-align:left; font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+  td { padding:9px 12px; border-bottom:1px solid #e2e8f0; vertical-align:top; }
+  tr:nth-child(even) td { background:#f8fafc; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; margin-right:4px; }
+  .tag-pk { background:#dbeafe; color:#1e40af; }
+  .tag-fk { background:#fef3c7; color:#92400e; }
+  .tag-idx { background:#d1fae5; color:#065f46; }
+  .tag-json { background:#ede9fe; color:#5b21b6; }
+  .tag-datetime { background:#fce7f3; color:#9d174d; }
+  .note { background:#eff6ff; border-left:4px solid #3b82f6; padding:10px 16px; margin:16px 0; font-size:13px; border-radius:0 6px 6px 0; }
+  .warn { background:#fffbeb; border-left:4px solid #f59e0b; padding:10px 16px; margin:16px 0; font-size:13px; border-radius:0 6px 6px 0; }
+  .flow-box { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:14px 18px; margin:10px 0; font-size:13px; }
+  .flow-box strong { color:#166534; }
+  .page-card { border:1px solid #e2e8f0; border-radius:10px; padding:16px 20px; margin:14px 0; }
+  .page-card h4 { margin:0 0 6px 0; font-size:15px; color:#1e40af; }
+  .arrow { color:#94a3b8; margin:0 6px; }
+  .toc { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px 24px; margin:20px 0; }
+  .toc a { color:#2563eb; text-decoration:none; }
+  .toc a:hover { text-decoration:underline; }
+  .toc li { margin:4px 0; font-size:14px; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:3px; font-size:12px; }
+</style>
+</head>
+<body>
+
+<h1>🤖 AI Agent 评测平台 v3.3<br>MySQL 数据库 · API 接口 · 前沿特性 · 前端数据流 全解</h1>
+
+<p style="color:#64748b;font-size:14px;">撰写日期：2026-07-09 · 版本 v3.0（新增 Token追踪·速率限制·统计检验·Redis缓存·Prometheus指标）</p>
+
+<!-- ====== TOC ====== -->
+<div class="toc">
+<strong>📑 目录</strong>
+<ol>
+  <li><a href="#s1">系统架构总览</a></li>
+  <li><a href="#s2">Adminer — 数据库可视化工具</a></li>
+  <li><a href="#s2b">后端 API 接口完整参考（7 模块 · 29 端点）</a>
+    <ul>
+      <li><a href="#api_all">3.1 接口全景图</a></li>
+      <li><a href="#api_dashboard">3.2 Dashboard — 首页数据</a></li>
+      <li><a href="#api_qa">3.3 QA — QA 管理</a></li>
+      <li><a href="#api_tests">3.4 Tests — 测试运行</a></li>
+      <li><a href="#api_reports">3.5 Reports — 报告查看</a></li>
+      <li><a href="#api_webeval">3.6 Web Eval — 网页评测</a></li>
+      <li><a href="#api_kb">3.7 KB — 知识库</a></li>
+      <li><a href="#api_agents">3.8 Agents + WebSocket + Health</a></li>
+    </ul>
+  </li>
+  <li><a href="#s3">11 张 MySQL 表完整详解</a>
+    <ul>
+      <li><a href="#t1">4.1 qa_pairs — QA 黄金问答对</a></li>
+      <li><a href="#t2">4.2 test_sessions — 测试会话</a></li>
+      <li><a href="#t3">4.3 test_scenarios — 测试场景</a></li>
+      <li><a href="#t4">4.4 conversation_turns — 对话轮次</a></li>
+      <li><a href="#t5">4.5 eval_scores — 评测分数</a></li>
+      <li><a href="#t6">4.6 eval_traces — 评测过程追踪</a></li>
+      <li><a href="#t7">4.7 judge_decisions — Judge 独立评分</a></li>
+      <li><a href="#t8">4.8 kb_retrieval_logs — 知识库检索日志</a></li>
+      <li><a href="#t9">4.9 reports — 评测报告</a></li>
+      <li><a href="#t10">4.10 web_eval_results — 网页评测结果</a></li>
+      <li><a href="#t11">4.11 knowledge_bases & kb_documents — 知识库元数据</a></li>
+      <li><a href="#t12">4.12 alembic_version — 数据库迁移版本</a></li>
+    </ul>
+  </li>
+  <li><a href="#s4">前端 6 页面 → MySQL 数据流全景</a></li>
+  <li><a href="#s5">数据产生链路总结</a></li>
+  <li><a href="#s6">前沿后端特性（v3.3 新增）</a>
+    <ul>
+      <li><a href="#feat1">7.1 Token 成本追踪</a></li>
+      <li><a href="#feat2">7.2 API 速率限制</a></li>
+      <li><a href="#feat3">7.3 统计显著性检验</a></li>
+      <li><a href="#feat4">7.4 Redis 缓存层</a></li>
+      <li><a href="#feat5">7.5 Prometheus 指标导出</a></li>
+      <li><a href="#feat6">7.6 架构全景图 (v3.3)</a></li>
+    </ul>
+  </li>
+</ol>
+</div>
+
+<!-- ====== SECTION 1 ====== -->
+<h2 id="s1">1. 系统架构总览</h2>
+
+<p>本平台由三个核心组件构成：</p>
+
+<table>
+<tr><th>组件</th><th>技术</th><th>位置</th><th>职责</th></tr>
+<tr><td><strong>前端 SPA</strong></td><td>原生 HTML/JS + Chart.js</td><td><code>frontend/</code></td><td>6个页面：首页、QA管理、测试运行、报告、网页评测、知识库</td></tr>
+<tr><td><strong>后端 API</strong></td><td>FastAPI + SQLAlchemy</td><td><code>backend/</code></td><td>处理前端请求、调度评测、读写数据库</td></tr>
+<tr><td><strong>中间件层</strong> 🆕</td><td>CORS · 速率限制 · 指标采集 · 异常处理</td><td><code>backend/middleware/</code></td><td>请求防护、性能监控、跨域支持</td></tr>
+<tr><td><strong>缓存层</strong> 🆕</td><td>Redis (优先) → 内存 LRU (回退)</td><td><code>backend/services/cache_service.py</code></td><td>评估结果缓存、Dashboard 数据缓存</td></tr>
+<tr><td><strong>MySQL 数据库</strong></td><td>MySQL RDS (火山引擎)</td><td><code>mysql877b303b0151.rds.ivolces.com:3306</code></td><td>持久化所有评测数据，11 张业务表 + Token成本追踪</td></tr>
+</table>
+
+<div class="note">
+<strong>数据流向 (v3.3)</strong>：<br>
+  用户操作前端 → 前端发请求 → <strong>[速率限制]</strong> → <strong>[指标采集]</strong> → FastAPI 处理 → <strong>[缓存查询]</strong> → 缓存命中则直接返回，未命中则读 MySQL → <strong>[Token追踪]</strong> 写入<br>
+<strong>监控端点</strong>：<code>GET /metrics</code> 输出 Prometheus 格式指标（请求计数、延迟直方图、活跃评测数、DB状态）<br>
+<strong>实时推送</strong>：评测过程中，后端通过 WebSocket (<code>/ws</code>) 向前端实时推送每一步事件，前端无需轮询。
+</div>
+
+<!-- ====== SECTION 2 ====== -->
+<h2 id="s2">2. Adminer — 数据库可视化工具</h2>
+
+<h3>2.1 这是什么？</h3>
+
+<p>你提到的地址：</p>
+<p style="font-size:15px;background:#f1f5f9;padding:10px 16px;border-radius:6px;">
+  <code>http://124.174.108.70:8080/?server=mysql877b303b0151.rds.ivolces.com&username=agent_eval&db=agent_eval</code>
+</p>
+
+<p>这是一个 <strong>Adminer</strong>（轻量级数据库管理工具，类似 phpMyAdmin），部署在你的实训平台服务器上。它的作用是：</p>
+<ul>
+  <li><strong>可视化浏览</strong> MySQL 中的所有表和行数据，替代命令行 <code>mysql&gt;</code></li>
+  <li><strong>直接查询</strong> 任意 SQL 语句</li>
+  <li><strong>快速验证</strong> 数据是否正常入库（比如你之前验证的 persona_smoke 会话）</li>
+</ul>
+
+<h3>2.2 URL 参数含义</h3>
+
+<table>
+<tr><th>参数</th><th>值</th><th>含义</th></tr>
+<tr><td><code>server</code></td><td><code>mysql877b303b0151.rds.ivolces.com</code></td><td>MySQL 服务器地址（火山引擎 RDS）</td></tr>
+<tr><td><code>username</code></td><td><code>agent_eval</code></td><td>登录数据库的用户名</td></tr>
+<tr><td><code>db</code></td><td><code>agent_eval</code></td><td>默认选中的数据库名</td></tr>
+<tr><td><code>table</code></td><td><code>alembic_version</code></td><td>打开后默认显示的表（这是 Alembic 迁移版本记录表，只有 1 行 1 列，记录了当前数据库 schema 的版本号）</td></tr>
+</table>
+
+<h3>2.3 与前端的关系</h3>
+
+<div class="flow-box">
+  <strong>Adminer 是「只读查看器」</strong>，不参与任何数据写入。它与前端的关系是：<br><br>
+  👤 用户操作前端页面 → 📡 后端 FastAPI 处理 → 💾 写入 MySQL<br>
+  👤 用户打开 Adminer → 🔍 查看 MySQL 中刚才写入的数据<br><br>
+  <strong>Adminer 读到的每一行数据，都来自前端的某次操作。</strong>它让你能"看见"数据库里到底存了什么。
+</div>
+
+<!-- ====== SECTION 2b: API 接口 ====== -->
+<h2 id="s2b">3. 后端 API 接口完整参考</h2>
+
+<p>所有接口统一挂载在 <code>/api</code> 前缀下，WebSocket 和 Health Check 在根路径。共 <strong>7 个路由模块、29 个端点</strong>。</p>
+
+<!-- ---- API 全景图 ---- -->
+<h3 id="api_all">3.1 接口全景图</h3>
+
+<table>
+<tr><th>路由前缀</th><th>模块</th><th>端点</th><th>方法</th><th>说明</th><th>对应前端页面</th></tr>
+<tr><td rowspan="4"><code>/api/dashboard</code></td><td rowspan="4">dashboard</td><td><code>/summary</code></td><td>GET</td><td>首页摘要统计</td><td>首页</td></tr>
+<tr><td><code>/trend</code></td><td>GET</td><td>得分趋势数据</td><td>首页（趋势图）</td></tr>
+<tr><td><code>/distribution</code></td><td>GET</td><td>维度分布（雷达图）</td><td>首页（雷达图）</td></tr>
+<tr><td><code>/sessions</code></td><td>GET</td><td>测试会话列表（分页）</td><td>首页（最近报告）</td></tr>
+<tr><td rowspan="10"><code>/api/qa</code></td><td rowspan="10">qa</td><td><code>/</code></td><td>GET</td><td>QA 列表（多条件筛选+分页+搜索+排序）</td><td>QA 管理</td></tr>
+<tr><td><code>/stats</code></td><td>GET</td><td>QA 统计（待审/通过/拒绝/各阶段）</td><td>QA 管理</td></tr>
+<tr><td><code>/{qa_id}</code></td><td>GET</td><td>获取单个 QA 详情</td><td>QA 管理</td></tr>
+<tr><td><code>/{qa_id}</code></td><td>PUT</td><td>编辑 QA 问题/答案</td><td>QA 管理</td></tr>
+<tr><td><code>/{qa_id}</code></td><td>DELETE</td><td>删除单个 QA</td><td>QA 管理</td></tr>
+<tr><td><code>/{qa_id}/approve</code></td><td>POST</td><td>通过审核（status→approved）</td><td>QA 管理</td></tr>
+<tr><td><code>/{qa_id}/reject</code></td><td>POST</td><td>拒绝审核（status→rejected）</td><td>QA 管理</td></tr>
+<tr><td><code>/batch/approve</code></td><td>POST</td><td>批量通过审核</td><td>QA 管理</td></tr>
+<tr><td><code>/batch/delete</code></td><td>POST</td><td>批量删除 QA</td><td>QA 管理</td></tr>
+<tr><td><code>/generate</code></td><td>POST</td><td>从 Excel 批量生成 QA（调用 LLM）</td><td>QA 管理</td></tr>
+<tr><td rowspan="5"><code>/api/tests</code></td><td rowspan="5">tests</td><td><code>/run</code></td><td>POST</td><td>启动一次评测任务（后台线程）</td><td>首页 / 测试运行</td></tr>
+<tr><td><code>/status</code></td><td>GET</td><td>查询当前评测是否在运行</td><td>首页 / 测试运行</td></tr>
+<tr><td><code>/sessions</code></td><td>GET</td><td>历史测试会话列表（分页）</td><td>测试运行</td></tr>
+<tr><td><code>/sessions/{session_id}</code></td><td>GET</td><td>获取单次会话详情（含场景+对话+评分）</td><td>（详情查看）</td></tr>
+<tr><td><code>/sessions/{session_id}</code></td><td>DELETE</td><td>删除测试会话（级联删除所有子数据）</td><td>测试运行</td></tr>
+<tr><td rowspan="5"><code>/api/reports</code></td><td rowspan="5">reports</td><td><code>/</code></td><td>GET</td><td>报告列表（分页）</td><td>报告</td></tr>
+<tr><td><code>/{report_id}</code></td><td>GET</td><td>报告详情（summary_json 含 8 维分数）</td><td>报告（详情）</td></tr>
+<tr><td><code>/{report_id}</code></td><td>DELETE</td><td>删除报告（级联删除关联数据）</td><td>报告</td></tr>
+<tr><td><code>/{report_id}/export</code></td><td>GET</td><td>导出报告（format=json|csv）</td><td>报告（导出）</td></tr>
+<tr><td><code>/compare</code></td><td>GET</td><td>对比 2-5 个报告（维度差异分析）</td><td>报告（对比）</td></tr>
+<tr><td rowspan="4"><code>/api/web-eval</code></td><td rowspan="4">web_eval</td><td><code>/run</code></td><td>POST</td><td>执行网页评测（Playwright 自动化）</td><td>网页评测</td></tr>
+<tr><td><code>/results</code></td><td>GET</td><td>网页评测结果列表（分页）</td><td>网页评测</td></tr>
+<tr><td><code>/results/{result_id}</code></td><td>GET</td><td>获取单次网页评测详情</td><td>网页评测（详情）</td></tr>
+<tr><td><code>/results/{result_id}</code></td><td>DELETE</td><td>删除网页评测结果</td><td>网页评测</td></tr>
+<tr><td rowspan="5"><code>/api/kb</code></td><td rowspan="5">kb</td><td><code>/status</code></td><td>GET</td><td>知识库连接状态</td><td>知识库</td></tr>
+<tr><td><code>/bases</code></td><td>GET</td><td>已同步的知识库列表</td><td>知识库</td></tr>
+<tr><td><code>/bases/sync</code></td><td>POST</td><td>从火山引擎同步知识库</td><td>知识库</td></tr>
+<tr><td><code>/bases/{base_id}/documents</code></td><td>GET</td><td>获取知识库下文档列表</td><td>知识库</td></tr>
+<tr><td><code>/search</code></td><td>GET</td><td>跨 4 个 Phase KB 搜索课程内容</td><td>知识库</td></tr>
+<tr><td><code>/api/agents</code></td><td>agents</td><td><code>/</code></td><td>GET</td><td>列出所有已注册的 Agent</td><td>首页（选择Agent）</td></tr>
+</table>
+
+<table>
+<tr><th>路径</th><th>协议</th><th>说明</th></tr>
+<tr><td><code>/ws</code></td><td>WebSocket</td><td>实时推送评测事件（test_start → scenario_start → response → score_done → done → error），前端无需轮询</td></tr>
+<tr><td><code>/health</code></td><td>GET</td><td>健康检查，返回 <code>{"status":"ok","version":"3.2.0"}</code>，Docker Compose 每 30 秒检查一次</td></tr>
+<tr><td><code>/reports/</code></td><td>Static</td><td>静态文件挂载，直接访问 persona_tester 生成的可视化 HTML/JSON/MD 报告</td></tr>
+<tr><td><code>/{full_path}</code></td><td>Fallback</td><td>SPA 回退路由：所有非 API 请求返回 frontend/index.html</td></tr>
+</table>
+
+<!-- ---- 详细接口说明 ---- -->
+<h3 id="api_dashboard">3.2 Dashboard 模块 <code>/api/dashboard</code></h3>
+
+<table>
+<tr><th>端点</th><th>参数</th><th>返回内容</th><th>影响的 MySQL 表</th></tr>
+<tr>
+  <td><code>GET /summary</code></td>
+  <td>无</td>
+  <td><code>{ total_tests, avg_overall, qa_approved, qa_pending, latest, trend }</code><br>
+  total_tests=reports 表行数 · avg_overall=所有报告 overall 均值 ·<br>
+  qa_approved=qa_pairs 中 status=approved 数量 · latest=最新报告的 summary_json · trend=最近 10 条 (timestamp, score)</td>
+  <td>reports, qa_pairs</td>
+</tr>
+<tr>
+  <td><code>GET /trend</code></td>
+  <td>无</td>
+  <td><code>{ trend: [{ts, score}, ...] }</code> — 前端画趋势折线图</td>
+  <td>reports</td>
+</tr>
+<tr>
+  <td><code>GET /distribution</code></td>
+  <td>无</td>
+  <td>8 维度平均分：correctness, relevancy, completeness, guidance, followup_quality, boundary_compliance, turn_consistency, knowledge_scaffolding — 前端画雷达图</td>
+  <td>eval_scores, reports</td>
+</tr>
+<tr>
+  <td><code>GET /sessions</code></td>
+  <td><code>page</code> (默认1), <code>page_size</code> (默认20)</td>
+  <td><code>{ items: [{id, session_id, agent_id, profile, status, total_scenarios, created_at}], total, page, total_pages }</code></td>
+  <td>test_sessions</td>
+</tr>
+</table>
+
+<h3 id="api_qa">3.3 QA 模块 <code>/api/qa</code></h3>
+
+<table>
+<tr><th>端点</th><th>参数</th><th>返回内容 / 行为</th><th>影响的 MySQL 表</th></tr>
+<tr>
+  <td><code>GET /</code></td>
+  <td><code>status</code>(all/pending/approved/rejected) · <code>phase</code>(all/PHASE 01~05) · <code>type</code>(all/概念解释/操作步骤/对比分析/应用场景) · <code>difficulty</code> · <code>search</code>(全文搜索) · <code>page</code> · <code>page_size</code> · <code>sort_by</code> · <code>sort_order</code></td>
+  <td><code>{ items: [每个QA完整字段], total, page, total_pages }</code></td>
+  <td>qa_pairs (只读)</td>
+</tr>
+<tr>
+  <td><code>GET /stats</code></td>
+  <td>无</td>
+  <td><code>{ pending: N, approved: N, rejected: N, total: N, by_phase: {PHASE 01:N,...} }</code></td>
+  <td>qa_pairs (只读)</td>
+</tr>
+<tr>
+  <td><code>GET /{qa_id}</code></td>
+  <td>qa_id (路径参数)</td>
+  <td>单条 QA 的全部字段 (question, golden_answer, knowledge_points, source, status...)</td>
+  <td>qa_pairs (只读)</td>
+</tr>
+<tr>
+  <td><code>PUT /{qa_id}</code></td>
+  <td>Body: <code>{ question?, golden_answer?, knowledge_points?, difficulty? }</code></td>
+  <td>更新指定字段，status 重置为 pending</td>
+  <td>qa_pairs (UPDATE)</td>
+</tr>
+<tr>
+  <td><code>DELETE /{qa_id}</code></td>
+  <td>qa_id</td>
+  <td>删除该条 QA</td>
+  <td>qa_pairs (DELETE)</td>
+</tr>
+<tr>
+  <td><code>POST /{qa_id}/approve</code></td>
+  <td>无 Body</td>
+  <td>status → approved, reviewer_notes → "人工审核通过", approved_at → 当前时间</td>
+  <td>qa_pairs (UPDATE)</td>
+</tr>
+<tr>
+  <td><code>POST /{qa_id}/reject</code></td>
+  <td>Body: <code>{ reason: "拒绝原因" }</code></td>
+  <td>status → rejected, reviewer_notes → reason</td>
+  <td>qa_pairs (UPDATE)</td>
+</tr>
+<tr>
+  <td><code>POST /batch/approve</code></td>
+  <td>Body: <code>{ qa_ids: ["id1","id2",...] }</code></td>
+  <td>批量 status → approved</td>
+  <td>qa_pairs (BATCH UPDATE)</td>
+</tr>
+<tr>
+  <td><code>POST /batch/delete</code></td>
+  <td>Body: <code>{ qa_ids: ["id1","id2",...] }</code></td>
+  <td>批量删除</td>
+  <td>qa_pairs (BATCH DELETE)</td>
+</tr>
+<tr>
+  <td><code>POST /generate</code></td>
+  <td>无（需 OPENAI_API_KEY）</td>
+  <td>调用 LLM 从 Excel 生成 QA，批量写入 qa_pairs 表（status=pending）。<br>返回 <code>{ ok: true, total: N }</code></td>
+  <td>qa_pairs (BATCH INSERT)</td>
+</tr>
+</table>
+
+<h3 id="api_tests">3.4 Tests 模块 <code>/api/tests</code></h3>
+
+<table>
+<tr><th>端点</th><th>参数</th><th>返回内容 / 行为</th><th>影响的 MySQL 表</th></tr>
+<tr>
+  <td><code>POST /run</code></td>
+  <td>Body: <code>{ agent_id: "platform"|"web_test", num_questions: 1~10, profile: "basic"|"standard"|"comprehensive" }</code></td>
+  <td><strong>核心操作</strong>：在后台线程启动 TestRunner，依次写入 8 张表。<br>返回 <code>{ status: "started", session_id, agent_id, num_questions }</code><br>全程通过 WebSocket 推送进度事件</td>
+  <td>test_sessions, test_scenarios, conversation_turns, eval_scores, eval_traces, judge_decisions, kb_retrieval_logs, reports</td>
+</tr>
+<tr>
+  <td><code>GET /status</code></td>
+  <td>无</td>
+  <td><code>{ running: bool, session_id: "当前session_id或null" }</code></td>
+  <td>（只读，内存状态）</td>
+</tr>
+<tr>
+  <td><code>GET /sessions</code></td>
+  <td><code>page</code>, <code>page_size</code></td>
+  <td><code>{ items: [{id, session_id, agent_id, profile, status, total_scenarios, started_at, finished_at, created_at}], total, page, total_pages }</code><br>按 created_at 倒序</td>
+  <td>test_sessions (只读)</td>
+</tr>
+<tr>
+  <td><code>GET /sessions/{session_id}</code></td>
+  <td>session_id</td>
+  <td>完整会话详情：含 scenarios 列表 → 每个 scenario 含 turns（对话轮次）+ score（8维分数+边界状态+flags+n_judges)</td>
+  <td>test_sessions, test_scenarios, conversation_turns, eval_scores</td>
+</tr>
+<tr>
+  <td><code>DELETE /sessions/{session_id}</code></td>
+  <td>session_id</td>
+  <td>删除整个测试会话。⚠️ 级联删除：sessions → scenarios → turns + scores + eval_traces → judge_decisions + kb_retrieval_logs + reports</td>
+  <td>级联 DELETE 7 张表</td>
+</tr>
+</table>
+
+<h3 id="api_reports">3.5 Reports 模块 <code>/api/reports</code></h3>
+
+<table>
+<tr><th>端点</th><th>参数</th><th>返回内容 / 行为</th><th>影响的 MySQL 表</th></tr>
+<tr>
+  <td><code>GET /</code></td>
+  <td><code>page</code>, <code>page_size</code></td>
+  <td><code>{ items: [{id, session_id, timestamp, overall, total, agent_id, status}], total, page, total_pages }</code></td>
+  <td>reports (只读)</td>
+</tr>
+<tr>
+  <td><code>GET /{report_id}</code></td>
+  <td>report_id</td>
+  <td><code>{ id, session_id, timestamp, summary_json: { avg_scores: {8维度}, boundary: {in_scope,partial_match,out_of_scope,error}, total, agent_id } }</code></td>
+  <td>reports (只读)</td>
+</tr>
+<tr>
+  <td><code>DELETE /{report_id}</code></td>
+  <td>report_id</td>
+  <td>删除报告。⚠️ 级联删除关联的 test_session 及其所有子数据</td>
+  <td>reports + 级联 (DELETE)</td>
+</tr>
+<tr>
+  <td><code>GET /{report_id}/export</code></td>
+  <td><code>format</code>=json|csv</td>
+  <td>json=返回完整 report JSON · csv=返回 "dimension,score" 格式的 CSV 文本</td>
+  <td>reports (只读)</td>
+</tr>
+<tr>
+  <td><code>GET /compare</code></td>
+  <td><code>ids</code>=逗号分隔的 report_id (2~5个)</td>
+  <td><code>{ reports: [{timestamp, scores:{8维度}, overall}], deltas: [{dimension, max_delta, values}] }</code><br>deltas 显示每个维度在不同报告间的最大分差</td>
+  <td>reports (只读)</td>
+</tr>
+</table>
+
+<h3 id="api_webeval">3.6 Web Eval 模块 <code>/api/web-eval</code></h3>
+
+<table>
+<tr><th>端点</th><th>参数</th><th>返回内容 / 行为</th><th>影响的 MySQL 表</th></tr>
+<tr>
+  <td><code>POST /run</code></td>
+  <td>Body: <code>{ url: "http://..." }</code></td>
+  <td>用 Playwright 打开目标网页，采集 performance(LCP/TTFB/CLS)、accessibility(ARIA违规)、best_practices(HTTPS/XSS)、AI功能、UI/UX、内容等维度<br>返回 <code>{ ok: true, result_id, overall_score }</code></td>
+  <td>web_eval_results (INSERT)</td>
+</tr>
+<tr>
+  <td><code>GET /results</code></td>
+  <td><code>page</code>, <code>page_size</code></td>
+  <td><code>{ items: [{id, url, overall_score, performance, accessibility, best_practices, ai_function, ui_ux, content, created_at}], total, page, total_pages }</code></td>
+  <td>web_eval_results (只读)</td>
+</tr>
+<tr>
+  <td><code>GET /results/{result_id}</code></td>
+  <td>result_id</td>
+  <td>单次网页评测完整详情（7 个维度 + 原始数据）</td>
+  <td>web_eval_results (只读)</td>
+</tr>
+<tr>
+  <td><code>DELETE /results/{result_id}</code></td>
+  <td>result_id</td>
+  <td>删除网页评测结果</td>
+  <td>web_eval_results (DELETE)</td>
+</tr>
+</table>
+
+<h3 id="api_kb">3.7 KB 模块 <code>/api/kb</code></h3>
+
+<table>
+<tr><th>端点</th><th>参数</th><th>返回内容 / 行为</th><th>影响的 MySQL 表</th></tr>
+<tr>
+  <td><code>GET /status</code></td>
+  <td>无</td>
+  <td><code>{ configured: bool, kb_domain, provider, total_phases, configured_phases: [...] }</code><br>判断火山引擎 API Key 是否已配置 + 哪些 Phase KB 已连接</td>
+  <td>（只读，检查环境变量）</td>
+</tr>
+<tr>
+  <td><code>GET /bases</code></td>
+  <td>无</td>
+  <td><code>{ items: [{resource_id, collection, configured, status}] }</code> — 列出 5 个 Phase KB 及其连接状态</td>
+  <td>knowledge_bases (只读)</td>
+</tr>
+<tr>
+  <td><code>POST /bases/sync</code></td>
+  <td>无</td>
+  <td>从火山引擎 API 拉取所有 KB 的元数据（名称、文档数）→ 写入 knowledge_bases + kb_documents<br>返回 <code>{ ok: true, synced: N }</code></td>
+  <td>knowledge_bases (INSERT/UPDATE) + kb_documents (INSERT/UPDATE)</td>
+</tr>
+<tr>
+  <td><code>GET /bases/{base_id}/documents</code></td>
+  <td>base_id</td>
+  <td><code>{ items: [{id, name, status, chunk_count, tokens}] }</code> — 该 KB 下的文档列表</td>
+  <td>kb_documents (只读)</td>
+</tr>
+<tr>
+  <td><code>GET /search</code></td>
+  <td><code>q</code> (搜索关键词，必填)</td>
+  <td>通过火山引擎 API 跨 4 个 Phase KB 搜索课程内容<br>返回 <code>{ ok: true, total, results: [{phase_name, content, score, source, phase}], errors: [...] }</code></td>
+  <td>（只读，直接查火山引擎 API，不查 MySQL）</td>
+</tr>
+</table>
+
+<h3 id="api_agents">3.8 Agents + WebSocket + Health</h3>
+
+<table>
+<tr><th>端点</th><th>协议</th><th>参数</th><th>返回内容 / 行为</th></tr>
+<tr>
+  <td><code>GET /api/agents</code></td>
+  <td>HTTP</td>
+  <td>无</td>
+  <td><code>[{ id: "platform", name: "HiAgent API测试", type: "api", phases: [...] }, ...]</code><br>列出所有注册的 Agent 类型：platform (HiAgent API)、web_test (Playwright)、mock (模拟)</td>
+</tr>
+<tr>
+  <td><code>WS /ws</code></td>
+  <td>WebSocket</td>
+  <td>无（自动连接）</td>
+  <td>推送事件类型：<br>
+    · <code>test_start</code> — {agent, total} → 评测启动<br>
+    · <code>scenario_start</code> — {index, total, qa_id} → 场景开始<br>
+    · <code>response</code> — {turn, status, duration, text} → Agent 回复<br>
+    · <code>score_done</code> — {overall, correctness, relevancy, ...(8维)} → 评分完成<br>
+    · <code>done</code> — 评测全部完成<br>
+    · <code>error</code> — {message} → 异常<br>
+    前端自动重连（指数退避，最多 5 次，最大 30s 间隔）
+  </td>
+</tr>
+<tr>
+  <td><code>GET /health</code></td>
+  <td>HTTP</td>
+  <td>无</td>
+  <td><code>{"status":"ok","version":"3.2.0"}</code><br>Docker 健康检查每 30s 一次（curl），连续 3 次失败则重启容器</td>
+</tr>
+</table>
+
+<div class="warn">
+<strong>WebSocket 事件与数据库时序</strong>：WebSocket 推送的事件和 MySQL 写入是同步的——每个事件推送时，对应的数据库写入已经完成。<br>
+例如：收到 <code>score_done</code> 事件时，eval_scores 表已经写入完毕，可以立即在 Adminer 中查询到。
+</div>
+
+<!-- ====== SECTION 3 ====== -->
+<h2 id="s3">4. 11 张 MySQL 表完整详解</h2>
+
+<p>以下按数据产生的逻辑顺序，逐一说明每张表的<strong>用途、每一列的含义、以及数据是谁/什么时候写入的</strong>。</p>
+
+<!-- --- Table 1 --- -->
+<h3 id="t1">3.1 qa_pairs — QA 黄金问答对</h3>
+<p><strong>用途</strong>：存储评测用的"标准问题 + 标准答案"。评测时从这张表随机抽取问题去问 Agent，再用 Agent 的回答和 golden_answer 对比打分。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr>
+  <td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td>
+  <td>内部主键，UUID v4</td><td>系统自动生成</td>
+</tr>
+<tr>
+  <td><code>qa_id</code></td><td>VARCHAR(64)</td><td><span class="tag tag-idx">UNIQUE</span></td>
+  <td>业务标识，如 <code>PHASE01_001</code></td><td>QA 生成器按规则生成</td>
+</tr>
+<tr>
+  <td><code>phase</code></td><td>VARCHAR(16)</td><td><span class="tag tag-idx">INDEX</span></td>
+  <td>所属课程阶段：PHASE 01 ~ PHASE 05</td><td>Excel 源文件决定</td>
+</tr>
+<tr>
+  <td><code>type</code></td><td>VARCHAR(32)</td><td><span class="tag tag-idx">INDEX</span></td>
+  <td>题型：概念解释 / 操作步骤 / 对比分析 / 应用场景</td><td>Excel 源文件决定</td>
+</tr>
+<tr>
+  <td><code>difficulty</code></td><td>VARCHAR(16)</td><td></td>
+  <td>难度：简单 / 中等 / 困难，默认"中等"</td><td>Excel 或人工设定</td>
+</tr>
+<tr>
+  <td><code>question</code></td><td>TEXT</td><td></td>
+  <td>问题全文，发给 Agent 的问题</td><td>Excel 或 LLM 生成</td>
+</tr>
+<tr>
+  <td><code>golden_answer</code></td><td>TEXT</td><td></td>
+  <td>标准答案全文，Judge 评分的参照基准</td><td>Excel 或 LLM 生成</td>
+</tr>
+<tr>
+  <td><code>knowledge_points</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td>
+  <td>知识点列表，如 <code>["ADC分辨率","ESP32-S3"]</code></td><td>Excel 或 LLM 提取</td>
+</tr>
+<tr>
+  <td><code>goal</code></td><td>TEXT</td><td></td>
+  <td>教学目标（G1~G4），对应 config/goals.yaml</td><td>Excel 源文件</td>
+</tr>
+<tr>
+  <td><code>knowledge_based</code></td><td>BOOLEAN</td><td></td>
+  <td>是否为知识库依赖型问题（TRUE=需要查KB才能回答）</td><td>生成时自动判定</td>
+</tr>
+<tr>
+  <td><code>adversarial_type</code></td><td>VARCHAR(32)</td><td></td>
+  <td>对抗性类型：越狱 / 角色扮演 / 敏感话题 / NULL（非对抗）</td><td>对抗性问题生成器</td>
+</tr>
+<tr>
+  <td><code>source_document</code></td><td>VARCHAR(256)</td><td></td>
+  <td>来源 Excel 文件名</td><td>Excel 文件名</td>
+</tr>
+<tr>
+  <td><code>source_sheet</code></td><td>VARCHAR(128)</td><td></td>
+  <td>来源 Excel 工作表名</td><td>Excel 工作表名</td>
+</tr>
+<tr>
+  <td><code>source_excerpt</code></td><td>TEXT</td><td></td>
+  <td>原文摘录，便于审核时追溯</td><td>Excel 单元格原文</td>
+</tr>
+<tr>
+  <td><code>status</code></td><td>VARCHAR(16)</td><td><span class="tag tag-idx">INDEX</span></td>
+  <td>审核状态：pending → approved / rejected</td><td><strong>前端 QA 管理页操作</strong></td>
+</tr>
+<tr>
+  <td><code>reviewer_notes</code></td><td>TEXT</td><td></td>
+  <td>审核备注，如"人工审核通过"</td><td><strong>前端 QA 管理页填写</strong></td>
+</tr>
+<tr>
+  <td><code>approved_at</code></td><td>DATETIME</td><td></td>
+  <td>审核通过时间</td><td>系统自动记录</td>
+</tr>
+<tr>
+  <td><code>turns</code></td><td>TEXT</td><td></td>
+  <td>预设的多轮追问（JSON 字符串）</td><td>QA 生成器</td>
+</tr>
+<tr>
+  <td><code>created_at</code></td><td>DATETIME</td><td></td>
+  <td>创建时间</td><td>系统自动</td>
+</tr>
+<tr>
+  <td><code>updated_at</code></td><td>DATETIME</td><td></td>
+  <td>最后修改时间</td><td>系统自动</td>
+</tr>
+</table>
+
+<div class="flow-box">
+  <strong>这条数据怎么产生的？</strong><br>
+  ① 用户在前端「QA 管理」页点击 <strong>"从Excel生成QA"</strong> → 后端调用 LLM 读取 Excel 生成 QA → 写入此表（status=pending）<br>
+  ② 用户逐条审核，点击 <strong>"通过"</strong> → status 变为 approved → 此条 QA 可被测试使用<br>
+  ③ 用户点击 <strong>"拒绝"</strong> → status 变为 rejected → 不会被用于测试
+</div>
+
+<!-- --- Table 2 --- -->
+<h3 id="t2">3.2 test_sessions — 测试会话</h3>
+<p><strong>用途</strong>：每次用户在前端点击"开始测评"，就创建一条记录——代表一次完整的评测任务。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>session_id</code></td><td>VARCHAR(64)</td><td><span class="tag tag-idx">UNIQUE</span></td><td>业务标识，如 <code>persona_smoke_20260709_...</code></td><td>系统自动生成</td></tr>
+<tr><td><code>agent_id</code></td><td>VARCHAR(64)</td><td></td><td>被评测的 Agent：platform（HiAgent）/ web_test</td><td><strong>前端首页下拉框选择</strong></td></tr>
+<tr><td><code>profile</code></td><td>VARCHAR(32)</td><td></td><td>评测策略：basic / standard / comprehensive</td><td><strong>前端测试运行页选择</strong></td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(16)</td><td><span class="tag tag-idx">INDEX</span></td><td>会话状态：pending → running → success / error</td><td>系统自动更新</td></tr>
+<tr><td><code>config_snapshot</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>测试配置快照（含所有参数），用于复现</td><td>配置文件 + 前端参数</td></tr>
+<tr><td><code>total_scenarios</code></td><td>INT</td><td></td><td>测试场景总数（= 问题数量）</td><td><strong>前端输入的问题数量</strong></td></tr>
+<tr><td><code>started_at</code></td><td>DATETIME</td><td></td><td>测试开始时间</td><td>系统自动</td></tr>
+<tr><td><code>finished_at</code></td><td>DATETIME</td><td></td><td>测试结束时间</td><td>系统自动</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td></td><td>记录创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<div class="flow-box">
+  <strong>这条数据怎么产生的？</strong><br>
+  用户在前端 <strong>首页</strong> 或 <strong>测试运行</strong> 页，选择 Agent、输入问题数量、点击 <strong>"开始测评"</strong> → 后端创建此记录。
+</div>
+
+<!-- --- Table 3 --- -->
+<h3 id="t3">3.3 test_scenarios — 测试场景</h3>
+<p><strong>用途</strong>：一次测试会话中有 N 个问题，每个问题对应一条场景记录。是 test_sessions 的子表。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>session_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span><span class="tag tag-idx">IDX</span></td><td>所属测试会话 → <code>test_sessions.id</code></td><td>系统关联</td></tr>
+<tr><td><code>scenario_index</code></td><td>INT</td><td></td><td>场景序号（1, 2, 3...），第几个问题</td><td>系统按顺序</td></tr>
+<tr><td><code>qa_pair_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span></td><td>使用的 QA 对 → <code>qa_pairs.id</code></td><td>从 qa_pairs 随机抽取</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(16)</td><td></td><td>场景状态：pending → running → success / error</td><td>系统自动</td></tr>
+<tr><td><code>error</code></td><td>TEXT</td><td></td><td>如果出错，记录错误信息</td><td>系统自动</td></tr>
+<tr><td><code>full_conversation</code></td><td>TEXT</td><td></td><td>完整对话文本（人工可读）</td><td>系统拼接所有轮次</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td></td><td>创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<div class="flow-box">
+  <strong>数据流</strong>：TestRunner 从 qa_pairs 表中随机抽取 N 条已审核(approved)的 QA → 对每条 QA 创建一个 test_scenario → 每场景下发起多轮对话。
+</div>
+
+<!-- --- Table 4 --- -->
+<h3 id="t4">3.4 conversation_turns — 对话轮次</h3>
+<p><strong>用途</strong>：一个场景中有多轮对话（提问→Agent回答→追问→再回答...），每一轮存一条。是 test_scenarios 的子表。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>scenario_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span><span class="tag tag-idx">IDX</span></td><td>所属场景 → <code>test_scenarios.id</code></td><td>系统关联</td></tr>
+<tr><td><code>turn</code></td><td>INT</td><td></td><td>轮次序号（第1轮、第2轮...）</td><td>系统计数</td></tr>
+<tr><td><code>question</code></td><td>TEXT</td><td></td><td>这一轮发给 Agent 的问题（首轮是原始问题，后续是追问）</td><td>首轮来自 qa_pairs；追问由 LLM 生成</td></tr>
+<tr><td><code>response_status</code></td><td>VARCHAR(16)</td><td></td><td>Agent 回复状态：success / timeout / error</td><td>系统根据实际响应判断</td></tr>
+<tr><td><code>response_text</code></td><td>TEXT</td><td></td><td>Agent 的完整回复文本</td><td><strong>来自 HiAgent/被测 Agent 的实际回复</strong></td></tr>
+<tr><td><code>response_duration</code></td><td>FLOAT</td><td></td><td>Agent 回复耗时（秒）</td><td>系统计时</td></tr>
+<tr><td><code>is_followup</code></td><td>BOOLEAN</td><td></td><td>是否为追问轮次（首轮=FALSE，后续=TRUE）</td><td>系统标记</td></tr>
+<tr><td><code>turn_index</code></td><td>INT</td><td></td><td>轮次索引（0-based，与 turn 可能不同）</td><td>系统计数</td></tr>
+<tr><td><code>latency_ms</code></td><td>INT</td><td></td><td>精确延迟（毫秒），审计追踪用</td><td>系统计时</td></tr>
+<tr><td><code>retry_count</code></td><td>INT</td><td></td><td>此轮重试次数（Agent 无响应时自动重试）</td><td>系统记录</td></tr>
+<tr><td><code>agent_metadata</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>Agent 附加元数据（token 用量、模型名等）</td><td>Agent 返回</td></tr>
+<tr><td><code>prompt_tokens</code> 🆕</td><td>INT</td><td></td><td>LLM 调用输入 token 数（提问 + system prompt）</td><td>token_tracker 估算或 API 返回</td></tr>
+<tr><td><code>completion_tokens</code> 🆕</td><td>INT</td><td></td><td>LLM 调用输出 token 数（Agent 回复）</td><td>token_tracker 估算或 API 返回</td></tr>
+<tr><td><code>total_tokens</code> 🆕</td><td>INT</td><td></td><td>prompt_tokens + completion_tokens</td><td>自动计算</td></tr>
+<tr><td><code>cost_estimate</code> 🆕</td><td>FLOAT</td><td></td><td>估算成本 (USD)，基于 DeepSeek 定价：input $0.14/1M, output $0.28/1M</td><td>token_tracker 估算</td></tr>
+<tr><td><code>model_used</code> 🆕</td><td>VARCHAR(64)</td><td></td><td>实际调用的模型名，如 deepseek-chat</td><td>系统记录</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td></td><td>创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<div class="flow-box">
+  <strong>关键理解</strong>：response_text 这个字段存储的是 <strong>被测 Agent（HiAgent）的真实回复</strong>，不是平台生成的。这是评测的"原材料"——所有评分都基于这个回复。<br>
+  <strong>Token 成本追踪 (v3.3 新增)</strong>：每次 LLM 调用自动估算 token 消耗和 USD 成本，支持按会话/场景/时间维度汇总，实现评测成本可视化。
+</div>
+
+<!-- --- Table 5 --- -->
+<h3 id="t5">3.5 eval_scores — 评测分数</h3>
+<p><strong>用途</strong>：每个场景对应一条评分记录，存储 8 个维度的得分。是 test_scenarios 的子表（一对一）。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>scenario_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span> UNIQUE</td><td>所属场景 → <code>test_scenarios.id</code>（一对一）</td><td>系统关联</td></tr>
+<tr><td><code>correctness</code></td><td>FLOAT</td><td></td><td><strong>事实正确性</strong>（0~5）：回答是否准确、有无编造</td><td>30% L1规则 + 70% L3 LLM Judge</td></tr>
+<tr><td><code>relevancy</code></td><td>FLOAT</td><td></td><td><strong>答案相关性</strong>（0~5）：回答是否切题</td><td>同上</td></tr>
+<tr><td><code>completeness</code></td><td>FLOAT</td><td></td><td><strong>内容完整性</strong>（0~5）：知识点覆盖程度</td><td>同上</td></tr>
+<tr><td><code>guidance</code></td><td>FLOAT</td><td></td><td><strong>教学引导力</strong>（0~5）：是否引导思考而非直接给答案</td><td>同上</td></tr>
+<tr><td><code>followup_quality</code></td><td>FLOAT</td><td></td><td><strong>追问质量</strong>（0~5）：多轮对话中回答是否一致、不退化</td><td>同上</td></tr>
+<tr><td><code>boundary_compliance</code></td><td>FLOAT</td><td></td><td><strong>边界合规</strong>（0~5）：是否严格基于课程知识、不越界</td><td>同上 + KB 检索判定</td></tr>
+<tr><td><code>turn_consistency</code></td><td>FLOAT</td><td></td><td><strong>跨轮一致性</strong>（0~5）：多轮回答是否前后一致</td><td>同上</td></tr>
+<tr><td><code>knowledge_scaffolding</code></td><td>FLOAT</td><td></td><td><strong>知识递进</strong>（0~5）：是否层层深入、构建知识体系</td><td>同上</td></tr>
+<tr><td><code>overall</code></td><td>FLOAT</td><td></td><td><strong>综合得分</strong>（0~5）：8 维加权平均</td><td>加权公式计算</td></tr>
+<tr><td><code>boundary_status</code></td><td>VARCHAR(32)</td><td></td><td>边界判定结果：in_scope / partial_match / out_of_scope / error</td><td>边界检测器</td></tr>
+<tr><td><code>boundary_evidence</code></td><td>TEXT</td><td></td><td>边界判定依据（引用的 KB 片段）</td><td>KB 检索结果</td></tr>
+<tr><td><code>boundary_score_raw</code></td><td>FLOAT</td><td></td><td>边界检测原始分</td><td>边界检测器</td></tr>
+<tr><td><code>n_judges</code></td><td>INT</td><td></td><td>使用的 LLM Judge 数量（默认 3）</td><td>配置</td></tr>
+<tr><td><code>judge_variance</code></td><td>FLOAT</td><td></td><td>Judge 间评分方差（σ，越大越不一致）</td><td>系统计算</td></tr>
+<tr><td><code>flags</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>告警标记列表：需人工复核 / 边界越界 等</td><td>系统判定</td></tr>
+<tr><td><code>needs_human_review</code></td><td>BOOLEAN</td><td></td><td>是否需要人工复核（Judge 分歧过大时标记）</td><td>系统自动判定</td></tr>
+<tr><td><code>confidences</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>每个维度的置信度，如 <code>{"correctness":0.9,...}</code></td><td>LLM Judge 自报</td></tr>
+<tr><td><code>score_explanations</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>每个维度的评分解释（中文文本）</td><td>LLM Judge 输出</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td></td><td>创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<div class="note">
+<strong>8 维度权重</strong>（来自 config/dimension_weights.yaml）：<br>
+correctness=0.18 · guidance=0.17 · overhelping=0.14 · completeness=0.11 · boundary_compliance=0.10 · relevancy=0.09 · fairness_bias=0.06 · knowledge_scaffolding=0.06 · followup_quality=0.05 · turn_consistency=0.04
+</div>
+
+<!-- --- Table 6 --- -->
+<h3 id="t6">3.6 eval_traces — 评测过程追踪（审计表）</h3>
+<p><strong>用途</strong>：完整记录每个场景的三层评测过程（L1 规则 → L2 算法 → L3 LLM Judge），确保每一步都可追溯、可复现。是 test_scenarios 的子表（一对一）。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>scenario_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span> UNIQUE</td><td>所属场景（一对一）</td><td>系统关联</td></tr>
+<tr><td><code>session_id</code></td><td>VARCHAR(64)</td><td><span class="tag tag-idx">IDX</span></td><td>冗余字段，方便直接按 Session 查所有场景的评测过程</td><td>系统复制</td></tr>
+</table>
+
+<h4>评测阶段标记</h4>
+<table>
+<tr><td><code>eval_status</code></td><td>VARCHAR(16)</td><td></td><td>评测进度：pending → l1_done → l2_done → l3_done → completed / error</td></tr>
+<tr><td><code>eval_duration_ms</code></td><td>INT</td><td></td><td>评测总耗时（毫秒）</td></tr>
+<tr><td><code>error_message</code></td><td>TEXT</td><td></td><td>评测失败时的错误信息</td></tr>
+</table>
+
+<h4>L1 规则层（30% 权重基底 — 快速规则检查）</h4>
+<table>
+<tr><td><code>l1_structure_score</code></td><td>FLOAT</td><td></td><td>结构规则分：长度、格式、Markdown 使用等</td></tr>
+<tr><td><code>l1_structure_details</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>结构检查详情（长度/格式/语言各项得分）</td></tr>
+<tr><td><code>l1_fact_score</code></td><td>FLOAT</td><td></td><td>事实规则分：关键词命中、数字匹配、否定方向</td></tr>
+<tr><td><code>l1_fact_details</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>关键词命中列表、数字匹配详情</td></tr>
+<tr><td><code>l1_sla_score</code></td><td>FLOAT</td><td></td><td>SLA 规则分：响应延迟 P50+P95、轮次效率、成功率</td></tr>
+<tr><td><code>l1_sla_details</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>延迟百分位详情</td></tr>
+<tr><td><code>l1_safety_score</code></td><td>FLOAT</td><td></td><td>安全规则分：PII 检测、敏感话题拒绝、角色越界</td></tr>
+<tr><td><code>l1_safety_details</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>安全检测详情</td></tr>
+<tr><td><code>l1_composite_score</code></td><td>FLOAT</td><td></td><td>L1 综合分（四大规则融合）</td></tr>
+<tr><td><code>l1_skip_dims</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>L1 高分跳过的维度列表（L1 ≥ 4 分则跳过 L3 该维度，节省成本）</td></tr>
+<tr><td><code>l1_veto_dims</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>L1 一票否决的维度列表（安全违规等）</td></tr>
+<tr><td><code>l1_duration_ms</code></td><td>INT</td><td></td><td>L1 阶段耗时</td></tr>
+</table>
+
+<h4>L2 算法层（语义相似度 + KB 检索）</h4>
+<table>
+<tr><td><code>l2_embedding_score</code></td><td>FLOAT</td><td></td><td>SentenceTransformer 语义相似度（bge-m3 模型）</td></tr>
+<tr><td><code>l2_structure_coverage</code></td><td>FLOAT</td><td></td><td>结构化覆盖度</td></tr>
+<tr><td><code>l2_boundary_kb_score</code></td><td>FLOAT</td><td></td><td>KB 检索综合分（回答是否在知识库范围内）</td></tr>
+<tr><td><code>l2_boundary_kb_backend</code></td><td>VARCHAR(32)</td><td></td><td>KB 后端来源：hiagent_kb / volcano / dify / none</td></tr>
+<tr><td><code>l2_keywords_matched</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>命中的关键词列表</td></tr>
+<tr><td><code>l2_keyword_hit_rate</code></td><td>FLOAT</td><td></td><td>关键词命中率</td></tr>
+<tr><td><code>l2_duration_ms</code></td><td>INT</td><td></td><td>L2 阶段耗时</td></tr>
+</table>
+
+<h4>L3 LLM Judge 层（70% 权重 — 多 Judge 投票）</h4>
+<table>
+<tr><td><code>l3_judge_count</code></td><td>INT</td><td></td><td>Judge 数量（默认 3）</td></tr>
+<tr><td><code>l3_judge_models</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>使用的模型列表，如 <code>["deepseek-chat","deepseek-chat","deepseek-chat"]</code></td></tr>
+<tr><td><code>l3_judge_variance</code></td><td>FLOAT</td><td></td><td>Judge 间评分方差（>1.0 触发人工复核）</td></tr>
+<tr><td><code>l3_needs_human_review</code></td><td>BOOLEAN</td><td></td><td>是否需要人工复核</td></tr>
+<tr><td><code>l3_duration_ms</code></td><td>INT</td><td></td><td>L3 阶段耗时</td></tr>
+<tr><td><code>l3_total_prompt_tokens</code> 🆕</td><td>INT</td><td></td><td>所有 Judge 的 prompt token 总和</td><td>系统自动累加</td></tr>
+<tr><td><code>l3_total_completion_tokens</code> 🆕</td><td>INT</td><td></td><td>所有 Judge 的 completion token 总和</td><td>系统自动累加</td></tr>
+<tr><td><code>l3_total_cost</code> 🆕</td><td>FLOAT</td><td></td><td>所有 Judge 调用的估算总成本 (USD)</td><td>系统自动累加</td></tr>
+</table>
+
+<h4>最终分数（30% L1 + 70% L3 融合）</h4>
+<table>
+<tr><td><code>final_correctness</code> ~ <code>final_knowledge_scaffolding</code></td><td>FLOAT</td><td></td><td>8 维度最终得分（每个维度独立加权融合）</td></tr>
+<tr><td><code>final_overall</code></td><td>FLOAT</td><td></td><td>最终综合分</td></tr>
+</table>
+
+<h4>原始数据（完整可追溯）</h4>
+<table>
+<tr><td><code>raw_agent_response</code></td><td>TEXT</td><td></td><td>Agent 原始回复全文</td></tr>
+<tr><td><code>raw_question</code></td><td>TEXT</td><td></td><td>原始问题</td></tr>
+<tr><td><code>raw_golden_answer</code></td><td>TEXT</td><td></td><td>标准答案</td></tr>
+<tr><td><code>raw_l3_prompts</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>发送给 LLM Judge 的完整 prompt（可审查）</td></tr>
+<tr><td><code>raw_l3_responses</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>LLM Judge 的完整原始回复（可审查）</td></tr>
+</table>
+
+<h4>复现标记</h4>
+<table>
+<tr><td><code>reproducible</code></td><td>BOOLEAN</td><td></td><td>是否可复现（根据方差/错误判断）</td></tr>
+<tr><td><code>trace_version</code></td><td>VARCHAR(16)</td><td></td><td>评测架构版本号（当前 3.3）</td></tr>
+</table>
+
+<div class="note">
+<strong>审计能力</strong>：通过 raw_l3_prompts 和 raw_l3_responses，可以完全重现 LLM Judge 的评分过程——包括 Judge 收到了什么 prompt、输出了什么原始回复、最终怎么打的分数。实现了"每一分都有据可查"。
+</div>
+
+<!-- --- Table 7 --- -->
+<h3 id="t7">3.7 judge_decisions — Judge 独立评分</h3>
+<p><strong>用途</strong>：多 Judge 投票机制中，每个 Judge 的独立评分记录。是 eval_traces 的子表（一对多，通常 3 条）。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>eval_trace_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span><span class="tag tag-idx">IDX</span></td><td>所属评测追踪 → <code>eval_traces.id</code></td><td>系统关联</td></tr>
+<tr><td><code>judge_index</code></td><td>INT</td><td></td><td>Judge 编号（1, 2, 3）</td><td>系统分配</td></tr>
+<tr><td><code>judge_model</code></td><td>VARCHAR(64)</td><td><span class="tag tag-idx">IDX</span></td><td>使用的模型名，如 deepseek-chat</td><td>配置</td></tr>
+<tr><td><code>judge_provider</code></td><td>VARCHAR(32)</td><td></td><td>模型供应商：deepseek（当前唯一）</td><td>配置</td></tr>
+<tr><td><code>correctness</code> ~ <code>knowledge_scaffolding</code></td><td>FLOAT</td><td></td><td>此 Judge 给出的 8 维度独立评分</td><td>LLM Judge 输出</td></tr>
+<tr><td><code>overall</code></td><td>FLOAT</td><td></td><td>此 Judge 给出的综合分</td><td>LLM Judge 输出</td></tr>
+<tr><td><code>confidence</code></td><td>FLOAT</td><td></td><td>Judge 自报置信度（0~1）</td><td>LLM Judge 自报</td></tr>
+<tr><td><code>duration_ms</code></td><td>INT</td><td></td><td>此 Judge 评分耗时</td><td>系统计时</td></tr>
+<tr><td><code>reasoning</code></td><td>TEXT</td><td></td><td>Judge 的完整评分理由（中文）</td><td>LLM Judge 输出</td></tr>
+<tr><td><code>raw_prompt</code></td><td>TEXT</td><td></td><td>发给此 Judge 的完整 prompt</td><td>系统记录</td></tr>
+<tr><td><code>raw_response</code></td><td>TEXT</td><td></td><td>此 Judge 的完整原始回复</td><td>LLM Judge 返回</td></tr>
+<tr><td><code>is_outlier</code></td><td>BOOLEAN</td><td></td><td>是否为离群评分（与其他 Judge 偏差 >1.5σ）</td><td>系统判定</td></tr>
+<tr><td><code>excluded_from_final</code></td><td>BOOLEAN</td><td></td><td>是否被排除在最终分数计算之外</td><td>系统判定</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td></td><td>创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<div class="flow-box">
+  <strong>3-Judge 投票流程</strong>：<br>
+  ① 3 个独立的 LLM Judge 各自评分 → 每人一条 judge_decisions 记录<br>
+  ② 系统计算 3 人评分的中位数和方差<br>
+  ③ 若某 Judge 偏离 >1.5σ → 标记 is_outlier=TRUE → 可能 excluded_from_final<br>
+  ④ 最终 eval_scores 取非离群 Judge 的中位数
+</div>
+
+<!-- --- Table 8 --- -->
+<h3 id="t8">3.8 kb_retrieval_logs — 知识库检索日志</h3>
+<p><strong>用途</strong>：记录每一次知识库检索的查询内容和返回结果。是 eval_traces 的子表（一对多）。用于验证边界检测的公平性——如果 KB 没查到，不能说 Agent 回答越界。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>eval_trace_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span><span class="tag tag-idx">IDX</span></td><td>所属评测追踪</td><td>系统关联</td></tr>
+<tr><td><code>phase</code></td><td>VARCHAR(16)</td><td><span class="tag tag-idx">IDX</span></td><td>检索了哪个 Phase 知识库：phase1 ~ phase5</td><td>系统判定</td></tr>
+<tr><td><code>kb_id</code></td><td>VARCHAR(64)</td><td></td><td>KB 标识，如 <code>kb-1cf46d36aaa68622</code></td><td>配置</td></tr>
+<tr><td><code>kb_name</code></td><td>VARCHAR(256)</td><td></td><td>KB 名称</td><td>配置</td></tr>
+<tr><td><code>backend</code></td><td>VARCHAR(32)</td><td></td><td>KB 后端：volcano（火山引擎）</td><td>配置</td></tr>
+<tr><td><code>query_text</code></td><td>TEXT</td><td></td><td>发送给 KB 的查询文本</td><td>系统构造</td></tr>
+<tr><td><code>top_k</code></td><td>INT</td><td></td><td>请求返回的 top-k 数量（默认 5）</td><td>配置</td></tr>
+<tr><td><code>query_duration_ms</code></td><td>INT</td><td></td><td>查询耗时（毫秒）</td><td>系统计时</td></tr>
+<tr><td><code>result_count</code></td><td>INT</td><td></td><td>实际返回的文档数</td><td>KB API 返回</td></tr>
+<tr><td><code>top_score</code></td><td>FLOAT</td><td></td><td>最高相关度分数</td><td>KB API 返回</td></tr>
+<tr><td><code>avg_score</code></td><td>FLOAT</td><td></td><td>平均相关度分数</td><td>KB API 返回</td></tr>
+<tr><td><code>results_json</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>完整返回结果（chunks + scores）</td><td>KB API 返回</td></tr>
+<tr><td><code>error_message</code></td><td>TEXT</td><td></td><td>查询失败时的错误信息</td><td>系统记录</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td></td><td>创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<!-- --- Table 9 --- -->
+<h3 id="t9">3.9 reports — 评测报告</h3>
+<p><strong>用途</strong>：一次测试会话结束后生成一份汇总报告（聚合所有场景的评分）。与 test_sessions 一对一。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>session_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span> UNIQUE</td><td>所属测试会话（一对一）</td><td>系统关联</td></tr>
+<tr><td><code>timestamp</code></td><td>VARCHAR(32)</td><td></td><td>报告时间戳字符串</td><td>系统生成</td></tr>
+<tr><td><code>summary_json</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>报告摘要（avg_scores、boundary 统计、total、agent_id 等）</td><td>系统聚合所有场景评分</td></tr>
+<tr><td><code>markdown_path</code></td><td>VARCHAR(256)</td><td></td><td>导出的 Markdown 报告文件路径</td><td>报告生成器</td></tr>
+<tr><td><code>json_path</code></td><td>VARCHAR(256)</td><td></td><td>导出的 JSON 报告文件路径</td><td>报告生成器</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td><span class="tag tag-idx">IDX</span></td><td>创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<div class="flow-box">
+  <strong>summary_json 内部结构</strong>（最常用的查询字段）：<br>
+  <code>{ avg_scores: { correctness: 3.8, relevancy: 4.2, ... }, boundary: { in_scope: 3, partial_match: 1, out_of_scope: 0, error: 0 }, total: 5, agent_id: "platform" }</code>
+</div>
+
+<!-- --- Table 10 --- -->
+<h3 id="t10">3.10 web_eval_results — 网页评测结果</h3>
+<p><strong>用途</strong>：前端「网页评测」页面对目标网站运行 Lighthouse 风格检测后的结果。</p>
+
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th><th>数据来源</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td><td>系统自动</td></tr>
+<tr><td><code>url</code></td><td>VARCHAR(1024)</td><td></td><td>被评测的网页 URL</td><td><strong>前端网页评测页输入</strong></td></tr>
+<tr><td><code>overall_score</code></td><td>INT</td><td></td><td>综合评分（百分制）</td><td>WebEvaluator 计算</td></tr>
+<tr><td><code>performance</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>性能指标：LCP、TTFB、FCP、CLS 等</td><td>Playwright 采集</td></tr>
+<tr><td><code>accessibility</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>可访问性：violations 列表（aria 标签缺失等）</td><td>Playwright 检测</td></tr>
+<tr><td><code>best_practices</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>最佳实践：HTTPS、XSS 防护等</td><td>Playwright 检测</td></tr>
+<tr><td><code>ai_function</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>AI 对话功能：响应延迟、可用性</td><td>WebEvaluator 测试</td></tr>
+<tr><td><code>ui_ux</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>UI/UX 评估：布局问题、交互体验</td><td>Playwright 检测</td></tr>
+<tr><td><code>content</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>内容评估：文字质量、结构</td><td>WebEvaluator 分析</td></tr>
+<tr><td><code>raw_result</code></td><td>JSON</td><td><span class="tag tag-json">JSON</span></td><td>原始检测结果（完整保留）</td><td>WebEvaluator 输出</td></tr>
+<tr><td><code>created_at</code></td><td>DATETIME</td><td><span class="tag tag-idx">IDX</span></td><td>创建时间</td><td>系统自动</td></tr>
+<tr><td><code>updated_at</code></td><td>DATETIME</td><td></td><td>最后修改时间</td><td>系统自动</td></tr>
+</table>
+
+<div class="flow-box">
+  <strong>数据流</strong>：用户在「网页评测」页输入 URL → 点击"开始评测" → 后端用 Playwright 打开网页 → 采集性能/可访问性/UI 等指标 → 写入此表 → 前端刷新显示评分圆环。
+</div>
+
+<!-- --- Table 11 --- -->
+<h3 id="t11">3.11 knowledge_bases & kb_documents — 知识库元数据</h3>
+<p><strong>用途</strong>：记录火山引擎知识库的同步状态和文档列表（元数据，不是课程内容本身。课程内容存储在火山引擎云端）。</p>
+
+<h4>knowledge_bases — 知识库列表</h4>
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td></tr>
+<tr><td><code>dify_dataset_id</code></td><td>VARCHAR(128)</td><td>UNIQUE</td><td>火山引擎 KB Service ID，如 <code>kb-service-c5872d5b6644c426</code></td></tr>
+<tr><td><code>name</code></td><td>VARCHAR(256)</td><td></td><td>KB 名称，如"Phase1 国产AI技术基础"</td></tr>
+<tr><td><code>description</code></td><td>TEXT</td><td></td><td>KB 描述</td></tr>
+<tr><td><code>document_count</code></td><td>INT</td><td></td><td>文档数量</td></tr>
+<tr><td><code>last_synced_at</code></td><td>DATETIME</td><td></td><td>最后同步时间</td></tr>
+<tr><td><code>sync_status</code></td><td>VARCHAR(16)</td><td></td><td>同步状态：not_synced / syncing / synced / error</td></tr>
+<tr><td><code>error_message</code></td><td>TEXT</td><td></td><td>同步失败时的错误信息</td></tr>
+</table>
+
+<h4>kb_documents — 知识库文档</h4>
+<table>
+<tr><th>列名</th><th>类型</th><th>标签</th><th>含义</th></tr>
+<tr><td><code>id</code></td><td>CHAR(36)</td><td><span class="tag tag-pk">PK</span></td><td>内部主键</td></tr>
+<tr><td><code>knowledge_base_id</code></td><td>CHAR(36)</td><td><span class="tag tag-fk">FK</span><span class="tag tag-idx">IDX</span></td><td>所属知识库 → <code>knowledge_bases.id</code></td></tr>
+<tr><td><code>dify_document_id</code></td><td>VARCHAR(128)</td><td></td><td>火山引擎文档 ID</td></tr>
+<tr><td><code>name</code></td><td>VARCHAR(256)</td><td></td><td>文档名称</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(16)</td><td></td><td>文档状态：available / processing / error</td></tr>
+<tr><td><code>chunk_count</code></td><td>INT</td><td></td><td>文档被切分为多少 chunk</td></tr>
+<tr><td><code>tokens</code></td><td>INT</td><td></td><td>文档总 token 数</td></tr>
+</table>
+
+<!-- --- Table 12 --- -->
+<h3 id="t12">3.12 alembic_version — 数据库迁移版本</h3>
+<p><strong>唯一非业务表</strong>。Alembic（数据库迁移工具）自动创建，只有 1 行 1 列：</p>
+<table>
+<tr><th>列名</th><th>类型</th><th>含义</th></tr>
+<tr><td><code>version_num</code></td><td>VARCHAR(32)</td><td>当前数据库 schema 版本号。当前值 <code>0002</code>，表示已执行 0001_initial_schema 和 0002_audit_trail 两次迁移。</td></tr>
+</table>
+
+<div class="note">
+这就是你打开 Adminer 时默认看到的表。它没有任何业务含义，只是一个"数据库结构版本号"记录。<br>
+Adminer 通过 URL 参数 <code>&table=alembic_version</code> 自动选中它作为初始展示。
+</div>
+
+<!-- ====== SECTION 4 ====== -->
+<h2 id="s4">5. 前端 6 页面 → MySQL 数据流全景</h2>
+
+<p>以下按页面逐一说明：用户在这个页面做了什么 → 哪些 MySQL 表被写入了数据。</p>
+
+<!-- Page 1 -->
+<div class="page-card">
+<h4>📊 页面 1：首页（Dashboard）</h4>
+<p><strong>读取的表</strong>：test_sessions、reports、eval_scores、qa_pairs（汇总统计）</p>
+<p><strong>用户操作</strong>：选择 Agent + 问题数量 → 点击 <strong>"开始测评"</strong></p>
+<table>
+<tr><th>顺序</th><th>写入的表</th><th>写入内容</th></tr>
+<tr><td>1</td><td><strong>test_sessions</strong></td><td>创建新会话：agent_id=用户选择, profile=standard, total_scenarios=用户输入数量</td></tr>
+<tr><td>2</td><td><strong>test_scenarios</strong></td><td>每个问题创建一条场景：从 qa_pairs 随机抽取 approved 的 QA</td></tr>
+<tr><td>3</td><td><strong>conversation_turns</strong></td><td>每轮对话一条：question=QA问题, response_text=Agent回复（来自HiAgent API）</td></tr>
+<tr><td>4</td><td><strong>kb_retrieval_logs</strong></td><td>每次查火山引擎KB的记录：query_text=问题文本, results_json=返回的chunks</td></tr>
+<tr><td>5</td><td><strong>eval_traces</strong></td><td>完整L1→L2→L3评测过程：关键词命中、语义相似度、Judge评分详情、原始prompt</td></tr>
+<tr><td>6</td><td><strong>judge_decisions</strong></td><td>3条：3个LLM Judge各自独立评分+理由+置信度</td></tr>
+<tr><td>7</td><td><strong>eval_scores</strong></td><td>最终8维得分（30% L1 + 70% L3融合）</td></tr>
+<tr><td>8</td><td><strong>reports</strong></td><td>汇总报告：avg_scores、boundary统计</td></tr>
+</table>
+<p style="color:#64748b;font-size:12px;margin-top:8px;">⚠️ 一次评测写入 8 张表。实时进度通过 WebSocket 推送，前端无需轮询。</p>
+</div>
+
+<!-- Page 2 -->
+<div class="page-card">
+<h4>✅ 页面 2：QA 管理</h4>
+<p><strong>读取的表</strong>：qa_pairs（列表、详情、统计）</p>
+<table>
+<tr><th>用户操作</th><th>写入的表</th><th>写入/更新内容</th></tr>
+<tr><td>点击 <strong>"从Excel生成QA"</strong></td><td><strong>qa_pairs</strong></td><td>批量 INSERT：LLM 读取 Excel → 生成问题+标准答案 → status=pending</td></tr>
+<tr><td>点击 <strong>"通过"</strong></td><td><strong>qa_pairs</strong></td><td>UPDATE：status → approved, reviewer_notes → "人工审核通过", approved_at → 当前时间</td></tr>
+<tr><td>点击 <strong>"拒绝"</strong></td><td><strong>qa_pairs</strong></td><td>UPDATE：status → rejected, reviewer_notes → 用户填写的拒绝原因</td></tr>
+<tr><td>编辑后 <strong>"保存修改"</strong></td><td><strong>qa_pairs</strong></td><td>UPDATE：question/golden_answer 更新, status 重置为 pending</td></tr>
+<tr><td><strong>"删除"</strong></td><td><strong>qa_pairs</strong></td><td>DELETE：移除该条 QA</td></tr>
+<tr><td><strong>"批量通过"</strong></td><td><strong>qa_pairs</strong></td><td>批量 UPDATE：当前筛选的所有 pending QA → approved</td></tr>
+</table>
+<p style="color:#64748b;font-size:12px;margin-top:8px;">QA 管理是"数据准备"环节——只有 status=approved 的 QA 才会被测试使用。</p>
+</div>
+
+<!-- Page 3 -->
+<div class="page-card">
+<h4>🧪 页面 3：测试运行</h4>
+<p><strong>功能上与首页"开始测评"相同</strong>，区别在于：可选择 Profile（basic/standard/comprehensive）、显示实时事件日志、展示历史会话列表。</p>
+<table>
+<tr><th>用户操作</th><th>写入的表</th><th>说明</th></tr>
+<tr><td>配置 Agent + Profile + 场景数 → 点击 <strong>"开始测试"</strong></td><td>同首页（8张表）</td><td>Profile 影响评测维度选择：basic=2维, standard=5维, comprehensive=6维</td></tr>
+<tr><td>查看 <strong>"历史会话"</strong></td><td>（只读）</td><td>读取 test_sessions 列表</td></tr>
+</table>
+</div>
+
+<!-- Page 4 -->
+<div class="page-card">
+<h4>📋 页面 4：报告</h4>
+<p><strong>纯查看页面</strong>，不写入任何表。</p>
+<table>
+<tr><th>用户操作</th><th>读取的表</th><th>说明</th></tr>
+<tr><td>查看报告列表</td><td>reports + test_sessions</td><td>展示所有历史报告卡片</td></tr>
+<tr><td>点击报告查看详情</td><td>reports (summary_json)</td><td>展开 8 维雷达图 + 边界统计 + 各场景得分表</td></tr>
+<tr><td>勾选 2-5 个报告对比</td><td>reports</td><td>维度对比折线图 + 差异分析</td></tr>
+<tr><td>导出 JSON/CSV</td><td>reports</td><td>下载报告文件</td></tr>
+<tr><td><strong>"删除"</strong></td><td><strong>reports + 级联</strong></td><td>DELETE report → 级联删除关联的 test_session → 级联删除其下所有 scenarios/turns/scores/traces</td></tr>
+</table>
+</div>
+
+<!-- Page 5 -->
+<div class="page-card">
+<h4>🌐 页面 5：网页评测</h4>
+<table>
+<tr><th>用户操作</th><th>写入的表</th><th>写入内容</th></tr>
+<tr><td>输入 URL → 点击 <strong>"开始评测"</strong></td><td><strong>web_eval_results</strong></td><td>Playwright 采集：performance(LCP/TTFB/CLS)、accessibility(违规列表)、best_practices(HTTPS)、ai_function(AI延迟)、ui_ux、content</td></tr>
+</table>
+</div>
+
+<!-- Page 6 -->
+<div class="page-card">
+<h4>📚 页面 6：知识库</h4>
+<p><strong>绝大部分是只读查询</strong>，从火山引擎云端检索课程内容。可写操作：</p>
+<table>
+<tr><th>用户操作</th><th>写入的表</th><th>写入内容</th></tr>
+<tr><td>点击 <strong>"同步火山引擎知识库"</strong></td><td><strong>knowledge_bases</strong></td><td>INSERT/UPDATE：5 个 Phase KB 的元数据（名称、文档数、同步状态）</td></tr>
+<tr><td>（自动触发）</td><td><strong>kb_documents</strong></td><td>INSERT/UPDATE：每个 KB 下的文档列表（名称、chunk数、token数）</td></tr>
+</table>
+</div>
+
+<!-- ====== SECTION 5 ====== -->
+<h2 id="s5">6. 数据产生链路总结</h2>
+
+<h3>6.1 从用户点击到 MySQL 落库的完整链路</h3>
+
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:16px 0;font-family:monospace;font-size:13px;line-height:2.2;">
+👤 <strong>用户</strong> 在前端点击"开始测评"<br>
+&nbsp;&nbsp;↓<br>
+📡 <strong>前端</strong> POST 请求到后端<br>
+&nbsp;&nbsp;↓<br>
+🖥️ <strong>FastAPI</strong> 接收请求，在后台线程启动 TestRunner<br>
+&nbsp;&nbsp;↓<br>
+🎲 <strong>TestRunner</strong> 从 qa_pairs 随机抽取 N 条 approved QA<br>
+&nbsp;&nbsp;↓<br>
+💬 对每条 QA：发送问题给 <strong>HiAgent API</strong> → 获取回复 → 对话记录写入 conversation_turns<br>
+&nbsp;&nbsp;↓<br>
+🔍 <strong>边界检测</strong>：去火山引擎 KB 检索 → 记录写入 kb_retrieval_logs<br>
+&nbsp;&nbsp;↓<br>
+📏 <strong>L1 规则层</strong>：关键词匹配/结构检查/延迟检查/安全检查 → 写入 eval_traces.l1_*<br>
+&nbsp;&nbsp;↓<br>
+🧮 <strong>L2 算法层</strong>：语义相似度(embedding)/KB覆盖度 → 写入 eval_traces.l2_*<br>
+&nbsp;&nbsp;↓<br>
+⚖️ <strong>L3 LLM Judge</strong>：3 个 Judge 并行打分 → 每人一条写入 judge_decisions → 汇总写入 eval_traces.l3_*<br>
+&nbsp;&nbsp;↓<br>
+📊 <strong>融合评分</strong>：30% L1 + 70% L3 → 写入 eval_scores（8 维度）<br>
+&nbsp;&nbsp;↓<br>
+📋 <strong>生成报告</strong>：聚合所有场景 → 写入 reports<br>
+&nbsp;&nbsp;↓<br>
+📡 <strong>WebSocket</strong> 实时推送每一步事件 → 前端实时展示<br>
+&nbsp;&nbsp;↓<br>
+👤 <strong>用户</strong> 在前端看到完整的评测过程和最终得分
+</div>
+
+<h3>6.2 表关系速查</h3>
+
+<table>
+<tr><th>父表</th><th>子表</th><th>关系</th></tr>
+<tr><td>—</td><td>qa_pairs</td><td>独立表（被 test_scenarios 引用）</td></tr>
+<tr><td>—</td><td>knowledge_bases</td><td>独立表</td></tr>
+<tr><td>knowledge_bases</td><td>kb_documents</td><td>1:N</td></tr>
+<tr><td>—</td><td>test_sessions</td><td>顶层（一次完整评测）</td></tr>
+<tr><td>test_sessions</td><td>test_scenarios</td><td>1:N（一个会话有 N 个场景）</td></tr>
+<tr><td>test_sessions</td><td>reports</td><td>1:1（一个会话一份报告）</td></tr>
+<tr><td>test_scenarios</td><td>conversation_turns</td><td>1:N（一个场景有 N 轮对话）</td></tr>
+<tr><td>test_scenarios</td><td>eval_scores</td><td>1:1（一个场景一份评分）</td></tr>
+<tr><td>test_scenarios</td><td>eval_traces</td><td>1:1（一个场景一份追踪）</td></tr>
+<tr><td>eval_traces</td><td>judge_decisions</td><td>1:N（一份追踪有 N 个 Judge，默认 3）</td></tr>
+<tr><td>eval_traces</td><td>kb_retrieval_logs</td><td>1:N（一份追踪有 N 次 KB 查询）</td></tr>
+<tr><td>—</td><td>web_eval_results</td><td>独立表（网页评测）</td></tr>
+</table>
+
+<h3>6.3 用 Adminer 验证数据流的典型场景</h3>
+
+<div class="warn">
+<strong>实战场景</strong>：你想确认一次评测是否成功入库。
+<ol>
+  <li>打开 Adminer → 选择 <code>test_sessions</code> 表 → 按 created_at 倒序 → 找到最新一条记录，确认 status=success</li>
+  <li>点击该记录的 id → 跳转到 <code>test_scenarios</code> 表 → 查看有几个场景</li>
+  <li>点击某个场景的 id → 跳转到 <code>conversation_turns</code> → 查看 Agent 的每一轮回复（response_text）</li>
+  <li>回到场景 → 查看 <code>eval_scores</code> → 看到 8 个维度的具体得分</li>
+  <li>查看 <code>eval_traces</code> → 看到 L1/L2/L3 全过程（关键词命中哪些、Judge 原始 prompt 是什么）</li>
+  <li>查看 <code>judge_decisions</code> → 看到 3 个 Judge 各自打了多少分，谁的评分被排除了</li>
+</ol>
+这就是 Adminer 的核心价值——<strong>让你"看见"每一次前端操作在数据库中留下的完整痕迹</strong>。
+</div>
+
+<!-- ====== SECTION 6: 前沿后端特性 ====== -->
+<h2 id="s6">7. 前沿后端特性（v3.3 新增）</h2>
+
+<p>以下 5 项特性是 v3.3 版本针对业界 AI 评估框架对比后补齐的前沿能力，全部匹配本平台架构，无需外部服务即可运行。</p>
+
+<!-- ---- Feature 1 ---- -->
+<h3 id="feat1">7.1 Token 成本追踪</h3>
+
+<table>
+<tr><th>文件</th><th>作用</th></tr>
+<tr><td><code>src/token_tracker.py</code></td><td>Token 估算引擎：中英文自适应字符→token 转换 + DeepSeek 定价计算</td></tr>
+<tr><td><code>backend/models/test_session.py</code></td><td>ConversationTurn 新增 5 字段：prompt_tokens, completion_tokens, total_tokens, cost_estimate, model_used</td></tr>
+<tr><td><code>backend/models/eval_trace.py</code></td><td>EvalTrace 新增 3 字段：l3_total_prompt_tokens, l3_total_completion_tokens, l3_total_cost</td></tr>
+<tr><td><code>backend/alembic/versions/0003_token_cost_tracking.py</code></td><td>数据库迁移脚本</td></tr>
+</table>
+
+<h4>工作原理</h4>
+<div class="flow-box">
+<strong>两层追踪</strong>：<br><br>
+<b>① Agent 对话层</b> — 每轮 conversation_turn 自动记录：<br>
+&nbsp;&nbsp;· prompt_tokens = 估算(question + system_prompt)<br>
+&nbsp;&nbsp;· completion_tokens = 估算(Agent 回复)<br>
+&nbsp;&nbsp;· cost_estimate = prompt_tokens / 1M × $0.14 + completion_tokens / 1M × $0.28<br><br>
+<b>② Judge 评分层</b> — eval_traces 汇总所有 Judge 的成本：<br>
+&nbsp;&nbsp;· l3_total_prompt_tokens = Σ 每个 Judge 的 prompt tokens<br>
+&nbsp;&nbsp;· l3_total_completion_tokens = Σ 每个 Judge 的 completion tokens<br>
+&nbsp;&nbsp;· l3_total_cost = Σ 每个 Judge 的调用成本<br><br>
+<strong>定价基准</strong>：DeepSeek 官方定价 — input $0.14/1M tokens, output $0.28/1M tokens<br>
+<strong>回退策略</strong>：若 API 未返回真实 usage.token_count，自动用字符数估算（中文 ~1.5 char/token，英文 ~4 char/token）
+</div>
+
+<!-- ---- Feature 2 ---- -->
+<h3 id="feat2">7.2 API 速率限制</h3>
+
+<table>
+<tr><th>文件</th><th>作用</th></tr>
+<tr><td><code>backend/middleware/rate_limit.py</code></td><td>滑动窗口速率限制器 + FastAPI 中间件</td></tr>
+</table>
+
+<h4>限制规则</h4>
+<table>
+<tr><th>路径</th><th>限制</th><th>窗口</th><th>原因</th></tr>
+<tr><td><code>/api/*</code> (全局默认)</td><td>120 req/min</td><td>60s</td><td>防止滥用</td></tr>
+<tr><td><code>/api/tests/run</code></td><td>5 req/min</td><td>60s</td><td>评测启动是昂贵操作（LLM + KB + Playwright）</td></tr>
+<tr><td><code>/api/qa/generate</code></td><td>3 req/2min</td><td>120s</td><td>LLM 批量生成成本控制</td></tr>
+<tr><td><code>/api/web-eval/run</code></td><td>5 req/2min</td><td>120s</td><td>Playwright 浏览器资源消耗</td></tr>
+<tr><td><code>/api/kb/search</code></td><td>30 req/min</td><td>60s</td><td>火山引擎 KB API 调用频率</td></tr>
+</table>
+
+<h4>工作原理</h4>
+<div class="flow-box">
+<strong>滑动窗口算法 (纯内存，无 Redis 依赖)</strong>：<br>
+① 每个请求到达时，按 IP 提取 client_key<br>
+② 清理窗口中过期的时间戳<br>
+③ 若窗口内请求数 ≥ 上限 → 返回 <code>429 Too Many Requests</code> + <code>Retry-After</code> 头<br>
+④ 若未达上限 → 记录时间戳，放行<br>
+<br>
+<strong>响应头</strong>：每个 <code>/api/*</code> 响应都携带 <code>X-RateLimit-Remaining</code>，前端可据此调节请求频率<br>
+<strong>线程安全</strong>：threading.Lock 保护共享的 hits 字典
+</div>
+
+<!-- ---- Feature 3 ---- -->
+<h3 id="feat3">7.3 统计显著性检验</h3>
+
+<table>
+<tr><th>文件</th><th>作用</th></tr>
+<tr><td><code>backend/services/report_service.py</code></td><td>compare_reports 增强版：均值 · 标准差 · 变异系数 · Cohen's d 效应量 · 置信度</td></tr>
+</table>
+
+<h4>统计指标</h4>
+<table>
+<tr><th>指标</th><th>算法</th><th>输出</th><th>需要</th></tr>
+<tr><td><strong>变异系数 (CV)</strong></td><td>σ / μ</td><td>置信度标签：🟢高 (CV&lt;0.10) / 🟡中 (CV&lt;0.25) / 🔴低 (CV≥0.25)</td><td>≥3 报告</td></tr>
+<tr><td><strong>Cohen's d</strong></td><td>(mean_best − mean_worst) / pooled_sd</td><td>效应量：可忽略 / 小 / 中等 / 大 / 非常大</td><td>≥3 报告</td></tr>
+<tr><td><strong>均值 + 标准差</strong></td><td>Σx/n, √(Σ(x-μ)²/(n-1))</td><td>每个维度的 mu ± sigma</td><td>≥2 报告</td></tr>
+<tr><td><strong>max_delta</strong></td><td>max(vals) − min(vals)</td><td>维度最大分差 (原有指标，保留)</td><td>≥2 报告</td></tr>
+</table>
+
+<div class="note">
+<strong>纯 Python 实现，无 scipy 依赖</strong>：所有统计量均手动实现（_mean, _stdev, _cohens_d），避免增加依赖。<br>
+<strong>Cohen's d 解读</strong>：|d| &lt; 0.2 = 可忽略 · 0.2~0.5 = 小 · 0.5~0.8 = 中等 · 0.8~1.2 = 大 · &gt; 1.2 = 非常大<br>
+<strong>变异系数解读</strong>：CV &lt; 0.10 = 评分高度一致 (Judge 稳定) · CV ≥ 0.25 = 评分波动大 (需关注)
+</div>
+
+<!-- ---- Feature 4 ---- -->
+<h3 id="feat4">7.4 Redis 缓存层</h3>
+
+<table>
+<tr><th>文件</th><th>作用</th></tr>
+<tr><td><code>backend/services/cache_service.py</code></td><td>评估结果缓存：Redis (优先) → 内存 LRU (回退)</td></tr>
+</table>
+
+<h4>两级缓存策略</h4>
+<table>
+<tr><th>等级</th><th>后端</th><th>容量</th><th>TTL</th><th>用途</th></tr>
+<tr><td><strong>L1 — 评估结果</strong></td><td>Redis → 内存 LRU</td><td>512 keys</td><td>24h</td><td>相同 (question, golden_answer, model) 的评分结果直接返回缓存，避免重复 LLM Judge 调用</td></tr>
+<tr><td><strong>L2 — Dashboard</strong></td><td>内存 LRU 专用</td><td>32 keys</td><td>30s</td><td>Dashboard 汇总统计 (total_tests, avg_score, trend...) 短时缓存，减少数据库查询</td></tr>
+</table>
+
+<h4>缓存 Key 设计</h4>
+<div class="flow-box">
+<strong>评估结果 Key</strong>：<code>eval:SHA256({question, golden_answer, model, dimensions})[:16]</code><br>
+→ 相同问题+答案+模型的评估结果自动复用，避免重复 Judge 调用<br><br>
+<strong>Dashboard Key</strong>：<code>dash:MD5(endpoint + params)[:12]</code><br>
+→ 30 秒内相同 Dashboard 查询直接返回缓存<br><br>
+<strong>自动回退</strong>：<br>
+&nbsp;&nbsp;· 若 <code>REDIS_URL</code> 环境变量已配置且 Redis 可用 → 使用 Redis（跨进程共享、重启不丢失）<br>
+&nbsp;&nbsp;· 若 Redis 不可用 → 自动回退到线程安全的内存 LRU 缓存<br>
+&nbsp;&nbsp;· 无需 Redis 也能正常运行（零配置启动）
+</div>
+
+<!-- ---- Feature 5 ---- -->
+<h3 id="feat5">7.5 Prometheus 指标导出</h3>
+
+<table>
+<tr><th>文件</th><th>作用</th></tr>
+<tr><td><code>backend/middleware/metrics.py</code></td><td>指标注册表 + 采集中间件 + <code>/metrics</code> 端点</td></tr>
+</table>
+
+<h4>导出指标</h4>
+<table>
+<tr><th>指标名</th><th>类型</th><th>标签</th><th>说明</th></tr>
+<tr><td><code>http_requests_total</code></td><td>Counter</td><td>method, path, status</td><td>HTTP 请求计数（路径自动归一化：UUID→{id}）</td></tr>
+<tr><td><code>http_request_duration_seconds</code></td><td>Histogram</td><td>method, path</td><td>请求延迟分布（buckets: 0.01, 0.05, 0.1, 0.5, 1, 5, 10s）</td></tr>
+<tr><td><code>active_evaluations</code></td><td>Gauge</td><td>—</td><td>当前正在运行的评测数</td></tr>
+<tr><td><code>evaluations_total</code></td><td>Counter</td><td>status</td><td>按 status 统计：started / success / error</td></tr>
+<tr><td><code>eval_scores_total</code></td><td>Counter</td><td>dimension</td><td>按维度统计评分次数：correctness, relevancy...</td></tr>
+<tr><td><code>db_connected</code></td><td>Gauge</td><td>—</td><td>数据库连接状态 (1=ok, 0=fail)</td></tr>
+<tr><td><code>app_uptime_seconds</code></td><td>Gauge</td><td>—</td><td>应用运行时长（秒）</td></tr>
+<tr><td><code>app_info</code></td><td>Gauge</td><td>version</td><td>应用版本信息（当前 3.3.0）</td></tr>
+</table>
+
+<div class="note">
+<strong>无外部依赖</strong>：纯 Python 实现，不依赖 prometheus_client 库。直接输出 Prometheus 文本格式。<br>
+<strong>接入方式</strong>：在 Prometheus 配置中添加 <code>scrape_configs: - job_name: 'agent-eval' static_configs: - targets: ['your-server:8000']</code>，然后可用 Grafana 可视化。<br>
+<strong>路径归一化</strong>：UUID、数字 ID、Phase 名自动替换为占位符，避免指标维度爆炸。
+</div>
+
+<!-- ---- Feature 6: Architecture ---- -->
+<h3 id="feat6">7.6 架构全景图 (v3.3)</h3>
+
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:16px 0;font-family:monospace;font-size:12px;line-height:2.2;">
+┌─────────────────────────────────────────────────────────────┐
+│                      <strong>用户浏览器</strong>                              │
+│   frontend/index.html (6 pages) + WebSocket + Chart.js      │
+└────────────┬────────────────────────────┬───────────────────┘
+             │ HTTPS (Nginx :443)         │ wss:// (WebSocket)
+             ▼                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   <strong>Nginx 反向代理</strong>                            │
+│   TLS 终止 · /api/ → 代理 · /ws → WebSocket 升级            │
+│   client_max_body_size 10M                                  │
+└────────────────────────┬────────────────────────────────────┘
+                         │ HTTP :8000
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│               <strong>FastAPI 中间件链 (v3.3 新增 2 层)</strong>               │
+│                                                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │  CORS    │→│ <strong>Metrics</strong> │→│ <strong>RateLimit</strong>│→│  Error   │   │
+│  │  跨域     │  │ <strong>指标采集</strong>  │  │ <strong>速率限制</strong>  │  │  异常处理  │   │
+│  └──────────┘  └──────────┘  └────┬─────┘  └──────────┘   │
+│                                   │ 429 if exceeded         │
+└───────────────────────────────────┼─────────────────────────┘
+                                    ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     <strong>FastAPI 路由层</strong>                         │
+│                                                             │
+│  /api/dashboard  /api/qa  /api/tests  /api/reports          │
+│  /api/web-eval   /api/kb  /api/agents                       │
+│  /ws (WebSocket)  /health  /metrics (🆕 Prometheus)         │
+└────────────┬────────────────────────────┬───────────────────┘
+             │                            │
+             ▼                            ▼
+┌──────────────────────┐    ┌─────────────────────────────────┐
+│   <strong>CacheService</strong> 🆕    │    │        <strong>MySQL RDS</strong>               │
+│                      │    │                                 │
+│  Redis (优先)         │    │  11 张业务表 + alembic_version   │
+│  └─ 内存 LRU (回退)   │    │  🆕 含 Token 成本追踪字段       │
+│                      │    │                                 │
+│  L1: 评估结果 (24h)   │    │  火山引擎 · mysql877b303b0151   │
+│  L2: Dashboard (30s) │    │  .rds.ivolces.com:3306          │
+└──────────────────────┘    └─────────────────────────────────┘
+             │                            │
+             ▼                            ▼
+┌──────────────────────┐    ┌─────────────────────────────────┐
+│  <strong>外部服务</strong>           │    │     <strong>Adminer (:8080)</strong>           │
+│                      │    │     数据库可视化查看器             │
+│  DeepSeek API (LLM)  │    │     "只读查看，不参与写入"        │
+│  火山引擎 KB          │    └─────────────────────────────────┘
+│  HiAgent API          │
+│  实训平台 (Playwright)│
+└──────────────────────┘
+</div>
+
+<h4>新增文件清单</h4>
+<table>
+<tr><th>文件</th><th>行数</th><th>功能</th></tr>
+<tr><td><code>src/token_tracker.py</code></td><td>~130</td><td>Token 估算 + 成本计算</td></tr>
+<tr><td><code>backend/middleware/rate_limit.py</code></td><td>~110</td><td>滑动窗口速率限制</td></tr>
+<tr><td><code>backend/middleware/metrics.py</code></td><td>~180</td><td>Prometheus 指标导出</td></tr>
+<tr><td><code>backend/services/cache_service.py</code></td><td>~170</td><td>Redis/内存 两级缓存</td></tr>
+<tr><td><code>backend/alembic/versions/0003_token_cost_tracking.py</code></td><td>~50</td><td>Token 字段数据库迁移</td></tr>
+</table>
+
+<div class="warn">
+<strong>部署注意事项</strong>：<br>
+① 运行 <code>alembic upgrade head</code> 执行 Token 字段迁移<br>
+② (可选) 安装 <code>pip install redis</code> 并设置 <code>REDIS_URL</code> 环境变量以启用 Redis 缓存，否则自动使用内存缓存<br>
+③ <code>/metrics</code> 端点无需认证，生产环境建议在 Nginx 层加 IP 白名单<br>
+④ 速率限制默认 120 req/min，可通过修改 <code>RateLimiter</code> 构造函数参数调整
+</div>
+
+<hr style="margin:40px 0;border-color:#e2e8f0;">
+
+<p style="color:#64748b;font-size:12px;text-align:center;">
+  AI Agent 评测平台 v3.3 · MySQL 数据库 · API 接口 · 前沿特性 · 前端数据流 全解 · 2026-07-09<br>
+  本文件描述了 11 张业务表 + 1 张系统表 + 29 个 API 端点 + 5 项前沿特性 + 前端 6 页面的完整数据流。
+</p>
+
+</body>
+</html>

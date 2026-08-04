@@ -1,0 +1,147 @@
+# 评测策略配置
+# 对齐业界主流框架: CLEAR (Google) / TEACH-AI (NeurIPS 2025) / 百度AI评测体系
+# 2025-2026 教育 AI Agent 评测标准
+
+profiles:
+  # ── 快速评测（开发阶段） ──
+  basic:
+    name: "快速评测"
+    description: "开发中快速验证，只评估核心维度"
+    dimensions:
+      - correctness    # 事实正确性 → CLEAR Efficacy
+      - relevancy      # 答案相关性 → CLEAR Relevancy
+    use_kb_rag: false
+    use_boundary: false
+    adversarial: false
+    max_turns: 1
+
+  # ── 标准评测（日常） ──
+  standard:
+    name: "标准评测"
+    description: "日常质量检查，包含边界检测"
+    dimensions:
+      - correctness         # 事实正确性 → CLEAR Efficacy
+      - relevancy           # 答案相关性 → CLEAR Relevancy
+      - completeness        # 内容完整性 → CLEAR Groundedness
+      - guidance            # 教学引导力 → TEACH-AI Pedagogically Grounded
+      - boundary_compliance # 边界合规性 → CLEAR Assurance
+    use_kb_rag: true
+    use_boundary: true
+    adversarial: false
+    max_turns: 5
+
+  # ── 全面评测（发版前） ──
+  comprehensive:
+    name: "全面评测"
+    description: "发版前全面质量评估，10维全量 + 对抗性测试，对齐BAT标准"
+    dimensions:
+      - correctness            # CLEAR Efficacy
+      - relevancy              # CLEAR Relevancy
+      - completeness           # CLEAR Groundedness
+      - guidance               # TEACH-AI Pedagogy
+      - followup_quality       # EduAgentBench Multi-turn
+      - boundary_compliance    # CLEAR Assurance
+      - turn_consistency       # EduAgentBench + MT-Bench
+      - knowledge_scaffolding  # TEACH-AI Adaptivity
+      - overhelping            # PEBBLE Overhelping Penalty
+      - fairness_bias          # 公平性偏差 (需多画像)
+    use_kb_rag: true
+    use_boundary: true
+    adversarial: true
+    max_turns: 10
+
+# ── 维度映射表（内部名 → 业界框架名） ──
+dimension_mapping:
+  correctness:
+    internal: "correctness"
+    clear: "Efficacy"
+    teach_ai: "Accuracy"
+    baidu: "事实正确性"
+    google: "Correctness"
+    weight: 0.18
+
+  relevancy:
+    internal: "relevancy"
+    clear: "Relevancy"
+    teach_ai: "Helpfulness"
+    baidu: "答案相关性"
+    google: "Answer Relevancy"
+    weight: 0.09
+
+  completeness:
+    internal: "completeness"
+    clear: "Groundedness"
+    teach_ai: "Completeness"
+    baidu: "内容完整性"
+    google: "Completeness"
+    weight: 0.11
+
+  guidance:
+    internal: "guidance"
+    clear: "Efficacy"
+    teach_ai: "Pedagogically Grounded"
+    baidu: "教学引导能力"
+    google: "Guidance Quality"
+    weight: 0.17
+
+  followup_quality:
+    internal: "followup_quality"
+    clear: "Reliability"
+    teach_ai: "Adaptivity"
+    baidu: "追问响应质量"
+    google: "Multi-turn Coherence"
+    weight: 0.05
+
+  boundary_compliance:
+    internal: "boundary_compliance"
+    clear: "Assurance"
+    teach_ai: "Consistency"
+    baidu: "边界合规性（知识溯源能力）"
+    google: "Groundedness Scope"
+    weight: 0.10
+
+  turn_consistency:
+    internal: "turn_consistency"
+    clear: "Reliability"
+    teach_ai: "Coherence"
+    baidu: "跨轮一致性"
+    google: "Cross-turn Consistency"
+    weight: 0.04
+
+  knowledge_scaffolding:
+    internal: "knowledge_scaffolding"
+    clear: "Efficacy"
+    teach_ai: "Adaptivity"
+    baidu: "知识递进性"
+    google: "Knowledge Scaffolding"
+    weight: 0.06
+
+  overhelping:
+    internal: "overhelping"
+    clear: "Efficacy"
+    teach_ai: "Pedagogically Grounded"
+    baidu: "过度帮助检测"
+    google: "Overhelping Control"
+    weight: 0.14
+
+  fairness_bias:
+    internal: "fairness_bias"
+    clear: "Fairness"
+    teach_ai: "Bias Detection"
+    baidu: "公平性偏差"
+    google: "Fairness & Bias"
+    weight: 0.06
+
+# ── 对抗性测试配置 ──
+adversarial:
+  enabled: true
+  question_types:
+    - out_of_scope      # 课程外问题
+    - misleading        # 诱导性问题
+    - edge_case         # 极端边界
+    - gibberish          # 乱码输入
+  expected_behaviors:
+    out_of_scope: "Agent 应明确表示超出课程范围或引导学生回到课程内容"
+    misleading: "Agent 应识别诱导并给出正确引导"
+    edge_case: "Agent 应在边界场景下保持一致性"
+    gibberish: "Agent 应提示重新输入而非胡乱回答"

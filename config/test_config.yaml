@@ -1,0 +1,32 @@
+test:
+  agent_id: "platform"            # 被测目标: 自主学习平台 (platform=HiAgent API直连 / web_test=Playwright网站测试)
+  num_questions: 1                 # 测试场景数量
+  max_turns: 3                     # 每个场景最大对话轮次
+  step_timeout: 300
+  restart_browser: false
+  headless: true               # 服务器默认无头 (后台线程会强制 True)
+  debug: false
+  random_seed: null
+
+  # === 三层级联评测开关 (v3.3) ===
+  use_embedding: true              # L2: 云端Embedding语义相似度 (硅基流动bge-m3, 需 SILICONFLOW_API_KEY; 缺则自动降级跳过)
+  use_structure: true              # L2: 结构化关键词覆盖 (默认启用)
+  use_boundary: true               # L1+L2: 边界检测 (关键词+KB检索)
+  use_llm_fallback: true
+
+  # === L1规则层权重 (v3.3) ===
+  rule_weight: 0.30                # L1规则层占30%
+  llm_weight: 0.70                 # L3 LLM占70%
+
+  # === 多Judge评分 (v3.3 — 支持跨模型族) ===
+  n_judges: 3                      # 并行Judge数量
+  confidence_threshold: 1.0        # 方差>此值标记"需人工复核"
+
+  # === 黄金QA库 ===
+  use_golden_qa: true              # 优先使用已审核通过的QA
+
+  # === Phase 2: RAG 增强 (金标准QA检索 + 历史失败案例注入) ===
+  use_rag: true                    # 启用检索增强生成 (GoldenQAIndex + EvidenceMemory)
+
+  # === 被测平台 URL (web_test / 网页评测使用) ===
+  share_url: "http://124.174.108.70"

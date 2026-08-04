@@ -1,0 +1,65 @@
+# ── 密钥 & 环境变量 ──────────────────────
+.env
+
+# ── Python ───────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+
+# ── 虚拟环境 ─────────────────────────────
+.venv/
+.venv_wsl/
+venv/
+env/
+
+# ── IDE ──────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── 测试 & 覆盖率 ────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+*.xml
+
+# ── 系统文件 ────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── 项目产物（临时文件）─────────────────
+page_explore_*.html
+page_screenshot_*.png
+.deepeval/
+logs/
+
+# ── 探索输出 (进 exploration 分支) ─────
+eval_output/
+explore_output/
+data/
+scripts/
+
+# ── 开发日志 (进 exploration 分支) ─────
+PROGRESS.md
+memory/
+.claude/
+
+# ── 无关文件 ───────────────────────────
+RA招募.docx
+
+# ── reports: 只保留白皮书+探针, 其余排除 ─
+reports/*.json
+reports/*.md
+reports/*.png
+reports/*.html
+reports/*.docx
+reports/*.sh
+!reports/AI_Agent评测标准白皮书_v3.6_Final.md
+!reports/probe_auth.json
+!reports/probe_auth.png
+!reports/probe_platform_ui.json
+!reports/probe_reallogin.png
+!reports/评测标准白皮书_v3.6_Final_20260716.docx
