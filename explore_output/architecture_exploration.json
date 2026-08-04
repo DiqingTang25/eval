@@ -1,0 +1,257 @@
+{
+  "home_dom": {
+    "url": "http://124.174.108.70/?phase=1",
+    "title": "AI+硬件实训平台",
+    "buttons": [
+      {
+        "text": "AI+HW Lab",
+        "class": "brand",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "用户画像",
+        "class": "ghost icon-text",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "退出",
+        "class": "ghost icon-text",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Phase 01国产 AI 动手派",
+        "class": "active",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Phase 02人机共创设计与智能制造",
+        "class": "",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Phase 03解锁 AI 五官",
+        "class": "",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Phase 04全链路实战与 AI 深度联动",
+        "class": "",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Phase 05AI 机器人创造营",
+        "class": "",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成",
+        "class": "lesson-card current done",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Day 2能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。已完成",
+        "class": "lesson-card current done",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Day 3桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。已完成",
+        "class": "lesson-card current done",
+        "disabled": false,
+        "visible": true
+      },
+      {
+        "text": "Day 4设备网关与 OpenAI-compatible 接口通过 API 网关、Dashboard 或设备入口触发桌面 Agent。已完成",
+        "class": "lesson-card current done",
+        "disabled": false,
+        "visible": true
+      }
+    ],
+    "inputs": [],
+    "containers": [
+      {
+        "class": "lesson-list",
+        "text": "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成Day 2能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval ",
+        "childCount": 4
+      },
+      {
+        "class": "lesson-card current done",
+        "text": "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成",
+        "childCount": 4
+      },
+      {
+        "class": "lesson-day",
+        "text": "Day 1",
+        "childCount": 0
+      },
+      {
+        "class": "lesson-body",
+        "text": "模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。",
+        "childCount": 2
+      },
+      {
+        "class": "lesson-state",
+        "text": "已完成",
+        "childCount": 0
+      },
+      {
+        "class": "lesson-card current done",
+        "text": "Day 2能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。已完成",
+        "childCount": 4
+      },
+      {
+        "class": "lesson-day",
+        "text": "Day 2",
+        "childCount": 0
+      },
+      {
+        "class": "lesson-body",
+        "text": "能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。",
+        "childCount": 2
+      },
+      {
+        "class": "lesson-state",
+        "text": "已完成",
+        "childCount": 0
+      },
+      {
+        "class": "lesson-card current done",
+        "text": "Day 3桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。已完成",
+        "childCount": 4
+      },
+      {
+        "class": "lesson-day",
+        "text": "Day 3",
+        "childCount": 0
+      },
+      {
+        "class": "lesson-body",
+        "text": "桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。",
+        "childCount": 2
+      },
+      {
+        "class": "lesson-state",
+        "text": "已完成",
+        "childCount": 0
+      },
+      {
+        "class": "lesson-card current done",
+        "text": "Day 4设备网关与 OpenAI-compatible 接口通过 API 网关、Dashboard 或设备入口触发桌面 Agent。已完成",
+        "childCount": 4
+      },
+      {
+        "class": "lesson-day",
+        "text": "Day 4",
+        "childCount": 0
+      },
+      {
+        "class": "lesson-body",
+        "text": "设备网关与 OpenAI-compatible 接口通过 API 网关、Dashboard 或设备入口触发桌面 Agent。",
+        "childCount": 2
+      },
+      {
+        "class": "lesson-state",
+        "text": "已完成",
+        "childCount": 0
+      },
+      {
+        "class": "side-panel",
+        "text": "本轮闭环Phase 01 · 4个Day规则引擎推荐安全关键词保护",
+        "childCount": 1
+      }
+    ],
+    "storage": {
+      "aix_user": "{\"id\":1,\"username\":\"student001\",\"display_name\":\"测试学生一\",\"role\":\"student\",\"class_name\":\"AI+硬件实训班\",\"gro",
+      "aix_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWR"
+    }
+  },
+  "network_log": [
+    {
+      "url": "http://124.174.108.70/phase3-api/auth/login",
+      "method": "POST",
+      "type": "fetch",
+      "ts": 1785272657.9049687
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/phases",
+      "method": "GET",
+      "type": "fetch",
+      "ts": 1785272661.91069
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/lessons?phase_id=4",
+      "method": "GET",
+      "type": "fetch",
+      "ts": 1785272661.9111056
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/lessons/17",
+      "method": "GET",
+      "type": "fetch",
+      "ts": 1785272664.3094294
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/events",
+      "method": "POST",
+      "type": "fetch",
+      "ts": 1785272667.3132281
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/lessons/17/next-step",
+      "method": "POST",
+      "type": "fetch",
+      "ts": 1785272667.3135412
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/events",
+      "method": "POST",
+      "type": "fetch",
+      "ts": 1785272667.3138664
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/events",
+      "method": "POST",
+      "type": "fetch",
+      "ts": 1785272667.5603836
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/phases",
+      "method": "GET",
+      "type": "fetch",
+      "ts": 1785272672.7972615
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/lessons?phase_id=4",
+      "method": "GET",
+      "type": "fetch",
+      "ts": 1785272672.7978773
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/events",
+      "method": "POST",
+      "type": "fetch",
+      "ts": 1785272672.9138932
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/lessons?phase_id=6",
+      "method": "GET",
+      "type": "fetch",
+      "ts": 1785272672.914211
+    },
+    {
+      "url": "http://124.174.108.70/phase3-api/events",
+      "method": "POST",
+      "type": "fetch",
+      "ts": 1785272674.9289093
+    }
+  ]
+}

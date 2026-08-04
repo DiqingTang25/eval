@@ -1,0 +1,526 @@
+[
+  {
+    "lesson_id": 1,
+    "start_/phase3-api": {
+      "status": 404,
+      "ok": false
+    },
+    "questions": [],
+    "quiz_session_id": null,
+    "next_lesson_id": null,
+    "start_/api": {
+      "status": 404,
+      "ok": false
+    }
+  },
+  {
+    "lesson_id": 2,
+    "start_/phase3-api": {
+      "status": 404,
+      "ok": false
+    },
+    "questions": [],
+    "quiz_session_id": null,
+    "next_lesson_id": null,
+    "start_/api": {
+      "status": 404,
+      "ok": false
+    }
+  },
+  {
+    "lesson_id": 3,
+    "start_/phase3-api": {
+      "status": 404,
+      "ok": false
+    },
+    "questions": [],
+    "quiz_session_id": null,
+    "next_lesson_id": null,
+    "start_/api": {
+      "status": 404,
+      "ok": false
+    }
+  },
+  {
+    "lesson_id": 4,
+    "start_/phase3-api": {
+      "status": 200,
+      "ok": true
+    },
+    "questions": [
+      {
+        "question_id": 4561,
+        "question_type": "multiple_choice",
+        "question_text": "在按钮控制 LED 实验中，以下哪些做法有助于避免实验失败？（多选）",
+        "options": [
+          {
+            "id": "A",
+            "text": "在按钮引脚上使用 INPUT_PULLUP 并确认按下时读到 LOW"
+          },
+          {
+            "id": "B",
+            "text": "将 LED 直接连接到 3.3V 和 GND 之间测试"
+          },
+          {
+            "id": "C",
+            "text": "在代码中打印按钮状态到串口监视器"
+          },
+          {
+            "id": "D",
+            "text": "使用杜邦线将按钮的 OUT 脚接到 GPIO 0"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4562,
+        "question_type": "multiple_choice",
+        "question_text": "在呼吸灯程序中，要加快亮度变化速度，应该调整哪些参数？（多选）",
+        "options": [
+          {
+            "id": "A",
+            "text": "增加 delay() 的数值"
+          },
+          {
+            "id": "B",
+            "text": "减少 delay() 的数值"
+          },
+          {
+            "id": "C",
+            "text": "增加 PWM 值的步进量（如从 1 改为 5）"
+          },
+          {
+            "id": "D",
+            "text": "将 analogWrite() 改为 digitalWrite()"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4563,
+        "question_type": "single_choice",
+        "question_text": "在识别开发板接口时，LED 模块的信号脚通常标为什么？",
+        "options": [
+          {
+            "id": "A",
+            "text": "OUT"
+          },
+          {
+            "id": "B",
+            "text": "SIG 或 IN"
+          },
+          {
+            "id": "C",
+            "text": "DATA"
+          },
+          {
+            "id": "D",
+            "text": "TRIG"
+          }
+        ],
+        "difficulty": "easy"
+      },
+      {
+        "question_id": 4564,
+        "question_type": "single_choice",
+        "question_text": "在按钮控制 LED 实验中，按下按钮时 LED 不亮，松开时反而亮，最可能的原因是？",
+        "options": [
+          {
+            "id": "A",
+            "text": "LED 引脚接错了"
+          },
+          {
+            "id": "B",
+            "text": "按钮引脚使用了 INPUT_PULLUP，但代码中判断按下为 HIGH"
+          },
+          {
+            "id": "C",
+            "text": "按钮没有接 GND"
+          },
+          {
+            "id": "D",
+            "text": "LED 电阻太大"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4565,
+        "question_type": "multiple_choice",
+        "question_text": "完成“点亮 LED”后，哪些材料可以共同构成可复查的完成证据？（多选）",
+        "options": [
+          {
+            "id": "A",
+            "text": "LED 常亮的清晰接线照片"
+          },
+          {
+            "id": "B",
+            "text": "上传成功的 Arduino IDE 截图"
+          },
+          {
+            "id": "C",
+            "text": "代码中 LED_PIN 定义的截图"
+          },
+          {
+            "id": "D",
+            "text": "串口监视器输出截图"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4566,
+        "question_type": "multiple_choice",
+        "question_text": "关于 setup() 和 loop()，以下哪些说法正确？（多选）",
+        "options": [
+          {
+            "id": "A",
+            "text": "setup() 在程序启动时只执行一次"
+          },
+          {
+            "id": "B",
+            "text": "loop() 在 setup() 执行完毕后反复执行"
+          },
+          {
+            "id": "C",
+            "text": "setup() 中也可以使用 delay()"
+          },
+          {
+            "id": "D",
+            "text": "loop() 中定义的变量在每次循环时都会重新初始化"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4567,
+        "question_type": "true_false",
+        "question_text": "在呼吸灯程序中，LED 亮度变化不平滑出现明显阶梯感，最可能的原因是 PWM 频率设置过低。",
+        "options": [
+          {
+            "id": "对",
+            "text": "对"
+          },
+          {
+            "id": "错",
+            "text": "错"
+          }
+        ],
+        "difficulty": "hard"
+      },
+      {
+        "question_id": 4568,
+        "question_type": "single_choice",
+        "question_text": "开发板端口无法识别时，最有效的第一步排查措施是？",
+        "options": [
+          {
+            "id": "A",
+            "text": "更换开发板"
+          },
+          {
+            "id": "B",
+            "text": "更换 USB 数据线"
+          },
+          {
+            "id": "C",
+            "text": "重新安装 Arduino IDE"
+          },
+          {
+            "id": "D",
+            "text": "修改代码中的引脚定义"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4569,
+        "question_type": "true_false",
+        "question_text": "确认 USB 数据线、开发板型号和端口时，只要端口列表中出现一个端口即可确认是正确端口，无需插拔验证。",
+        "options": [
+          {
+            "id": "对",
+            "text": "对"
+          },
+          {
+            "id": "错",
+            "text": "错"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4570,
+        "question_type": "single_choice",
+        "question_text": "在按钮控制 LED 实验中，若按钮未按下时 LED 常亮，按下后 LED 熄灭，最可能的原因是？",
+        "options": [
+          {
+            "id": "A",
+            "text": "按钮引脚使用了 INPUT_PULLUP，代码中判断按下为 LOW，但 LED 控制逻辑取反"
+          },
+          {
+            "id": "B",
+            "text": "按钮引脚使用了 INPUT_PULLUP，代码中判断按下为 HIGH"
+          },
+          {
+            "id": "C",
+            "text": "LED 引脚接反"
+          },
+          {
+            "id": "D",
+            "text": "按钮的 VCC 和 GND 接反"
+          }
+        ],
+        "difficulty": "hard"
+      }
+    ],
+    "quiz_session_id": 592,
+    "next_lesson_id": null,
+    "submit_/phase3-api": {
+      "status": 400,
+      "ok": false
+    },
+    "score": null,
+    "results": [],
+    "submit_next": null
+  },
+  {
+    "lesson_id": 5,
+    "start_/phase3-api": {
+      "status": 200,
+      "ok": true
+    },
+    "questions": [
+      {
+        "question_id": 4571,
+        "question_type": "single_choice",
+        "question_text": "在“DHT11 + OLED 智能温湿度显示”步骤中，OLED 显示温度值但湿度显示为乱码，以下哪项最可能的原因？",
+        "options": [
+          {
+            "id": "A",
+            "text": "DHT11 的 DATA 引脚接触不良"
+          },
+          {
+            "id": "B",
+            "text": "OLED 的 I2C 地址与 DHT11 冲突"
+          },
+          {
+            "id": "C",
+            "text": "温湿度数据在 OLED 上显示时，字符串格式化错误，例如将浮点数格式化为整数"
+          },
+          {
+            "id": "D",
+            "text": "DHT11 库未正确安装"
+          }
+        ],
+        "difficulty": "hard"
+      },
+      {
+        "question_id": 4572,
+        "question_type": "true_false",
+        "question_text": "在“DHT11 + OLED 智能温湿度显示”步骤中，如果 OLED 显示温度值但湿度显示为乱码，最可能的原因是 DHT11 传感器损坏。",
+        "options": [
+          {
+            "id": "对",
+            "text": "对"
+          },
+          {
+            "id": "错",
+            "text": "错"
+          }
+        ],
+        "difficulty": "hard"
+      },
+      {
+        "question_id": 4573,
+        "question_type": "single_choice",
+        "question_text": "在“多界面徽章或温湿度计项目”中，按钮用于切换 OLED 显示页面，但按下按钮后页面无变化。以下哪项排查最有效？",
+        "options": [
+          {
+            "id": "A",
+            "text": "检查按钮接线是否使用了上拉电阻，以及代码中是否配置了 INPUT_PULLUP"
+          },
+          {
+            "id": "B",
+            "text": "在 loop 中增加更长的 delay 以等待按钮稳定"
+          },
+          {
+            "id": "C",
+            "text": "更换一个 OLED 屏幕"
+          },
+          {
+            "id": "D",
+            "text": "将按钮连接到 5V 引脚"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4574,
+        "question_type": "single_choice",
+        "question_text": "在“OLED 显示 Hello 信息”步骤中，上传代码后 OLED 屏幕无任何显示，但 I2C 扫描已确认地址为 0x3C。以下哪项操作最合理？",
+        "options": [
+          {
+            "id": "A",
+            "text": "检查 OLED 的 VCC 是否接在 3.3V，GND 是否共地"
+          },
+          {
+            "id": "B",
+            "text": "将 I2C 地址改为 0x3D 再试"
+          },
+          {
+            "id": "C",
+            "text": "更换一个更高分辨率的 OLED 屏幕"
+          },
+          {
+            "id": "D",
+            "text": "在代码中增加更大的延时"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4575,
+        "question_type": "true_false",
+        "question_text": "在“扫描 I2C 地址，确认 OLED 通信”步骤中，如果 I2C scanner 未检测到任何设备，可以尝试将 SDA 和 SCL 线交换连接。",
+        "options": [
+          {
+            "id": "对",
+            "text": "对"
+          },
+          {
+            "id": "错",
+            "text": "错"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4576,
+        "question_type": "multiple_choice",
+        "question_text": "在“读取 DHT11 温湿度并输出串口”步骤中，以下哪些检查点属于必须验证的？（多选）",
+        "options": [
+          {
+            "id": "A",
+            "text": "DHT11 的 VCC 接 3.3V 或 5V（根据模块规格）"
+          },
+          {
+            "id": "B",
+            "text": "串口监视器波特率与代码中 Serial.begin 一致"
+          },
+          {
+            "id": "C",
+            "text": "DHT11 的 DATA 引脚与代码中 DHT_PIN 定义一致"
+          },
+          {
+            "id": "D",
+            "text": "OLED 屏幕已显示 Hello 信息"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4577,
+        "question_type": "multiple_choice",
+        "question_text": "在“扫描 I2C 地址，确认 OLED 通信”步骤中，以下哪些做法有助于快速定位问题？（多选）",
+        "options": [
+          {
+            "id": "A",
+            "text": "上传 I2C scanner 代码前，先确认开发板型号和端口设置正确"
+          },
+          {
+            "id": "B",
+            "text": "如果串口无输出，立即更换所有杜邦线"
+          },
+          {
+            "id": "C",
+            "text": "检查 OLED 的 SDA 和 SCL 是否连接到开发板正确的 I2C 引脚"
+          },
+          {
+            "id": "D",
+            "text": "同时修改多处接线和代码，然后一次上传测试"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4578,
+        "question_type": "single_choice",
+        "question_text": "在“读取 DHT11 温湿度并输出串口”步骤中，串口输出显示温度始终为 0.0，湿度始终为 0.0，以下哪项最可能是原因？",
+        "options": [
+          {
+            "id": "A",
+            "text": "DHT11 的 DATA 引脚接到了 GPIO 2，但代码中定义的 DHT_PIN 是 GPIO 4"
+          },
+          {
+            "id": "B",
+            "text": "串口监视器波特率设置为 9600，但代码中 Serial.begin(115200)"
+          },
+          {
+            "id": "C",
+            "text": "DHT 传感器库版本过旧"
+          },
+          {
+            "id": "D",
+            "text": "开发板供电不足，导致 DHT11 无法正常工作"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4579,
+        "question_type": "single_choice",
+        "question_text": "在“扫描 I2C 地址，确认 OLED 通信”步骤中，串口监视器未显示任何 I2C 设备地址，以下哪项是最可能的排查方向？",
+        "options": [
+          {
+            "id": "A",
+            "text": "检查 OLED 的 VCC 是否接在 5V 引脚上"
+          },
+          {
+            "id": "B",
+            "text": "检查 SDA 和 SCL 是否接反，或是否连接到正确的 I2C 引脚"
+          },
+          {
+            "id": "C",
+            "text": "更换一个更高波特率的串口监视器设置"
+          },
+          {
+            "id": "D",
+            "text": "重新安装 Arduino IDE"
+          }
+        ],
+        "difficulty": "medium"
+      },
+      {
+        "question_id": 4580,
+        "question_type": "multiple_choice",
+        "question_text": "在“DHT11 + OLED 智能温湿度显示”步骤中，以下哪些做法有助于实现稳定的显示？（多选）",
+        "options": [
+          {
+            "id": "A",
+            "text": "确保 DHT11 和 OLED 共地"
+          },
+          {
+            "id": "B",
+            "text": "在 loop 中频繁调用 display.clearDisplay() 和 display.display() 以更新显示"
+          },
+          {
+            "id": "C",
+            "text": "读取 DHT11 后加入适当延时（如 2 秒）"
+          },
+          {
+            "id": "D",
+            "text": "将 DHT11 的 DATA 引脚直接连接到 OLED 的 SDA 引脚"
+          }
+        ],
+        "difficulty": "hard"
+      }
+    ],
+    "quiz_session_id": 593,
+    "next_lesson_id": null,
+    "submit_/phase3-api": {
+      "status": null,
+      "ok": false
+    },
+    "submit_error_body": ""
+  }
+]

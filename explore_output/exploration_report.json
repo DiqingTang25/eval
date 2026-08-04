@@ -1,0 +1,424 @@
+{
+  "meta": {
+    "started_at": "2026-07-28T20:18:20.369464+00:00",
+    "base_url": "http://124.174.108.70",
+    "username": "student001",
+    "finished_at": "2026-07-28T20:19:23.306219+00:00",
+    "screenshots_taken": 16,
+    "total_features": 5
+  },
+  "pages": {
+    "homepage": {
+      "title": "AI+硬件实训平台",
+      "url": "http://124.174.108.70/?phase=1",
+      "h1": [],
+      "h2": [
+        "课程日历"
+      ],
+      "nav_items": "Phase 01国产 AI 动手派Phase 02人机共创设计与智能制造Phase 03解锁 AI 五官Phase 04全链路实战与 AI 深度联动Phase 05AI 机器人创造营",
+      "links": [],
+      "phase_card_texts": [
+        "AI+HW Lab课程日历测试学生一用户画像退出Phase 01国产 AI 动手派Phase 02人机共创设计与智能制造Phase 03解锁 AI 五官Phase 04全链路实战与 AI 深度联动Phase 05AI 机器人创造营Phase 01：国产 AI 动手派课程日历模型评测、能力模块、桌面 Agent 与设备网关的工程链路。Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路",
+        "Phase 01国产 AI 动手派Phase 02人机共创设计与智能制造Phase 03解锁 AI 五官Phase 04全链路实战与 AI 深度联动Phase 05AI 机器人创造营",
+        "Phase 01：国产 AI 动手派",
+        "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成",
+        "Day 2能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。已完成",
+        "Day 3桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。已完成",
+        "Day 4设备网关与 OpenAI-compatible 接口通过 API 网关、Dashboard 或设备入口触发桌面 Agent。已完成"
+      ],
+      "clickable_elements": [
+        {
+          "tag": "button",
+          "text": "AI+HW Lab",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "用户画像",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "退出",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Phase 01国产 AI 动手派",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Phase 02人机共创设计与智能制造",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Phase 03解锁 AI 五官",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Phase 04全链路实战与 AI 深度联动",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Phase 05AI 机器人创造营",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Day 2能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。已完成",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Day 3桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。已完成",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Day 4设备网关与 OpenAI-compatible 接口通过 API 网关、Dashboard 或设备入口触发桌面 Agent。已完成",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "Agent",
+          "href": ""
+        },
+        {
+          "tag": "button",
+          "text": "分身",
+          "href": ""
+        }
+      ]
+    },
+    "phase_click_1": {
+      "click_text": "Phase 01国产 AI 动手派",
+      "changes": [],
+      "url_changed": false,
+      "after_url": "http://124.174.108.70/?phase=1",
+      "after_title": "AI+硬件实训平台",
+      "visible_content": [
+        "AI+HW Lab",
+        "课程日历",
+        "用户画像",
+        "Phase 01国产 AI 动手派",
+        "Phase 02人机共创设计与智能制造",
+        "Phase 03解锁 AI 五官",
+        "Phase 04全链路实战与 AI 深度联动",
+        "Phase 05AI 机器人创造营",
+        "课程日历",
+        "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成",
+        "Day 1",
+        "模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。",
+        "Day 2能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。已完成",
+        "Day 2",
+        "能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。",
+        "Day 3桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。已完成",
+        "Day 3",
+        "桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。",
+        "Day 4设备网关与 OpenAI-compatible 接口通过 API 网关、Dashboard 或设备入口触发桌面 Agent。已完成",
+        "Day 4"
+      ],
+      "day_buttons": 4
+    },
+    "phase_click_2": {
+      "click_text": "Phase 02人机共创设计与智能制造",
+      "changes": [],
+      "url_changed": true,
+      "after_url": "http://124.174.108.70/?phase=2",
+      "after_title": "AI+硬件实训平台",
+      "visible_content": [
+        "AI+HW Lab",
+        "课程日历",
+        "用户画像",
+        "Phase 01国产 AI 动手派",
+        "Phase 02人机共创设计与智能制造",
+        "Phase 03解锁 AI 五官",
+        "Phase 04全链路实战与 AI 深度联动",
+        "Phase 05AI 机器人创造营",
+        "课程日历",
+        "Day 1AI-CAD 到 3D 打印切片Text-to-CAD、STEP/STL、Bambu Studio 切片和 G-code 预览。已完成",
+        "Day 1",
+        "AI-CAD 到 3D 打印切片Text-to-CAD、STEP/STL、Bambu Studio 切片和 G-code 预览。",
+        "Day 2Blender 自动化与打印后处理Blender Python API、Prompt→Code→Mesh、Bambu 参数微调和后处理链路。已完成",
+        "Day 2",
+        "Blender 自动化与打印后处理Blender Python API、Prompt→Code→Mesh、Bambu 参数微调和后处理链路。",
+        "Day 3OpenClaw 与激光/UV 协同命令式自动化制造、激光功率速度深度关系和 UV 白墨/彩墨流程。已完成",
+        "Day 3",
+        "OpenClaw 与激光/UV 协同命令式自动化制造、激光功率速度深度关系和 UV 白墨/彩墨流程。",
+        "Day 4AI 刀路与虚实对照五轴机床、3+2 定位加工、CAM 仿真、装夹对刀和空跑验证。已完成",
+        "Day 4"
+      ],
+      "day_buttons": 5
+    },
+    "phase_click_3": {
+      "click_text": "Phase 03解锁 AI 五官",
+      "changes": [],
+      "url_changed": true,
+      "after_url": "http://124.174.108.70/?phase=3",
+      "after_title": "AI+硬件实训平台",
+      "visible_content": [
+        "AI+HW Lab",
+        "课程日历",
+        "用户画像",
+        "Phase 01国产 AI 动手派",
+        "Phase 02人机共创设计与智能制造",
+        "Phase 03解锁 AI 五官",
+        "Phase 04全链路实战与 AI 深度联动",
+        "Phase 05AI 机器人创造营",
+        "课程日历",
+        "Day 1电子硬件入门完成 Arduino / ESP32-S3 环境检查，点亮 LED，理解 GPIO、按钮输入和 PWM 呼吸灯。已完成",
+        "Day 1",
+        "电子硬件入门完成 Arduino / ESP32-S3 环境检查，点亮 LED，理解 GPIO、按钮输入和 PWM 呼吸灯。",
+        "Day 2传感器通信与屏幕设计读取温湿度，扫描 I2C，使用 OLED 展示数据与提示。已完成",
+        "Day 2",
+        "传感器通信与屏幕设计读取温湿度，扫描 I2C，使用 OLED 展示数据与提示。",
+        "Day 3边缘 AI 传感器融合多传感器读取、数据归一化、规则融合和 Edge Impulse 入门。已完成",
+        "Day 3",
+        "边缘 AI 传感器融合多传感器读取、数据归一化、规则融合和 Edge Impulse 入门。",
+        "Day 4超声波智能决策使用超声波测距、阈值规则和屏幕反馈完成智能决策装置。已完成",
+        "Day 4"
+      ],
+      "day_buttons": 6
+    },
+    "phase_click_4": {
+      "click_text": "Phase 04全链路实战与 AI 深度联动",
+      "changes": [],
+      "url_changed": true,
+      "after_url": "http://124.174.108.70/?phase=4",
+      "after_title": "AI+硬件实训平台",
+      "visible_content": [
+        "AI+HW Lab",
+        "课程日历",
+        "用户画像",
+        "Phase 01国产 AI 动手派",
+        "Phase 02人机共创设计与智能制造",
+        "Phase 03解锁 AI 五官",
+        "Phase 04全链路实战与 AI 深度联动",
+        "Phase 05AI 机器人创造营",
+        "课程日历",
+        "Day 1麦克风数据采集与声音控制灯掌握麦克风原始数据采集、音频特征识别和声音控制灯的闭环。已完成",
+        "Day 1",
+        "麦克风数据采集与声音控制灯掌握麦克风原始数据采集、音频特征识别和声音控制灯的闭环。",
+        "Day 2边缘AI训练与传感器数据融合理解 Edge Impulse 流程，完成多源传感器数据融合与环境监测代码调试。已完成",
+        "Day 2",
+        "边缘AI训练与传感器数据融合理解 Edge Impulse 流程，完成多源传感器数据融合与环境监测代码调试。",
+        "Day 3多模态边缘AI训练与部署优化音频模型，学习照片采集与图像模型训练，完成设备端部署。进入",
+        "Day 3",
+        "多模态边缘AI训练与部署优化音频模型，学习照片采集与图像模型训练，完成设备端部署。",
+        "Day 4屏幕布局与触摸交互掌握屏幕 UI 布局、触摸坐标和菜单状态机的设计与调试。待解锁",
+        "Day 4"
+      ],
+      "day_buttons": 7
+    },
+    "phase_click_5": {
+      "click_text": "Phase 05AI 机器人创造营",
+      "changes": [],
+      "url_changed": true,
+      "after_url": "http://124.174.108.70/?phase=5",
+      "after_title": "AI+硬件实训平台",
+      "visible_content": [
+        "AI+HW Lab",
+        "课程日历",
+        "用户画像",
+        "Phase 01国产 AI 动手派",
+        "Phase 02人机共创设计与智能制造",
+        "Phase 03解锁 AI 五官",
+        "Phase 04全链路实战与 AI 深度联动",
+        "Phase 05AI 机器人创造营",
+        "机器人项目 Agent",
+        "Phase 5 Agent可用"
+      ],
+      "day_buttons": 0
+    },
+    "performance": {
+      "timing": {
+        "domContentLoaded": 10,
+        "loadComplete": NaN,
+        "domInteractive": 8,
+        "firstPaint": 32,
+        "resourceCount": 17
+      },
+      "js_errors": [],
+      "api_calls_count": 1,
+      "api_endpoints": [
+        {
+          "path": "/phase3-api/phases",
+          "count": 8
+        },
+        {
+          "path": "/phase3-api/lessons?phase_id=4",
+          "count": 7
+        },
+        {
+          "path": "/phase3-api/events",
+          "count": 5
+        },
+        {
+          "path": "/phase3-api/quiz/start",
+          "count": 2
+        },
+        {
+          "path": "/phase3-api/profile/me",
+          "count": 2
+        },
+        {
+          "path": "/phase3-api/auth/login",
+          "count": 1
+        },
+        {
+          "path": "/api/phases",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/lessons?phase_id=5",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/lessons?phase_id=2",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/lessons?phase_id=3",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/lessons?phase_id=6",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/lessons/17",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/lessons/17/next-step",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/knowledge/search?q=AI",
+          "count": 1
+        },
+        {
+          "path": "/phase3-api/knowledge/search?q=%E4%BC%A0%E6%84%9F%E5%99%A8",
+          "count": 1
+        }
+      ],
+      "status_distribution": {
+        "200": 104,
+        "401": 7
+      },
+      "error_requests": 7
+    }
+  },
+  "features": {
+    "login": {
+      "status": "logged_in",
+      "steps": [
+        {
+          "step": "visit_homepage",
+          "url": "http://124.174.108.70/",
+          "title": "AI+硬件实训平台"
+        }
+      ],
+      "initial_url": "http://124.174.108.70/",
+      "is_login_page": true,
+      "has_phase_content": true,
+      "post_login": {
+        "has_phase": true,
+        "still_login": false,
+        "url": "http://124.174.108.70/?phase=1",
+        "title": "AI+硬件实训平台"
+      },
+      "login_success": true
+    },
+    "quiz": {
+      "tests": [
+        {
+          "lesson_id": 20,
+          "url": "http://124.174.108.70/lessons/20?phase=1",
+          "title": "AI+硬件实训平台",
+          "quiz_references": false,
+          "quiz_buttons_found": 0,
+          "quiz_api__phase3-api": {
+            "status": 401,
+            "ok": false
+          },
+          "questions_count": 0,
+          "has_session_id": false
+        },
+        {
+          "lesson_id": 26,
+          "url": "http://124.174.108.70/lessons/26?phase=1",
+          "title": "AI+硬件实训平台",
+          "quiz_references": false,
+          "quiz_buttons_found": 0,
+          "quiz_api__phase3-api": {
+            "status": 401,
+            "ok": false
+          },
+          "questions_count": 0,
+          "has_session_id": false
+        }
+      ]
+    },
+    "learning_flow": {
+      "steps": [
+        {
+          "action": "goto_home",
+          "title": "AI+硬件实训平台"
+        },
+        {
+          "action": "click_phase",
+          "text": "Phase 01国产 AI 动手派",
+          "url": "http://124.174.108.70/?phase=1",
+          "title": "AI+硬件实训平台"
+        },
+        {
+          "action": "click_day",
+          "text": "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成",
+          "url": "http://124.174.108.70/?phase=1",
+          "title": "AI+硬件实训平台"
+        }
+      ],
+      "lesson_page_text": "\n    AI+HW LabDay 1：模型评测与路由测试学生一用户画像退出返回课程日历Phase 01 · Day 1Day 1：模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。选择本节学习方式两种方式都会按 Step 记录完成状态、学习证据和求助事件；区别在于页面是否展开操作引导。帮帮我展开步骤、检查清单与安全提醒，卡住时可直接唤起当前 Phase Agent。进入引导学习 我自己来从课程仓库与任务目标开始，自主推进，只保留交付边界和完成标准。进入自主探索 笔记\n    \n\n\n\n\n\n\nAgent      AI    课程助教    对话自动记录    ×回答来自当前 Phase Agent；提问和回复会自动进入学习记录。    发送\n      数字分身\n      分身\n      \n    ",
+      "has_chat_input": false,
+      "nav_buttons": []
+    },
+    "profile": {
+      "prefix": "/phase3-api",
+      "keys": [
+        "error"
+      ]
+    },
+    "all_buttons": {
+      "buttons": [
+        "AI+HW Lab",
+        "用户画像",
+        "退出",
+        "Phase 01国产 AI 动手派",
+        "Phase 02人机共创设计与智能制造",
+        "Phase 03解锁 AI 五官",
+        "Phase 04全链路实战与 AI 深度联动",
+        "Phase 05AI 机器人创造营",
+        "Day 1模型评测与路由设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。已完成",
+        "Day 2能力模块与 Agent Handoff 合同把模型能力封装成 Prompt、Schema、Eval Case 和可交接的 Action 合同。已完成",
+        "Day 3桌面 Agent、Tool Use 与 RAG运行桌面 Agent，验证文件感知、检索、生成、执行和 trace 证据。已完成",
+        "Day 4设备网关与 OpenAI-compatible 接口通过 API 网关、Dashboard 或设备入口触发桌面 Agent。已完成",
+        "关闭",
+        "Agent",
+        "分身"
+      ]
+    }
+  },
+  "errors": [],
+  "network_summary": {},
+  "health_score": 0.3
+}

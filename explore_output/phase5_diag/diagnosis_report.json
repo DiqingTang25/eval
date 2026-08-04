@@ -1,0 +1,340 @@
+{
+  "page_url": "http://124.174.108.70/?phase=5",
+  "buttons": [
+    {
+      "text": "AI+HW Lab",
+      "class": "brand",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "用户画像",
+      "class": "ghost icon-text",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "退出",
+      "class": "ghost icon-text",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "Phase 01国产 AI 动手派",
+      "class": "",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "Phase 02人机共创设计与智能制造",
+      "class": "",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "Phase 03解锁 AI 五官",
+      "class": "",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "Phase 04全链路实战与 AI 深度联动",
+      "class": "",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "Phase 05AI 机器人创造营",
+      "class": "active",
+      "disabled": false,
+      "visible": true
+    },
+    {
+      "text": "发送",
+      "class": "",
+      "disabled": true,
+      "visible": true
+    },
+    {
+      "text": "分身",
+      "class": "dt-fab",
+      "disabled": false,
+      "visible": false
+    }
+  ],
+  "inputs": [
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "placeholder": "输入当前问题，Enter 发送，Shift + Enter 换行",
+      "visible": true,
+      "parentClass": "course-agent-composer"
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "placeholder": "描述问题、报错现象或当前步骤…",
+      "visible": false,
+      "parentClass": "aix-agent-composer"
+    }
+  ],
+  "iframes": [],
+  "agent_panel_hints": [
+    {
+      "selector": "[class*=agent]",
+      "tag": "SECTION",
+      "class": "phase5-agent-page",
+      "size": "1252x738",
+      "pos": "168,94",
+      "text": "Phase 05 · AI机器人创造营机器人项目 Agent告诉我你正在做什么、哪里卡住了，或希望先完成哪一步。我会陪你梳理方案并推进机器人项目。 可以开始提问Phase 5 Agent可用Phase 5开始和 Phase 5 Agent 对话可以讨论机器人创意、方案拆解、软硬件联调和项目交付。发送"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "phase5-agent-intro",
+      "size": "340x373",
+      "pos": "197,123",
+      "text": "Phase 05 · AI机器人创造营机器人项目 Agent告诉我你正在做什么、哪里卡住了，或希望先完成哪一步。我会陪你梳理方案并推进机器人项目。 可以开始提问"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "phase5-agent-status",
+      "size": "326x36",
+      "pos": "514,127",
+      "text": "可以开始提问"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "SECTION",
+      "class": "course-agent-panel agent-workspace",
+      "size": "828x680",
+      "pos": "197,489",
+      "text": "Phase 5 Agent可用Phase 5开始和 Phase 5 Agent 对话可以讨论机器人创意、方案拆解、软硬件联调和项目交付。发送"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "HEADER",
+      "class": "course-agent-head",
+      "size": "826x88",
+      "pos": "198,490",
+      "text": "Phase 5 Agent可用"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "course-agent-mark",
+      "size": "50x50",
+      "pos": "217,512",
+      "text": ""
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "course-agent-title",
+      "size": "708x45",
+      "pos": "219,574",
+      "text": "Phase 5 Agent可用"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "course-agent-context",
+      "size": "826x46",
+      "pos": "286,490",
+      "text": "Phase 5"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "course-agent-messages",
+      "size": "826x428",
+      "pos": "332,490",
+      "text": "开始和 Phase 5 Agent 对话可以讨论机器人创意、方案拆解、软硬件联调和项目交付。"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "course-agent-empty",
+      "size": "430x83",
+      "pos": "448,681",
+      "text": "开始和 Phase 5 Agent 对话可以讨论机器人创意、方案拆解、软硬件联调和项目交付。"
+    },
+    {
+      "selector": "[class*=agent]",
+      "tag": "DIV",
+      "class": "course-agent-composer",
+      "size": "826x116",
+      "pos": "760,490",
+      "text": "发送"
+    },
+    {
+      "selector": "[class*=panel]",
+      "tag": "SECTION",
+      "class": "course-agent-panel agent-workspace",
+      "size": "828x680",
+      "pos": "197,489",
+      "text": "Phase 5 Agent可用Phase 5开始和 Phase 5 Agent 对话可以讨论机器人创意、方案拆解、软硬件联调和项目交付。发送"
+    }
+  ],
+  "ws_hints": [],
+  "textarea_state": [
+    {
+      "placeholder": "输入当前问题，Enter 发送，Shift + Enter 换行",
+      "visible": true,
+      "class": "",
+      "parentHTML": "<div class=\"course-agent-composer\"><textarea placeholder=\"输入当前问题，Enter 发送，Shift + Enter 换行\" rows=\"3\" maxlength=\"4000\" style=\"\"></textarea><button disabled=\"\" aria-label=\"发送消息\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-"
+    },
+    {
+      "placeholder": "描述问题、报错现象或当前步骤…",
+      "visible": false,
+      "class": "",
+      "parentHTML": "<footer class=\"aix-agent-composer\">  <textarea id=\"aixAgentInput\" rows=\"1\" maxlength=\"4000\" placeholder=\"描述问题、报错现象或当前步骤…\" style=\"\"></textarea>  <button id=\"aixAgentSend\" type=\"button\">发送</button></footer>"
+    }
+  ],
+  "network_log": [
+    {
+      "type": "stylesheet",
+      "method": "GET",
+      "url": "http://124.174.108.70/agent-iframe-overlay.css?v=20260721-clean-old-agent1",
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "referer": "http://124.174.108.70/"
+      }
+    },
+    {
+      "type": "script",
+      "method": "GET",
+      "url": "http://124.174.108.70/agent-iframe-overlay.js?v=20260721-backend-chat4",
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "referer": "http://124.174.108.70/"
+      }
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/agent-iframe-overlay.css?v=20260721-clean-old-agent1",
+      "body_preview": ".aix-agent-fab {\n  position: fixed;\n  right: 16px;\n  bottom: 26px;\n  z-index: 2147482600;\n  width: 66px;\n  height: 66px;\n  border: 0;\n  border-radius: 22px;\n  background: #4f6df5;\n  color: #fff;\n  box-shadow: 0 18px 38px rgba(79, 109, 245, 0.28);\n  cursor: pointer;\n  display: grid;\n  place-items: ce"
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/agent-iframe-overlay.js?v=20260721-backend-chat4",
+      "body_preview": "(function () {\n  if (window.__AIX_BACKEND_AGENT_CHAT__) return;\n  window.__AIX_BACKEND_AGENT_CHAT__ = true;\n\n  var SHELL_SIZE_KEY = \"aixAgentShellSizeV2\";\n  var conversations = {};\n  var messagesByContext = {};\n  var sending = false;\n\n  function parseJson(value) {\n    try {\n      return value ? JSON"
+    },
+    {
+      "type": "fetch",
+      "method": "POST",
+      "url": "http://124.174.108.70/phase3-api/auth/login",
+      "headers": {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "content-type": "application/json",
+        "referer": "http://124.174.108.70/"
+      }
+    },
+    {
+      "type": "fetch",
+      "method": "GET",
+      "url": "http://124.174.108.70/phase3-api/phases",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3ODUzMDI3MjMsImV4cCI6MTc4NTMzMTUyM30.rIICA73-np0CQj4fMUh5lDXt7qHfR593vmDTmZePv5U",
+        "referer": "http://124.174.108.70/",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "content-type": "application/json"
+      }
+    },
+    {
+      "type": "fetch",
+      "method": "GET",
+      "url": "http://124.174.108.70/phase3-api/lessons?phase_id=4",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3ODUzMDI3MjMsImV4cCI6MTc4NTMzMTUyM30.rIICA73-np0CQj4fMUh5lDXt7qHfR593vmDTmZePv5U",
+        "referer": "http://124.174.108.70/",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "content-type": "application/json"
+      }
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/phase3-api/auth/login",
+      "body_preview": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3ODUzMDI3MjMsImV4cCI6MTc4NTMzMTUyM30.rIICA73-np0CQj4fMUh5lDXt7qHfR593vmDTmZePv5U\",\"user\":{\"id\":1,\"username\":\"student001\",\"display_name\":\"测试学生一\",\"role\":\"student\",\"class_name\":"
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/phase3-api/phases",
+      "body_preview": "[{\"id\":4,\"phase_code\":\"phase1\",\"title\":\"Phase 01：国产 AI 动手派\",\"description\":\"模型评测、能力模块、桌面 Agent 与设备网关的工程链路。\",\"order_index\":1},{\"id\":5,\"phase_code\":\"phase2\",\"title\":\"Phase 02：人机共创设计与智能制造\",\"description\":\"AI-CAD、Blender、Bambu、OpenClaw、五轴/CAM 与质量评价的制造链路。\",\"order_index\":2},{\"id\":2,\"phase_code\":\"phase3\",\"ti"
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/phase3-api/lessons?phase_id=4",
+      "body_preview": "[{\"id\":17,\"phase_id\":4,\"lesson_code\":\"phase1_day1\",\"day_index\":1,\"title\":\"Day 1：模型评测与路由\",\"description\":\"设计测试任务，比较国产模型能力，形成模型路由表和失败案例本。\",\"order_index\":1,\"estimated_minutes\":null,\"status\":\"published\",\"total_steps\":5,\"completed_steps\":5,\"quiz_submitted\":true,\"has_render_config\":true,\"is_unlocked\":true,"
+    },
+    {
+      "type": "fetch",
+      "method": "POST",
+      "url": "http://124.174.108.70/phase3-api/events",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3ODUzMDI3MjMsImV4cCI6MTc4NTMzMTUyM30.rIICA73-np0CQj4fMUh5lDXt7qHfR593vmDTmZePv5U",
+        "referer": "http://124.174.108.70/?phase=1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "content-type": "application/json"
+      }
+    },
+    {
+      "type": "fetch",
+      "method": "GET",
+      "url": "http://124.174.108.70/phase3-api/lessons?phase_id=6",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3ODUzMDI3MjMsImV4cCI6MTc4NTMzMTUyM30.rIICA73-np0CQj4fMUh5lDXt7qHfR593vmDTmZePv5U",
+        "referer": "http://124.174.108.70/?phase=1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "content-type": "application/json"
+      }
+    },
+    {
+      "type": "fetch",
+      "method": "POST",
+      "url": "http://124.174.108.70/phase3-api/events",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3ODUzMDI3MjMsImV4cCI6MTc4NTMzMTUyM30.rIICA73-np0CQj4fMUh5lDXt7qHfR593vmDTmZePv5U",
+        "referer": "http://124.174.108.70/?phase=5",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "content-type": "application/json"
+      }
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/phase3-api/events",
+      "body_preview": "{\"ok\":true,\"event_id\":18735,\"interaction_id\":\"phase1-day1-20260729T052528184Z-cbbece84c0\"}"
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/phase3-api/lessons?phase_id=6",
+      "body_preview": "[{\"id\":26,\"phase_id\":6,\"lesson_code\":\"phase5_day1_robot_bootcamp\",\"day_index\":1,\"title\":\"Day 1：AI 机器人项目启动与系统集成\",\"description\":\"项目构思、M5Stack/StackChan 核心模块集成、基础功能测试与个性化功能设计。\",\"order_index\":1,\"estimated_minutes\":null,\"status\":\"published\",\"total_steps\":0,\"completed_steps\":0,\"quiz_submitted\":true,\"has_r"
+    },
+    {
+      "type": "response",
+      "status": 200,
+      "url": "http://124.174.108.70/phase3-api/events",
+      "body_preview": "{\"ok\":true,\"event_id\":18736,\"interaction_id\":\"phase5-day1-20260729T052528272Z-eb8d35f6d3\"}"
+    },
+    {
+      "type": "fetch",
+      "method": "POST",
+      "url": "http://124.174.108.70/phase3-api/agent/chat",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50MDAxIiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3ODUzMDI3MjMsImV4cCI6MTc4NTMzMTUyM30.rIICA73-np0CQj4fMUh5lDXt7qHfR593vmDTmZePv5U",
+        "referer": "http://124.174.108.70/?phase=5",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+        "content-type": "application/json"
+      }
+    }
+  ],
+  "ws_log": []
+}

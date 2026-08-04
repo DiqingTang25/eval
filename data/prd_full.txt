@@ -1,0 +1,1912 @@
+=== PAGE 1 ===
+产品需求文档 PRD · 学生端 MVP
+AI+X 个性化学习平台 PRD
+Agent 辅助 Quiz 与知识点驱动的 Step 级个性化渲染机制
+面向产品、前端、后端、Agent、课程模块负责人和测试团队的正式机制说明文档。
+核心闭环
+Lesson 结束
+→
+Agent 出题
+→
+知识点画像
+→
+Step 渲染
+项目名称
+AI+X 个性化学习平台
+适用对象
+产品 / 前端 / 后端 / Agent / 课程 / 测试
+日期
+2026 年 7 月 9 日
+作者
+AI+X 项目组
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 1 of 34
+
+=== PAGE 2 ===
+修订记录与版式说明
+本页用于记录文档版本和 PDF 导出样式，便于项目团队统一评审和后续维护。
+版本
+日期
+修改内容
+负责人
+v10.0
+2026 年 7 月 9 日
+整理学生端 MVP 核心机制，明确 Lesson 级 Quiz、Agent 辅助出
+题、知识点画像与 Step 级个性化渲染规则。
+AI+X 项目组
+页眉建议：AI+X 个性化学习平台 PRD
+页脚建议：Confidential ｜ AI+X Project ｜ Page X of Y
+S
+PDF 视觉风格建议
+项目
+建议
+主题色
+深蓝 + 靛蓝 + 浅灰
+标题字体
+思源黑体 / Microsoft YaHei Bold
+正文字体
+Microsoft YaHei
+表格样式
+浅灰表头、深灰正文、细边框
+关键流程图
+深蓝节点、浅蓝连接线、白底
+重要结论
+浅蓝提示框
+页面建议
+A4 纵向，页边距 2.0 cm；宽表格可横向页面或缩小字号
+K
+必须保留的关键句
+当前版本 Quiz 题目来源为 Agent 辅助生成。
+Agent 生成的题目正式进入 Quiz 前，必须转为统一题
+目结构并绑定 knowledge_point_id。
+Quiz 的目标不是给学生排名，而是更新学生在具体知
+识点上的当前画像。
+下一 Lesson 的个性化渲染以 Step 为最小单位。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 2 of 34
+
+=== PAGE 3 ===
+目录
+本目录按照产品评审、研发实现和测试验收的阅读顺序组织。
+1. 文档摘要
+定位、范围、核心结论
+2. 背景与问题
+业务背景和当前问题
+3. 产品目标与非目标
+P0/P1 目标与边界
+4. 核心概念定义
+Phase、Lesson、Step、Quiz、画像
+5. 总体业务闭环
+从学习到下一 Lesson 渲染
+6. 用户角色与使用场景
+角色职责与协作
+7. 学生端核心流程
+登录、模式、Quiz、下一 Lesson
+8. Quiz 机制
+Agent 出题、结构、题型、边界
+9. 知识点绑定机制
+题目、Step、知识点绑定
+10. 学生知识点画像
+画像单位、状态、更新规则
+11. Step 级渲染配置
+渲染层和推荐原因
+12. 前端实现要求
+页面、组件、埋点、异常
+13. Agent 实现要求
+出题输入输出与质量控制
+14. 数据结构建议
+核心表与 JSON 示例
+15. 接口建议
+接口总览与核心接口
+16. 验收标准
+主流程、Quiz、Agent、异常
+17. 风险与对策
+风险矩阵
+18. 迭代路线
+v1.0 到 v2.0
+19. 结论
+机制定版
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 3 of 34
+
+=== PAGE 4 ===
+1. 文档摘要
+本章用于快速说明本 PRD 的产品定位、当前版本范围和核心机制。
+Lesson
+Quiz 触发单位
+Agent
+当前 Quiz 题目来源
+KP
+知识点画像单位
+Step
+个性化渲染单位
+核心定版：当前版本不以后端题库抽题作为主流程。后端题库抽题仅作为 v2.0 迭代方向。
+模块
+当前版本机制
+业务目的
+Lesson 级 Quiz
+每个 Lesson 结束后触发一次 Quiz
+稳定学习节奏，避免 Day / Step 混用
+Agent 辅助出题
+当前版本 Quiz 题目来源为 Agent 辅助生成
+降低 MVP 阶段题库建设成本
+统一题目结构
+正式进入 Quiz 前必须结构化并绑定
+knowledge_point_id
+保证可存储、可判题、可画像
+知识点画像
+以 knowledge_point 为单位更新状态
+避免给学生整体贴强弱标签
+Step 级渲染
+下一 Lesson 以 Step 为最小单位渲染
+把支持精准落到具体学习步骤
+摘要流程图：MVP 主闭环
+完成 Lesson
+→
+Agent 生成
+Quiz
+→
+结构化校验
+→
+提交 Quiz
+→
+知识点画像
+→
+下一 Lesson
+Step 渲染
+为什么这样设计：当前版本先保证“学习完成 - Quiz - 知识点画像 - 下一 Lesson Step 渲染”的闭环成立，避免在 MVP 阶
+段引入过重的题库系统和复杂推荐算法。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 4 of 34
+
+=== PAGE 5 ===
+2. 背景与问题
+本章说明平台为什么需要 Lesson 级 Quiz、Agent 辅助出题和 Step 级个性化渲染。
+2.1 业务背景
+AI+X 实训课程覆盖多个 Phase 和多个 Lesson。学生在 API、Agent、硬件、排错、证据提交等知识点上的基础不同。如
+果所有学生看到完全相同的课程步骤，会出现体验和效率问题。
+学生类型
+典型问题
+产品影响
+基础较强学生
+页面解释过多，操作路径变长
+学习效率下降
+基础不稳学生
+步骤过粗，卡住后缺少及时支持
+容易依赖人工或 Agent
+进度不一致学生
+某些知识点稳定，某些知识点薄弱
+需要细粒度页面支持
+第一次接触工程任务的学生
+不知道如何拆解任务、排错、提交证据
+需要 Step 级引导
+2.2 当前主要问题
+编号
+问题
+影响
+P-01
+Quiz 触发单位不清晰
+Day、Lesson、Step 容易混用，导致产品逻辑不稳定
+P-02
+Agent 可以生成题，但题目结构不统一
+无法用于自动判题、画像更新和下一 Lesson 推送
+P-03
+个性化最小单位不清晰
+前端无法判断到底渲染哪一层内容
+P-04
+学生求助行为容易被误解
+Agent 使用记录不能直接代表学生掌握差
+P-05
+学生端解释需要克制
+不能让学生看到后台标签、内部字段和评分规则
+P-06
+当前不适合建设完整题库系统
+MVP 阶段需要更轻量的 Quiz 生成方式
+问题到方案的映射
+触发混乱
+→
+题目不统一
+→
+画像不可用
+→
+页面不可渲染
+为什么这样设计：先统一 Quiz 触发单位和题目结构，才能让后续画像更新、Step 渲染和验收标准都具备可执行基础。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 5 of 34
+
+=== PAGE 6 ===
+3. 产品目标与非目标
+本章明确当前版本要实现的范围，以及明确不在当前版本实现的内容。
+G
+产品目标
+编号
+目标
+优先级
+G-01
+支持学生完成 Lesson 学习流程
+P0
+G-02
+支持每个 Lesson 结束后触发一次 Quiz
+P0
+G-03
+支持 Agent 辅助生成 Quiz 题目
+P0
+G-04
+Quiz 题目进入正式流程前必须绑定
+knowledge_point_id
+P0
+G-05
+支持根据 Quiz 结果更新学生知识点画像
+P0
+G-06
+支持根据知识点画像生成下一 Lesson 的
+Step 渲染配置
+P0
+G-07
+学生端展示自然语言推荐原因
+P1
+G-08
+支持记录学习行为和 Agent 交互事件
+P1
+N
+非目标
+编号
+非目标
+说明
+NG-01
+不做 Day 结束额外 Quiz
+Quiz 只按 Lesson 触发
+NG-02
+不做每个 Step 后强制
+Quiz
+避免一步一测影响学习
+体验
+NG-03
+当前不建设完整后端题库
+抽题主流程
+仅作为 v2.0 方向
+NG-04
+不用 Agent 使用频次单独
+判断学生能力
+求助行为只作为辅助证
+据
+NG-05
+不做主观题自动评分
+当前只支持客观题
+NG-06
+不向学生展示后台知识点
+ID、内部状态和评分规则
+避免标签化和解释负担
+P
+优先级说明
+优先级
+含义
+示例
+P0
+当前版本必须实现，否则主流程不成立
+Lesson 级 Quiz、Agent 出题、结构校验、知识点绑定
+P1
+当前版本建议实现，影响体验和可观测性
+自然语言推荐原因、学习行为记录
+P2
+可延后实现，不阻塞 MVP 主流程
+复杂数据可视化、题库审核后台
+为什么这样设计：明确目标和非目标后，团队可以聚焦主闭环，避免在 MVP 阶段同时推进复杂题库、推荐算法和主观评
+分。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 6 of 34
+
+=== PAGE 7 ===
+4. 核心概念定义
+本章统一产品、研发、课程和测试人员对核心概念的理解。
+概念
+定义
+业务作用
+Phase
+课程阶段，例如 Phase1 国产 AI 技术基础
+组织课程模块
+Lesson
+课时，是 Quiz 触发单位
+学生每完成一个 Lesson 后进入 Quiz
+Day
+日程展示单位
+用于课程排期展示，不作为 Quiz 额外触发单位
+Step
+Lesson 内的学习步骤
+下一 Lesson 个性化渲染的最小单位
+Quiz
+Lesson 结束后的客观题学习检查
+用于更新知识点画像
+Agent
+学生答疑和 Quiz 题目辅助生成工具
+当前版本 Quiz 题目来源
+knowledge_point
+知识点
+学生画像更新单位
+quiz_payload
+Agent 生成并结构化后的 Quiz 题目数据
+后端保存和前端展示的标准数据
+student_knowledge_state
+学生在知识点上的当前状态
+用于生成下一 Lesson 渲染配置
+step_render_config
+下一 Lesson 每个 Step 的渲染配置
+前端按配置渲染页面
+三个最小单位关系
+Lesson
+Quiz 触发单位
+→
+knowledge_point
+画像更新单位
+→
+Step
+个性化渲染单位
+概念层级图
+课程结构
+Phase
+Lesson
+Step
+测评结构
+Quiz
+Question
+knowledge_point_id
+推荐结构
+student_knowledge_state
+step_render_config
+student_visible_reason
+为什么这样设计：Lesson、knowledge_point 和 Step 分别对应学习节奏、能力判断和页面渲染，边界清晰后才能减少
+团队沟通成本。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 7 of 34
+
+=== PAGE 8 ===
+5. 总体业务闭环
+本章说明从学生学习到下一 Lesson 个性化页面生成的完整业务闭环。
+业务闭环流程图
+学生进入 Lesson
+↓
+选择“我自己来”或“带带我”
+↓
+学生完成 Lesson 学习
+↓
+系统记录学习行为和 Agent 交互
+↓
+Lesson 结束后进入 Quiz
+↓
+Agent 辅助生成 Quiz 题目
+↓
+题目转为统一结构并绑定 knowledge_point_id
+↓
+学生提交 Quiz
+↓
+系统更新 student_knowledge_state
+↓
+系统生成下一 Lesson 的 step_render_config
+↓
+学生进入下一 Lesson，看到个性化 Step 页面
+M Mermaid 表达
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 8 of 34
+
+=== PAGE 9 ===
+flowchart TD
+    A[学生进入 Lesson] --> B[选择学习模式]
+    B --> C[完成 Lesson 学习]
+    C --> D[Lesson 结束后进入 Quiz]
+    D --> E[Agent 辅助生成 Quiz 题目]
+    E --> F[统一题目结构校验]
+    F --> G{是否绑定 knowledge_point_id}
+    G -- 否 --> H[不进入正式 Quiz]
+    G -- 是 --> I[学生提交 Quiz]
+    I --> J[更新 student_knowledge_state]
+    J --> K[生成下一 Lesson step_render_config]
+    K --> L[前端按 Step 渲染页面]
+为什么这样设计：该闭环把学习过程、Quiz、画像和页面渲染连接起来，保证个性化不是一次性判断，而是 Lesson 与
+Lesson 之间持续更新。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 9 of 34
+
+=== PAGE 10 ===
+6. 用户角色与使用场景
+本章说明不同角色在该机制中的职责、目标和使用场景。
+角色
+核心目标
+主要权限
+关注点
+学生
+学习课程、完成 Quiz、获得下一
+Lesson 个性化页面
+查看课程、完成 Quiz、查看推荐原
+因
+页面是否清晰，帮助是否及时
+课程负责人
+设计 Lesson、Step、知识点和课程
+内容
+提供课程结构与知识点地图
+Step 是否合理，知识点是否清晰
+Agent 负责人
+配置 Agent 答疑和出题能力
+设计 Agent 出题 Prompt 和 JSON 输
+出
+出题质量和结构稳定性
+前端开发
+实现学生端页面和交互
+读取接口、渲染页面、提交事件
+render_config 如何驱动页面
+后端开发
+管理数据和生成配置
+保存 Quiz、画像、渲染配置
+数据结构、接口、状态更新
+测试
+验证主流程和异常状态
+按验收标准测试
+流程是否符合 PRD
+角色协作流程图
+课程负责人
+知识点地图
+→
+Agent 负责人
+出题 Prompt
+→
+后端
+结构校验/画像
+→
+前端
+Step 渲染
+→
+测试
+验收闭环
+6.2 典型使用场景
+场景
+用户
+说明
+进入课程
+学生
+学生从课程日历进入某个 Lesson
+选择学习模式
+学生
+学生选择“我自己来”或“带带我”
+使用 Agent
+学生
+学生在卡住时打开 Agent 面板
+生成 Quiz
+Agent / 后端
+Agent 辅助生成题目并转为统一结构
+提交 Quiz
+学生
+学生完成 Lesson 级 Quiz
+更新画像
+后端
+后端按 knowledge_point 更新状态
+生成配置
+后端
+后端生成下一 Lesson 的 step_render_config
+渲染页面
+前端
+前端按 Step 配置渲染页面
+为什么这样设计：该产品机制横跨课程内容、Agent、前端、后端和测试，必须明确角色边界，否则容易出现题目无法判
+定、配置无法渲染、解释不一致等问题。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 10 of 34
+
+=== PAGE 11 ===
+7. 学生端核心流程
+本章说明学生从登录到进入下一 Lesson 个性化页面的完整体验。
+学生端主流程图
+登录
+→
+课程日历
+→
+选择
+Lesson
+→
+选择模式
+→
+完成学习
+→
+进入
+Quiz
+→
+提交
+Quiz
+→
+下一
+Lesson
+个性化
+7.1 页面与规则
+页面
+核心展示
+关键规则
+优先级
+登录页
+登录入口
+后续学习事件绑定 student_id
+P0
+课程日历页
+Phase、Lesson、状态和进入按钮
+Day 只作为日程展示单位
+P0
+学习模式选择页
+“我自己来”“带带我”两个入口
+模式选择不影响 Quiz 触发规则
+P0
+我自己来页面
+目标、课程资源、完成按钮
+不展示平台拆解 Step，完成后仍进入统一 Quiz
+P0
+带带我 Step 页面
+Step 目标、说明、资源、清单、
+Agent
+前端按 step_render_config 渲染
+P0
+Quiz 页面
+Lesson 级 Quiz
+只在 Lesson 结束后出现
+P0
+完成页
+完成状态和下一 Lesson 入口
+展示自然语言提示，不展示内部标签
+P0
+我自己来
+适合希望自主完成任务的学生。页面展示简洁目标、课
+程资源和完成入口。完成 Lesson 后仍进入统一 Quiz。
+带带我
+适合需要更多过程引导的学生。页面按 Step 展示学习
+目标、操作说明、清单和 Agent 求助入口。
+7.2 验收片段
+Given 学生进入 Lesson
+When 点击“带带我”
+Then 前端渲染 Step 学习页面
+And 学生完成 Lesson 后进入 Lesson 级 Quiz
+为什么这样设计：学生可以保持完整的 Lesson 学习节奏，同时通过下一 Lesson 的 Step 页面获得更精准的支持。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 11 of 34
+
+=== PAGE 12 ===
+8. Quiz 机制
+本章说明 Quiz 的触发、来源、结构、题型和边界。
+当前版本 Quiz 题目来源为 Agent 辅助生成。
+Quiz 机制流程图
+Lesson 完
+成
+→
+进入 Quiz
+阶段
+→
+Agent 辅
+助生成题
+目
+→
+统一结构
+校验
+→
+绑定
+knowledge_point_id →
+学生答题
+→
+画像更新
+8.1 当前题目来源
+项目
+当前版本规则
+Quiz 触发单位
+Lesson
+触发时机
+每个 Lesson 结束后
+题目来源
+Agent 辅助生成
+入正式 Quiz 前要求
+统一结构化
+知识点绑定
+每题必须绑定 knowledge_point_id
+用途
+更新学生知识点画像
+学生端展示
+只展示题目、选项、必要反馈，不展示内部字段
+8.2 Agent 辅助生成题目的两种操作形态
+形态
+操作方式
+优点
+风险
+控制方式
+形态 A：人工复制
+JSON
+Agent 生成题目 JSON，由负责人复
+制到后台或配置文件
+实现成本低，适合
+MVP
+复制粘贴容易出错
+后端进行结构校验，
+不合规则不得进入正
+式 Quiz
+形态 B：接口保存
+Agent 输出标准 JSON 后，通过接口
+提交到后端
+自动化程度更高
+需要 Agent 与后端接
+口打通
+POST
+/api/quiz/payload 进
+行结构校验和保存
+两种操作形态对比流程图
+Agent 生成
+→
+人工复制 / 接口提交
+→
+结构校验
+→
+进入正式 Quiz
+为什么这样设计：两种形态兼容当前项目不同工程成熟度，同时确保题目进入正式 Quiz 前满足同一标准。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 12 of 34
+
+=== PAGE 13 ===
+8.3 统一题目结构
+本节说明 Agent 生成题目进入正式 Quiz 前必须满足的 JSON 结构。
+Agent 生成的题目正式进入 Quiz 前，必须转为统一题目结构并绑定 knowledge_point_id。
+{
+  "question_id": "p1_l01_q01",
+  "lesson_id": "p1_l01",
+  "question_type": "single_choice",
+  "question_text": "出现 401/403 鉴权失败时，优先检查什么？",
+  "options": [
+    {
+      "label": "A",
+      "text": "页面主题色"
+    },
+    {
+      "label": "B",
+      "text": "API Key、权限、Endpoint 和服务状态"
+    },
+    {
+      "label": "C",
+      "text": "文件名长度"
+    },
+    {
+      "label": "D",
+      "text": "浏览器缩放比例"
+    }
+  ],
+  "correct_answer": "B",
+  "knowledge_point_id": "api_auth_debug",
+  "affected_next_step_ids": [
+    "p1_l02_step_api_key_check",
+    "p1_l02_step_status_code_debug"
+  ],
+  "explanation": "401/403 通常与鉴权、权限、Endpoint 或服务状态有关。",
+  "wrong_answer_feedback": "下一节课会加强鉴权错误和状态码排查提示。",
+  "source": "agent_generated"
+}
+F
+字段说明
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 13 of 34
+
+=== PAGE 14 ===
+字段
+类型
+是否必填
+说明
+question_id
+string
+是
+题目唯一 ID
+lesson_id
+string
+是
+所属 Lesson
+question_type
+string
+是
+题型
+question_text
+string
+是
+题干
+options
+array
+是
+选项
+correct_answer
+string / array
+是
+正确答案
+knowledge_point_id
+string
+是
+绑定知识点
+affected_next_step_ids
+array
+是
+影响下一 Lesson 的 Step
+explanation
+string
+是
+正确答案解析
+wrong_answer_feedback
+string
+是
+错题反馈
+source
+string
+是
+题目来源，当前为 agent_generated
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 14 of 34
+
+=== PAGE 15 ===
+8.4 题型范围与禁止题型
+本节定义当前版本允许和禁止的 Quiz 题型，确保题目可快速完成、可自动判定。
+Y
+允许题型
+题型
+字段值
+用途
+单选题
+single_choice
+检查单一概念或判断
+多选题
+multiple_choice
+检查多个要点识别
+判断题
+true_false
+检查规则理解
+排序题
+sequence
+检查流程顺序
+匹配题
+matching
+检查概念和含义映射
+N
+禁止题型
+禁止题型
+原因
+主观长答
+当前版本不做主观题自动评分
+开放问答
+难以稳定判定正确性
+作文式反思
+不适合进入自动画像更新
+自动代码验收题
+当前版本不覆盖代码执行环境
+未绑定知识点的泛泛
+问题
+无法用于画像更新
+没有标准答案的题
+无法自动判定
+超出当前 Lesson 范
+围的题
+会导致画像失真
+题型校验流程图
+Agent 输出题目
+→
+题型校验
+→
+结构校验
+→
+知识点校验
+→
+正式 Quiz
+为什么这样设计：当前版本重点是建立可判定、可追踪、可推送的 Quiz 闭环，客观题更适合 MVP 阶段稳定落地。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 15 of 34
+
+=== PAGE 16 ===
+9. 知识点绑定机制
+本章说明 Quiz 题目、Step 与 knowledge_point 的绑定规则。
+知识点绑定闭环图
+Lesson 知识点地图
+→
+Step 绑定知识点
+→
+Quiz 题绑定知识点
+→
+Quiz 结果更新画像
+→
+画像影响下一 Step
+对象
+是否必须绑定 knowledge_point
+说明
+Quiz 题目
+是
+每道题必须绑定一个 knowledge_point_id
+Step
+是
+每个 Step 可以绑定一个或多个 knowledge_point
+Lesson
+是
+Lesson 应有知识点地图
+Agent 题目输出
+是
+生成题目时必须包含 knowledge_point_id
+R
+绑定规则
+规则编号
+规则
+KP-01
+每道 Quiz 题目必须绑定 knowledge_point_id
+KP-02
+每个 knowledge_point_id 必须来自当前 Lesson 的知识点地图
+KP-03
+每道题必须绑定 affected_next_step_ids
+KP-04
+affected_next_step_ids 必须属于下一 Lesson
+KP-05
+一个 Step 可以绑定多个 knowledge_point
+KP-06
+一个 knowledge_point 可以影响下一 Lesson 的多个 Step
+KP-07
+缺少 knowledge_point_id 的题目不得进入正式 Quiz
+E
+绑定表示例
+question_id
+lesson_id
+knowledge_point_id
+affected_next_step_ids
+p1_l01_q01
+p1_l01
+api_auth_debug
+p1_l02_step_api_key_check,
+p1_l02_step_status_code_debug
+p1_l01_q02
+p1_l01
+api_key_usage
+p1_l02_step_api_key_check
+p1_l01_q03
+p1_l01
+evidence_submit
+p1_l02_step_evidence_review
+为什么这样设计：只有题目、知识点和下一 Lesson Step 建立明确绑定，Quiz 结果才能转化为可执行的页面渲染配置。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 16 of 34
+
+=== PAGE 17 ===
+10. 学生知识点画像
+本章说明学生画像的单位、状态、更新规则和展示边界。
+Quiz 的目标不是给学生排名，而是更新学生在具体知识点上的当前画像。
+知识点画像更新流程图
+Quiz 作答结果
+→
+按题目查
+knowledge_point_id →
+更新
+student_knowledge_state →
+映射下一 Lesson
+Step
+→
+生成渲染配置
+S
+状态定义
+状态
+含义
+后端用途
+学生端是否展示
+stable
+当前稳定
+下一 Lesson 对应 Step 使用标准内容
+不展示字段
+watch
+需要观察
+下一 Lesson 对应 Step 增加轻量提示
+不展示字段
+support
+需要更多支持
+下一 Lesson 对应 Step 增加更详细引导
+不展示字段
+U
+更新规则
+Quiz 表现
+学习行为辅助信息
+知识点状态建议
+题目答对
+学习过程正常
+stable
+题目答错
+无明显异常
+watch
+关键知识点题目答错
+同知识点相关 Step 停留过长或多次求助
+support
+多道同知识点题目答错
+不依赖行为也可判定风险
+support
+答对但学习过程多次卡顿
+仅作为轻量风险
+watch
+Agent 使用频繁但 Quiz 表现正常
+不作为负面判断
+stable 或保持原状态
+出现前端错误或 Agent 异常
+不更新画像
+保持原状态
+J
+student_knowledge_state 示例
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 17 of 34
+
+=== PAGE 18 ===
+{
+  "student_id": "student001",
+  "knowledge_point_id": "api_auth_debug",
+  "state": "support",
+  "source_lesson_id": "p1_l01",
+  "evidence": {
+    "quiz_question_ids": [
+      "p1_l01_q01",
+      "p1_l01_q04"
+    ],
+    "quiz_result": "incorrect",
+    "related_events": [
+      "agent_prompt_used",
+      "step_viewed"
+    ]
+  },
+  "updated_at": "2026-07-09T10:30:00+08:00"
+}
+为什么这样设计：以 knowledge_point 为画像单位，可以避免粗暴评价学生整体能力，同时为下一 Lesson 的 Step 渲染
+提供更精确依据。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 18 of 34
+
+=== PAGE 19 ===
+11. Step 级渲染配置
+本章说明下一 Lesson 如何根据知识点画像生成 Step 级页面配置。
+下一 Lesson 的个性化渲染以 Step 为最小单位。
+Step 渲染配置生成流程图
+student_knowledge_state →
+下一 Lesson
+Step-KP 绑定
+→
+生成
+step_render_config →
+前端读取配置
+→
+按 Step 渲染页面
+L
+渲染层说明
+render_layer
+后端含义
+前端表现
+学生端说明方式
+standard
+标准层
+展示默认目标、说明、资源和清单
+不额外提示
+watch
+观察层
+增加轻量提醒、易错提示和检查点
+自然语言提醒
+support
+支持层
+增加分步说明、示例、Agent 快捷问题
+自然语言说明原因
+C
+step_render_config 示例
+{
+  "student_id": "student001",
+  "lesson_id": "p1_l02",
+  "step_render_config": {
+    "p1_l02_step_api_key_check": "support",
+    "p1_l02_step_python_request": "standard",
+    "p1_l02_step_status_code_debug": "watch"
+  },
+  "student_visible_reasons": {
+    "p1_l02_step_api_key_check": "根据你上一节课的学习记录，本 Step 会先帮你确认 API Key 的配置方式。",
+    "p1_l02_step_status_code_debug": "本 Step 会增加状态码排查提示，帮助你更快定位问题。"
+  }
+}
+R
+学生端推荐原因展示
+允许展示
+根据你上一节课的学习记录，本 Step 会先帮你确认
+API Key 的配置方式。
+禁止展示
+knowledge_point_id、support/watch/stable、内部
+评分公式、算法规则、他人数据。
+为什么这样设计：个性化落在 Step 层，可以让学生在需要支持的部分获得帮助，同时保持其他部分的学习效率。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 19 of 34
+
+=== PAGE 20 ===
+12. 前端实现要求
+本章说明学生端页面、渲染、埋点和异常处理要求。
+前端渲染流程图
+GET Lesson
+→
+GET
+recommendations →
+读取
+step_render_config →
+选择组件层
+→
+渲染 Step
+→
+POST events
+P
+页面范围
+页面
+说明
+优先级
+登录页
+学生登录进入平台
+P0
+课程日历页
+查看 Phase、Lesson 和完成状态
+P0
+学习模式选择页
+选择“我自己来”或“带带我”
+P0
+我自己来页面
+展示简洁课程资源和完成入口
+P0
+带带我页面
+展示 Step 级引导学习流程
+P0
+Quiz 页面
+Lesson 结束后完成学习检查
+P0
+完成页
+展示本节完成状态和下一 Lesson 入口
+P0
+学生画像页
+展示自然语言说明
+P1
+Agent 面板
+右下角智能体入口
+P0
+G
+渲染原则
+原则
+说明
+配置驱动
+前端按后端返回的 step_render_config 渲染
+默认兜底
+配置为空时展示 standard 内容
+不展示内部字段
+不展示 knowledge_point_id、stable、watch、support
+不自行判断
+前端不根据点击次数、停留时间判断学生能力
+事件上报
+学习行为通过接口上报
+为什么这样设计：前端只负责展示和事件上报，可以降低判断逻辑复杂度，避免不同端出现不一致的个性化规则。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 20 of 34
+
+=== PAGE 21 ===
+12.3 前端组件、埋点与异常
+本节给出 Step 组件、事件上报和异常兜底要求。
+C
+Step 组件建议
+组件
+说明
+goal
+本 Step 的学习目标
+instruction
+操作说明
+resource_link
+课程 HTML、GitHub 或外部资源
+checklist
+完成清单
+agent_help
+Agent 帮助入口
+checkpoint
+关键检查点
+evidence_upload
+学习证据上传
+reflection
+简短反思入口
+E
+事件上报
+event_type
+触发时机
+lesson_entered
+学生进入 Lesson
+mode_selected
+学生选择学习模式
+step_viewed
+学生查看 Step
+step_completed
+学生完成 Step
+agent_opened
+学生打开 Agent
+agent_prompt_used
+学生使用 Agent 快捷提示
+quiz_started
+学生开始 Quiz
+quiz_submitted
+学生提交 Quiz
+frontend_error
+前端异常
+X
+异常处理
+异常场景
+前端表现
+处理方式
+step_render_config 为空
+展示标准 Step 页面
+上报异常
+Lesson 内容加载失败
+提示重新加载
+保留页面状态
+Quiz 提交失败
+保留已选答案
+提示重试
+Agent 不可用
+提示稍后再试
+不阻塞课程学习
+HTML 资源加载失败
+提供新窗口打开
+记录资源错误
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 21 of 34
+
+=== PAGE 22 ===
+13. Agent 实现要求
+本章说明 Agent 在答疑和 Quiz 出题中的职责边界。
+Agent 出题责任边界图
+输入 Lesson 上下文
+→
+生成客观题
+→
+输出标准 JSON
+→
+后端结构校验
+→
+进入 Quiz
+职责
+是否当前版本支持
+说明
+学生学习答疑
+支持
+通过 Agent 面板提供帮助
+辅助生成 Quiz 题目
+支持
+当前版本题目来源
+输出标准 JSON
+支持
+必须符合统一题目结构
+自动决定学生能力标签
+不支持
+不由 Agent 单独决定
+替代后端画像更新
+不支持
+画像由后端规则更新
+直接决定前端渲染
+不支持
+前端根据后端配置渲染
+I
+Agent 出题输入
+输入项
+说明
+lesson_id
+当前 Lesson ID
+lesson_title
+当前 Lesson 标题
+lesson_summary
+当前 Lesson 内容摘要
+knowledge_points
+当前 Lesson 知识点列表
+step_knowledge_map
+Step 与知识点绑定关系
+allowed_question_typ
+es
+允许题型
+output_schema
+统一题目结构
+constraints
+不得考未覆盖知识点，不得输出主观题
+O
+Agent 输出要求
+输出要求
+说明
+JSON 可解析
+输出必须是合法 JSON
+字段完整
+必须包含核心字段
+题目可判定
+必须有标准答案
+绑定知识点
+每题必须绑定 knowledge_point_id
+绑定下一 Step
+每题必须包含 affected_next_step_ids
+提供解析
+必须有 explanation
+提供错题反馈
+必须有 wrong_answer_feedback
+为什么这样设计：Agent 负责提高出题效率，但不能绕过结构校验和知识点绑定，避免生成内容无法进入后续数据闭环。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 22 of 34
+
+=== PAGE 23 ===
+13.4 Agent 输出示例与质量控制
+本节展示 Agent 输出示例，并列出质量控制要求。
+{
+  "lesson_id": "p1_l01",
+  "quiz_title": "Lesson 1 API 基础与鉴权排查 Quiz",
+  "questions": [
+    {
+      "question_id": "p1_l01_q01",
+      "question_type": "single_choice",
+      "question_text": "当接口返回 401 状态码时，最优先检查的内容是什么？",
+      "options": [
+        {
+          "label": "A",
+          "text": "页面背景颜色"
+        },
+        {
+          "label": "B",
+          "text": "API Key 是否正确、是否有权限"
+        }
+      ],
+      "correct_answer": "B",
+      "knowledge_point_id": "api_auth_debug",
+      "affected_next_step_ids": [
+        "p1_l02_step_api_key_check"
+      ],
+      "explanation": "401 通常表示鉴权失败，应优先检查 API Key、权限和请求配置。",
+      "wrong_answer_feedback": "下一节课会增加 API Key 检查提示。"
+    }
+  ]
+}
+Q
+Agent 质量控制
+风险
+控制方式
+生成题目偏离 Lesson 内容
+提供 lesson_summary 和 knowledge_points 作为上下文
+缺少 knowledge_point_id
+结构校验失败，不进入正式 Quiz
+题目没有标准答案
+结构校验失败
+题目过于主观
+题型校验失败
+JSON 格式错误
+返回修复提示或人工处理
+题目质量不稳定
+必要时增加人工审核
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 23 of 34
+
+=== PAGE 24 ===
+14. 数据结构建议
+本章给出当前版本推荐的数据对象、表结构和关键 JSON。
+数据流图
+users /
+lessons
+/ steps
+→
+quiz_payloads →
+quiz_attempts →
+student_knowledge_state →
+step_render_configs →
+frontend
+render
+D
+核心数据对象
+对象
+说明
+users
+用户
+phases
+阶段
+lessons
+课时
+steps
+Step
+knowledge_points
+知识点
+step_knowledge_map
+Step 与知识点绑定
+quiz_payloads
+Agent 生成并结构化后的 Quiz 题目
+quiz_attempts
+Quiz 提交记录
+quiz_attempt_answers
+每题作答明细
+learning_events
+学习行为记录
+agent_events
+Agent 交互记录
+student_knowledge_state
+学生知识点画像
+step_render_configs
+下一 Lesson Step 渲染配置
+frontend_errors
+前端异常
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 24 of 34
+
+=== PAGE 25 ===
+14.2 数据表建议
+本节列出核心数据表、关键字段、写入方、读取方和业务用途。
+表名
+存储内容
+关键字段
+写入方
+读取方
+用途
+users
+用户信息
+user_id, name, role,
+class_id
+后端
+前端、后端
+身份识别
+phases
+阶段信息
+phase_id, phase_name,
+order_index
+后台
+前端、后端
+组织课程
+lessons
+Lesson 信息
+lesson_id, phase_id,
+lesson_title, lesson_order
+后台
+前端、后端
+课程入口和 Quiz 触
+发
+steps
+Step 信息
+step_id, lesson_id,
+step_title, step_order
+后台
+前端、后端
+页面渲染
+knowledge_poin
+ts
+知识点
+knowledge_point_id, name,
+lesson_id
+课程负责人
+Agent、后端
+出题和画像
+step_knowledge
+_map
+Step 与知识点绑定
+step_id,
+knowledge_point_id
+课程负责人
+后端
+生成 Step 配置
+quiz_payloads
+结构化题目
+question_id, lesson_id,
+knowledge_point_id,
+correct_answer
+Agent / 后端
+前端、后端
+Quiz 展示和判题
+quiz_attempts
+Quiz 会话
+attempt_id, student_id,
+lesson_id, submitted_at
+后端
+后端
+记录提交
+quiz_attempt_an
+swers
+每题答案
+answer_id, attempt_id,
+question_id, answer,
+is_correct
+后端
+后端
+更新画像
+learning_events
+学习行为
+event_id, student_id,
+lesson_id, event_type
+前端
+后端
+辅助分析
+agent_events
+Agent 交互
+event_id, student_id,
+lesson_id, event_type
+前端 / Agent
+后端
+辅助分析
+student_knowle
+dge_state
+知识点画像
+student_id,
+knowledge_point_id, state
+后端
+后端、前端
+生成配置
+step_render_con
+figs
+Step 渲染配置
+student_id, lesson_id,
+step_id, render_layer
+后端
+前端
+页面渲染
+frontend_errors
+前端异常
+error_id, student_id,
+lesson_id, error_type
+前端
+技术团队
+问题排查
+为什么这样设计：数据结构围绕 Agent 出题、Quiz 提交、知识点画像和 Step 渲染展开，可以保证各模块之间的数据流稳
+定衔接。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 25 of 34
+
+=== PAGE 26 ===
+14.3 数据 JSON 示例
+本节给出 quiz_payloads 与 step_render_configs 的核心 JSON 示例。
+Q
+quiz_payloads 示例
+{
+  "question_id": "p1_l01_q01",
+  "lesson_id": "p1_l01",
+  "question_type": "single_choice",
+  "question_text": "出现 401/403 鉴权失败时，优先检查什么？",
+  "options": [
+    {
+      "label": "A",
+      "text": "页面主题色"
+    },
+    {
+      "label": "B",
+      "text": "API Key、权限、Endpoint 和服务状态"
+    },
+    {
+      "label": "C",
+      "text": "文件名长度"
+    },
+    {
+      "label": "D",
+      "text": "浏览器缩放比例"
+    }
+  ],
+  "correct_answer": "B",
+  "knowledge_point_id": "api_auth_debug",
+  "affected_next_step_ids": [
+    "p1_l02_step_api_key_check",
+    "p1_l02_step_status_code_debug"
+  ],
+  "explanation": "401/403 通常与鉴权、权限、Endpoint 或服务状态有关。",
+  "wrong_answer_feedback": "下一节课会加强鉴权错误和状态码排查提示。",
+  "source": "agent_generated"
+}
+S
+step_render_configs 示例
+{
+  "student_id": "student001",
+  "lesson_id": "p1_l02",
+  "step_render_config": {
+    "p1_l02_step_api_key_check": "support",
+    "p1_l02_step_python_request": "standard",
+    "p1_l02_step_status_code_debug": "watch"
+  },
+  "student_visible_reasons": {
+    "p1_l02_step_api_key_check": "根据你上一节课的学习记录，本 Step 会先帮你确认 API Key 的配置方式。",
+    "p1_l02_step_status_code_debug": "本 Step 会增加状态码排查提示，帮助你更快定位问题。"
+  }
+}
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 26 of 34
+
+=== PAGE 27 ===
+15. 接口建议
+本章给出当前版本建议接口，供前后端和 Agent 对接参考。
+接口
+方法
+说明
+优先级
+/api/auth/login
+POST
+登录
+P0
+/api/lessons/:lessonId
+GET
+获取 Lesson 内容
+P0
+/api/events
+POST
+写入学习行为
+P1
+/api/agent/events
+POST
+写入 Agent 事件
+P1
+/api/quiz/payload
+POST
+保存 Agent 生成并转化后的 Quiz 结构
+P0
+/api/quiz/session
+GET
+获取当前 Lesson Quiz
+P0
+/api/quiz/submit
+POST
+提交 Quiz
+P0
+/api/profile/me
+GET
+获取学生画像自然语言说明
+P1
+/api/recommendations/:lessonId
+GET
+获取 Step 渲染配置
+P0
+接口调用时序图
+GET Lesson
+→
+POST events
+→
+POST
+quiz/payload
+→
+GET
+quiz/session
+→
+POST
+quiz/submit
+→
+GET
+recommendations
+A
+核心接口示例
+POST /api/quiz/payload
+保存 Agent 生成并转化后的 Quiz 结构。后端必须校验
+question_type、correct_answer、
+knowledge_point_id 和 affected_next_step_ids。
+GET /api/recommendations/:lessonId
+返回下一 Lesson 的 step_render_config 和
+student_visible_reasons，前端根据配置渲染 Step。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 27 of 34
+
+=== PAGE 28 ===
+15.3 异常返回建议
+本节定义常见异常码和前端处理方式。
+场景
+error_code
+前端处理
+Quiz 题目不存在
+QUIZ_NOT_FOUND
+提示题目暂未生成
+题目结构不完整
+INVALID_QUIZ_PAYLOAD
+提示结构校验失败
+缺少 knowledge_point_id
+MISSING_KNOWLEDGE_POINT
+不进入正式 Quiz
+Quiz 提交失败
+QUIZ_SUBMIT_FAILED
+保留答案并提示重试
+渲染配置缺失
+RENDER_CONFIG_NOT_FOUND
+展示 standard 默认内容
+Agent 不可用
+AGENT_UNAVAILABLE
+不阻塞课程学习
+为什么这样设计：接口以 Lesson、Quiz、knowledge_point 和 Step 为核心对象，可以支持主流程稳定运行，同时保留
+异常兜底能力。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 28 of 34
+
+=== PAGE 29 ===
+16. 验收标准
+本章给出产品、前端、后端、Agent 和测试共同确认的验收标准。
+验收闭环图
+需求规则
+→
+接口实现
+→
+页面渲染
+→
+数据写入
+→
+异常兜底
+→
+验收通过
+M 主流程验收
+编号
+验收项
+标准
+AC-01
+Lesson 入口
+学生可从课程日历进入指定 Lesson
+AC-02
+模式选择
+学生可选择“我自己来”或“带带我”
+AC-03
+Lesson 完成
+学生完成 Lesson 后进入 Quiz
+AC-04
+Quiz 提交
+学生可完成并提交 Quiz
+AC-05
+下一 Lesson 入口
+Quiz 提交后可进入下一 Lesson
+Q
+Quiz 验收
+编号
+验收项
+标准
+AC-Q01
+Quiz 触发单位
+Quiz 仅按 Lesson 触发
+AC-Q02
+Quiz 触发时机
+每个 Lesson 结束后触发一次
+AC-Q03
+Quiz 来源
+当前版本由 Agent 辅助生成
+AC-Q04
+题目结构
+正式进入 Quiz 前必须统一结构
+AC-Q05
+知识点绑定
+每题必须绑定 knowledge_point_id
+AC-Q06
+答案字段
+每题必须包含 correct_answer
+AC-Q07
+题型范围
+仅支持 single_choice、multiple_choice、true_false、
+sequence、matching
+AC-Q08
+学生端隐藏答案
+学生答题前不可见 correct_answer
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 29 of 34
+
+=== PAGE 30 ===
+16.3 Step、Agent 与异常验收
+本节补充 Step 渲染、Agent 输出和异常场景的验收标准。
+S
+Step 渲染验收
+编号
+验收项
+标准
+AC-S01
+最小渲染单位
+下一 Lesson 以 Step 为最小单
+位渲染
+AC-S02
+配置读取
+前端读取 step_render_config
+AC-S03
+默认兜底
+配置缺失时展示 standard 内
+容
+AC-S04
+隐藏字段
+学生端不可见
+knowledge_point_id、内部
+状态和评分规则
+AC-S05
+推荐原因
+学生端展示自然语言推荐原因
+A
+Agent 验收
+编号
+验收项
+标准
+AC-A01
+Agent 出题
+Agent 可根据 Lesson 内容生
+成 Quiz 题
+AC-A02
+JSON 输出
+Agent 输出可解析 JSON
+AC-A03
+知识点绑定
+每题包含
+knowledge_point_id
+AC-A04
+题型合规
+题型属于允许范围
+AC-A05
+不合规拦截
+缺少关键字段时不得进入正式
+Quiz
+E
+异常验收
+编号
+验收项
+标准
+AC-E01
+Agent 生成失败
+页面提示生成失败，可重试或联系助教
+AC-E02
+Quiz 提交失败
+保留学生已选答案
+AC-E03
+Step 配置为空
+展示默认 Step 页面
+AC-E04
+Agent 不可用
+不阻塞课程继续学习
+AC-E05
+前端异常
+写入 frontend_errors
+为什么这样设计：验收标准直接对应主流程和关键边界，方便测试人员判断功能是否符合产品机制。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 30 of 34
+
+=== PAGE 31 ===
+17. 风险与对策
+本章说明当前方案可能出现的风险及处理方式。
+风险控制流程图
+识别风险
+→
+结构校验
+→
+兜底策略
+→
+人工审核
+→
+迭代优化
+风险
+影响
+对策
+Agent 生成题不稳定
+Quiz 质量波动
+增加统一结构校验，必要时人工审核
+JSON 复制粘贴复杂
+操作成本高，容易出错
+v1.1 增加 Quiz JSON 导入工具
+题目缺少 knowledge_point_id
+无法更新画像
+不允许进入正式 Quiz
+学生提前看到答案
+Quiz 可信度下降
+学生端隐藏 correct_answer
+Agent 不可用
+Quiz 生成受阻
+支持重试或人工补充结构化题目
+Step 配置缺失
+个性化页面无法渲染
+前端展示 standard 默认页面
+学生端解释过重
+学生产生标签化感受
+只展示自然语言推荐原因
+课程知识点地图不清晰
+推荐配置失效
+课程负责人必须维护知识点地图和 Step 绑定表
+B
+禁止展示边界
+推荐展示
+根据你上一节课的学习记录，本 Step 会先帮你确认
+API Key 的配置方式。
+禁止展示
+knowledge_point_id、support/watch/stable、内部
+评分公式、算法规则、他人数据。
+为什么这样设计：风险控制重点放在 Agent 输出质量、结构校验和学生端展示边界上，可以降低 MVP 阶段的不确定性。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 31 of 34
+
+=== PAGE 32 ===
+18. 迭代路线
+本章说明当前版本之后的产品演进方向。
+v1.0
+Agent 辅助生成
+Quiz，统一结构，
+绑定知识点
+v1.1
+增加 Quiz JSON 导
+入工具
+v1.2
+增加 Agent 交互知
+识点映射
+v1.3
+增加 Quiz 题目审核
+视图
+v2.0
+建设后端题库系统
+和抽题机制
+版本
+目标
+说明
+v1.0
+Agent 辅助生成 Quiz，统一结构，绑定知识点
+建立主流程闭环
+v1.1
+增加 Quiz JSON 导入工具
+降低复制粘贴成本
+v1.2
+增加 Agent 交互知识点映射
+将 Agent 交互作为更细的辅助证据
+v1.3
+增加 Quiz 题目审核视图
+提高题目质量稳定性
+v2.0
+建设后端题库系统和抽题机制
+在题库沉淀后引入更稳定的出题流程
+v2.0 说明：后端题库抽题仅作为未来迭代方向，不作为当前版本主流程。当前主流程仍是 Agent 辅助生成 Quiz 题
+目。
+为什么这样设计：先通过 Agent 辅助出题跑通闭环，再通过题库系统提升稳定性，可以降低早期建设成本和试错成本。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 32 of 34
+
+=== PAGE 33 ===
+19. 结论
+本章对当前版本机制进行最终定版。
+机制定版：Lesson 是 Quiz 触发单位；knowledge_point 是画像更新单位；Step 是个性化渲染单位；Agent 是当前
+Quiz 题目辅助生成来源；统一题目结构和 knowledge_point_id 是推送闭环成立的前提。
+最终闭环图
+学生完成 Lesson
+↓
+进入 Lesson 级 Quiz
+↓
+Agent 辅助生成并结构化题目
+↓
+题目绑定 knowledge_point_id
+↓
+学生提交 Quiz
+↓
+更新 student_knowledge_state
+↓
+生成下一 Lesson step_render_config
+↓
+前端按 Step 渲染个性化页面
+A
+Word 页眉页脚文字
+项目
+文字
+页眉
+AI+X 个性化学习平台 PRD
+页脚
+Confidential ｜ AI+X Project ｜ Page X of Y
+B
+PDF 封面标题与副标题
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 33 of 34
+
+=== PAGE 34 ===
+项目
+文字
+标题
+AI+X 个性化学习平台 PRD
+副标题
+Agent 辅助 Quiz 与知识点驱动的 Step 级个性化渲染机制
+作者
+AI+X 项目组
+日期
+2026 年 7 月 9 日
+为什么这样设计：该机制能够让平台在 MVP 阶段实现可解释、可落地、可测试的个性化学习体验，同时为后续题库系
+统、Agent 交互映射、题目审核视图和推荐算法预留演进空间。
+AI+X 个性化学习平台 PRD
+Confidential ｜ AI+X Project
+Page 34 of 34
