@@ -22,7 +22,8 @@ jobs:
         run: |
           python -m py_compile src/*.py
           python -m py_compile tests/*.py
-          python -m py_compile scripts/*.py
+          # scripts/ is gitignored (dev tools); only check if present
+          if ls scripts/*.py >/dev/null 2>&1; then python -m py_compile scripts/*.py; fi
 
   # ── 确定性层测试 (L1规则 + 校准 + 回归基准) ──
   unit:
