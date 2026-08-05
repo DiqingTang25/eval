@@ -55,14 +55,15 @@ var trendChart=null,radarChart=null;
 
 function loadDashboard(){
   get('/api/dashboard/summary').then(function(d){
-    var s=document.getElementById('statGrid');
-    var items=[
-      {v:d.total_tests||0,l:'card_total_tests',sub:'Total evaluations'},
-      {v:(d.avg_overall||0).toFixed(2),l:'card_avg_score',sub:'Average score / 5.0'},
-      {v:d.qa_approved||0,l:'card_qa_approved',sub:'Approved QA pairs'},
-      {v:d.qa_pending||0,l:'card_qa_pending',sub:'Pending review'}
+    var vals=[
+      {v:d.total_tests||0,l:'Total Tests'},
+      {v:(d.avg_overall||0).toFixed(2),l:'Avg Score'},
+      {v:d.qa_approved||0,l:'Approved QA'},
+      {v:d.qa_pending||0,l:'Pending'}
     ];
-    s.innerHTML=items.map(function(x,i){return'<div class="stat-card"><div class="stat-label">'+t(x.l)+'</div><div class="stat-value">'+x.v+'</div><div class="stat-sub">'+x.sub+'</div></div>'}).join('');
+    for(var i=0;i<4;i++){
+      var el=document.getElementById('statVal'+i);if(el)el.textContent=vals[i].v;
+    }
     renderCharts(d);
   }).catch(function(){});
 
