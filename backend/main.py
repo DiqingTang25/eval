@@ -151,9 +151,12 @@ async def websocket_endpoint(ws: WebSocket):
 async def add_cache_headers(request, call_next):
     resp = await call_next(request)
     path = request.url.path
-    # JS/CSS/Fonts/Images: cache 24h (immutable — deploy restarts service = new URL)
-    if any(path.endswith(ext) for ext in ('.js', '.css', '.woff2', '.png', '.svg', '.ico', '.jpg', '.webp')):
-        resp.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    # HTML: never cache
+    if path == '/' or path.endswith('.html'):
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    # JS/CSS: short cache (10s), allow revalidation
+    elif any(path.endswith(ext) for ext in ('.js', '.css')):
+        resp.headers["Cache-Control"] = "public, max-age=10, must-revalidate"
     elif path.startswith('/reports/'):
         resp.headers["Cache-Control"] = "public, max-age=3600"
     return resp
