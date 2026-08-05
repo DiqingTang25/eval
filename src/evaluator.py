@@ -1146,7 +1146,8 @@ class Evaluator:
         for dim, bd in breakdown.items():
             imp = eff_imp.get(dim, 0.0)
             bd["importance"] = round(imp, 4)
-            bd["contribution"] = round(imp * bd["dim_score"], 3)
+            ds = bd.get("dim_score")
+            bd["contribution"] = round(imp * ds, 3) if ds is not None else 0.0
             bd["applicable"] = dim not in na_dims
         final["breakdown"] = breakdown
         final["importance_weights"] = {k: round(v, 4) for k, v in eff_imp.items()}
