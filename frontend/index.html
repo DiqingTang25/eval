@@ -1,158 +1,256 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AI Agent Evaluation Platform v3.6</title>
 <style>
-:root{--bg:#f8f9fb;--surface:#fff;--text:#1a1d2e;--text2:#5a5f72;--text3:#9296a6;--border:#e8ebf2;--accent:#4f6ef7;--accent2:#eef1ff;--green:#22c55e;--green2:#e6f9ef;--red:#ef4444;--red2:#fef2f2;--amber:#f59e0b;--amber2:#fffbeb;--radius:8px;--shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--bg)}
-[data-theme=dark]{--bg:#0f1119;--surface:#1a1d2e;--text:#e4e6f0;--text2:#9498b0;--text3:#636880;--border:#262a3a;--accent:#6b8cff;--accent2:#1a2040;--green:#4ade80;--green2:#0f2618;--red:#f87171;--red2:#2a1215;--amber:#fbbf24;--amber2:#261e0a}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;display:flex}
-.sidebar{width:220px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;flex-shrink:0}
-.sidebar-brand{padding:0 20px 24px;font-size:15px;font-weight:700;letter-spacing:-.3px;color:var(--text);border-bottom:1px solid var(--border);margin-bottom:8px}
-.sidebar-brand span{color:var(--accent)}
-.sidebar-nav{flex:1;padding:8px 0}
-.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:13px;color:var(--text2);text-decoration:none;transition:all .15s;border-left:3px solid transparent;cursor:pointer}
-.sidebar-nav a:hover{color:var(--text);background:var(--accent2)}
-.sidebar-nav a.active{color:var(--accent);background:var(--accent2);border-left-color:var(--accent);font-weight:600}
-.sidebar-nav a .icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:15px;opacity:.7}
-.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3)}
-.sidebar-footer button{background:none;border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2)}
-.sidebar-footer button:hover{background:var(--accent2);color:var(--accent)}
-.sidebar-footer .dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
-.main{flex:1;overflow-y:auto;min-width:0}
-.topbar{display:flex;align-items:center;justify-content:flex-end;padding:12px 24px;gap:12px;border-bottom:1px solid var(--border);background:var(--surface)}
-.topbar .status{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px}
-.page{display:none;padding:24px}
+:root{
+--bg:#f6f7fa;--surface:#fff;--text:#111827;--text2:#6b7280;--text3:#9ca3af;--border:#e5e7eb;
+--accent:#6366f1;--accent2:#eef2ff;--accent3:#c7d2fe;--green:#10b981;--green2:#ecfdf5;
+--red:#ef4444;--red2:#fef2f2;--amber:#f59e0b;--amber2:#fffbeb;
+--radius:12px;--radius-sm:8px;--shadow:0 1px 2px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.06);
+--shadow-lg:0 4px 24px rgba(0,0,0,.08);--font:system-ui,-apple-system,sans-serif;
+--transition:0.2s cubic-bezier(0.4,0,0.2,1);
+}
+[data-theme=dark]{--bg:#0a0a10;--surface:#13141f;--text:#e5e7eb;--text2:#9ca3af;--text3:#6b7280;--border:#1f2137;--accent:#818cf8;--accent2:#1e1b4b;--accent3:#3730a3;--green:#34d399;--green2:#064e3b;--red:#f87171;--red2:#451a1a;--amber:#fbbf24;--amber2:#451a03;--shadow:0 1px 2px rgba(0,0,0,.3),0 2px 8px rgba(0,0,0,.4);--shadow-lg:0 4px 24px rgba(0,0,0,.5)}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow-x:hidden}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes countUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes glow{0%,100%{box-shadow:0 0 4px rgba(99,102,241,.3)}50%{box-shadow:0 0 16px rgba(99,102,241,.6)}}
+@keyframes borderPulse{0%,100%{border-color:var(--border)}50%{border-color:var(--accent)}}
+@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+.page{display:none;padding:28px 32px;animation:fadeIn .35s var(--transition)}
 .page.active{display:block}
-h2{font-size:20px;font-weight:700;letter-spacing:-.3px;margin-bottom:20px}
-h3{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-size:11px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.page h2{font-size:22px;font-weight:700;letter-spacing:-.4px;margin-bottom:24px;color:var(--text)}
+
+/* Sidebar */
+.sidebar{width:232px;min-height:100vh;background:linear-gradient(180deg,var(--surface) 0%,color-mix(in srgb,var(--surface) 98%,var(--accent)) 100%);border-right:1px solid var(--border);padding:24px 0;display:flex;flex-direction:column;flex-shrink:0;position:relative;z-index:10}
+.sidebar::after{content:'';position:absolute;top:0;right:-1px;width:1px;height:100%;background:linear-gradient(180deg,transparent,var(--accent),transparent);opacity:.3;pointer-events:none}
+.sidebar-brand{padding:0 20px 20px;font-size:16px;font-weight:800;letter-spacing:-.5px;color:var(--text);border-bottom:1px solid var(--border);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sidebar-brand .dot{width:10px;height:10px;border-radius:3px;background:var(--accent);animation:glow 3s infinite}
+.sidebar-nav{flex:1;padding:4px 0}
+.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;margin:2px 8px;font-size:13px;color:var(--text2);text-decoration:none;border-radius:8px;cursor:pointer;transition:all var(--transition);position:relative}
+.sidebar-nav a:hover{color:var(--text);background:var(--accent2)}
+.sidebar-nav a.active{color:var(--accent);background:var(--accent2);font-weight:600}
+.sidebar-nav a.active::before{content:'';position:absolute;left:-8px;top:50%;transform:translateY(-50%);width:3px;height:20px;background:var(--accent);border-radius:0 3px 3px 0}
+.sidebar-nav .nav-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);transition:all var(--transition);flex-shrink:0}
+.sidebar-nav a.active .nav-dot{background:var(--accent);animation:glow 2s infinite}
+.sidebar-footer{padding:16px 16px 0;border-top:1px solid var(--border);margin:0 12px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3)}
+.sidebar-footer button{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--text2);transition:all var(--transition)}
+.sidebar-footer button:hover{background:var(--accent2);border-color:var(--accent);color:var(--accent)}
+
+/* Main */
+.main{flex:1;overflow-y:auto;min-width:0;position:relative}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;border-bottom:1px solid var(--border);background:var(--surface);backdrop-filter:blur(12px);position:sticky;top:0;z-index:5}
+.topbar-left{display:flex;align-items:center;gap:20px}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.target-url{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:12px;transition:all var(--transition)}
+.target-url:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.target-url input{border:none;background:none;outline:none;font-size:12px;color:var(--text);width:220px;font-family:var(--font)}
+.target-url input::placeholder{color:var(--text3)}
+.target-url .url-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);white-space:nowrap}
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.status-dot.online{background:var(--green);animation:pulse 2s infinite}
+.status-dot.offline{background:var(--red)}
+
+/* Cards */
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
-.stat-val{font-size:32px;font-weight:700;letter-spacing:-1px;color:var(--text);margin-top:4px}
-.stat-label{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);transition:all var(--transition);position:relative;overflow:hidden}
+.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--green));opacity:0;transition:opacity var(--transition)}
+.stat-card:hover::after{opacity:1}
+.stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:6px;font-weight:600}
+.stat-value{font-size:34px;font-weight:800;letter-spacing:-1.5px;color:var(--text);animation:countUp .5s var(--transition)}
+.stat-sub{font-size:11px;color:var(--text3);margin-top:4px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);transition:all var(--transition);margin-bottom:16px}
+.card:hover{border-color:var(--accent3)}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2)}
+
+/* Controls */
 .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-select,input[type=number]{padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);color:var(--text);outline:none;font-family:inherit}
+select,input[type=number]{padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text);outline:none;font-family:var(--font);transition:all var(--transition)}
 select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
-.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
-.btn-primary{background:var(--accent);color:#fff}
-.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
-.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn{padding:9px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all var(--transition);font-family:var(--font);display:inline-flex;align-items:center;gap:6px;position:relative;overflow:hidden}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.15) 50%,transparent 60%);opacity:0;transition:opacity .3s}
+.btn:hover::after{opacity:1}
+.btn-primary{background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 80%,#8b5cf6));color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.25)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(99,102,241,.35)}
+.btn-outline{background:var(--surface);border:1px solid var(--border);color:var(--text)}
 .btn-outline:hover{background:var(--accent2);border-color:var(--accent)}
 .btn-sm{padding:5px 12px;font-size:12px}
-.btn-danger{background:var(--red);color:#fff}
-.badge{display:inline-flex;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.btn-ghost{background:transparent;border:none;color:var(--text2);padding:4px 8px}
+
+.badge{display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.2px}
 .badge-green{background:var(--green2);color:var(--green)}
 .badge-red{background:var(--red2);color:var(--red)}
-.badge-amber{background:var(--amber2);color:var(--amber)}
 .badge-blue{background:var(--accent2);color:var(--accent)}
-.progress-bar{height:4px;background:var(--border);border-radius:2px;margin:8px 0 16px;overflow:hidden}
-.progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;width:0%}
-.log-console{max-height:400px;overflow-y:auto;font-size:12px;font-family:'SF Mono','Cascadia Code',monospace;background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);line-height:1.7}
-.log-line{padding:1px 0;border-bottom:1px solid var(--border);color:var(--text2)}
-.text-muted{color:var(--text3)}
-.empty-state{padding:40px;text-align:center;color:var(--text3);font-size:13px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
-th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);font-weight:600}
-.list-item{padding:10px 14px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;font-size:13px;transition:all .12s}
-.list-item:hover{border-color:var(--accent);background:var(--accent2)}
+.badge-amber{background:var(--amber2);color:var(--amber)}
+
+/* Progress */
+.progress-wrap{height:4px;background:var(--border);border-radius:2px;margin:8px 0 16px;overflow:hidden}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:2px;transition:width .6s cubic-bezier(0.4,0,0.2,1);width:0%;position:relative}
+.progress-bar.active{animation:gradientShift 3s ease infinite;background-size:200% 200%}
+
+/* Log console */
+.log-console{max-height:400px;overflow-y:auto;font-size:12px;font-family:'SF Mono','Cascadia Code','JetBrains Mono',monospace;background:var(--bg);padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);line-height:1.8}
+.log-line{padding:2px 0;color:var(--text2);border-bottom:1px solid var(--border);animation:slideIn .25s var(--transition)}
+.log-time{color:var(--text3);margin-right:8px}
+
+/* Skeleton */
+.skeleton{background:linear-gradient(90deg,var(--border) 25%,var(--bg) 37%,var(--border) 63%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px;height:14px;margin:4px 0}
+
+/* List */
+.list-item{padding:12px 16px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:all var(--transition);animation:fadeIn .3s var(--transition)}
+.list-item:hover{border-color:var(--accent);background:var(--accent2);transform:translateX(2px)}
 .list-item.active{border-color:var(--accent);background:var(--accent2);font-weight:600}
-.score-ring{width:48px;height:48px;border-radius:50%;border:3px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
-.chart-wrap{position:relative;height:200px}
-.flex{display:flex;gap:8px}
-.flex-between{display:flex;justify-content:space-between;align-items:center}
-.mt-4{margin-top:16px}
-.mb-4{margin-bottom:16px}
-.grid-3{display:grid;grid-template-columns:1fr 2fr 1fr;gap:16px}
-.cal-dim-row{display:flex;align-items:center;margin:6px 0;font-size:12px;gap:8px}
-.cal-dim-name{width:90px;flex-shrink:0;color:var(--text)}
-.cal-score-btn{width:28px;height:24px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;font-size:11px;color:var(--text2)}
-.cal-score-btn:hover{border-color:var(--accent)}
-.cal-score-btn.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
-.toast{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-.toast-item{padding:10px 16px;border-radius:6px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.12);animation:slideIn .25s ease;pointer-events:auto;background:var(--surface);border:1px solid var(--border)}
-@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
-.key-val{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
-.key-val:last-child{border-bottom:none}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);font-weight:700}
+tr{transition:background var(--transition)}
+tbody tr:hover{background:var(--accent2)}
+
+/* Chart wrappers */
+.chart-wrap{position:relative;height:220px}
+.chart-wrap canvas{width:100%!important;height:100%!important}
+
+/* Key-value rows */
+.kv-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.kv-row:last-child{border-bottom:none}
+.kv-val{font-weight:600;color:var(--text)}
+
+/* Empty state */
+.empty-state{padding:48px 24px;text-align:center;color:var(--text3)}
+.empty-state .icon{width:48px;height:48px;margin:0 auto 12px;border-radius:50%;background:var(--accent2);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--accent)}
+
+/* Grid layouts */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.three-col{display:grid;grid-template-columns:1fr 2fr 1fr;gap:16px}
+.flex-between{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.flex{display:flex;gap:8px;align-items:center}
+
+/* Toast */
+.toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.toast-item{padding:10px 18px;border-radius:8px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.12);animation:slideIn .3s var(--transition);pointer-events:auto;background:var(--surface);border:1px solid var(--border)}
+
+/* Score bars */
+.score-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:4px}
+.score-bar-fill{height:100%;border-radius:3px;transition:width 1s var(--transition)}
+.score-bar-fill.high{background:linear-gradient(90deg,var(--green),#34d399)}.score-bar-fill.mid{background:linear-gradient(90deg,var(--amber),#fbbf24)}.score-bar-fill.low{background:linear-gradient(90deg,var(--red),#f87171)}
+
+/* Calibration */
+.cal-dim-row{display:flex;align-items:center;margin:6px 0;gap:10px;padding:4px 0}
+.cal-dim-name{width:110px;font-size:12px;color:var(--text);flex-shrink:0}
+.cal-score-btn{width:30px;height:26px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:11px;font-weight:600;color:var(--text2);transition:all var(--transition)}
+.cal-score-btn:hover{border-color:var(--accent);background:var(--accent2)}
+.cal-score-btn.sel{background:var(--accent);color:#fff;border-color:var(--accent);transform:scale(1.1)}
+
+/* Theme toggle */
+.theme-switch{width:40px;height:22px;background:var(--border);border-radius:11px;position:relative;cursor:pointer;transition:all var(--transition)}
+.theme-switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;background:var(--surface);border-radius:50%;transition:all var(--transition);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+[data-theme=dark] .theme-switch{background:var(--accent)}
+[data-theme=dark] .theme-switch::after{transform:translateX(18px)}
 </style>
 </head>
 <body>
 
 <aside class="sidebar">
-  <div class="sidebar-brand"><span>Eval</span> Platform</div>
+  <div class="sidebar-brand"><div class="dot"></div>Eval <span style="font-weight:400;color:var(--text3)">Platform</span></div>
   <nav class="sidebar-nav">
-    <a class="active" data-page="dashboard" onclick="App.showPage('dashboard')"><span class="icon">&#9632;</span><span data-i18n="nav_home">Overview</span></a>
-    <a data-page="platform-health" onclick="App.showPage('platform-health')"><span class="icon">&#9673;</span><span data-i18n="nav_platform_health">Platform Health</span></a>
-    <a data-page="test-runner" onclick="App.showPage('test-runner')"><span class="icon">&#9654;</span><span data-i18n="nav_test">Test Runner</span></a>
-    <a data-page="reports" onclick="App.showPage('reports')"><span class="icon">&#9776;</span><span data-i18n="nav_reports">Reports</span></a>
-    <a data-page="calibration" onclick="App.showPage('calibration')"><span class="icon">&#9678;</span><span data-i18n="nav_calibration">Calibration</span></a>
+    <a class="active" data-page="dashboard" onclick="App.showPage('dashboard')"><span class="nav-dot"></span><span data-i18n="nav_home">Overview</span></a>
+    <a data-page="platform-health" onclick="App.showPage('platform-health')"><span class="nav-dot"></span><span data-i18n="nav_platform_health">Platform Health</span></a>
+    <a data-page="test-runner" onclick="App.showPage('test-runner')"><span class="nav-dot"></span><span data-i18n="nav_test">Test Runner</span></a>
+    <a data-page="reports" onclick="App.showPage('reports')"><span class="nav-dot"></span><span data-i18n="nav_reports">Reports</span></a>
+    <a data-page="calibration" onclick="App.showPage('calibration')"><span class="nav-dot"></span><span data-i18n="nav_calibration">Calibration</span></a>
   </nav>
   <div class="sidebar-footer">
-    <span class="dot"></span><span data-i18n="sys_online">Online</span>
+    <span class="status-dot online" id="wsStatusDot"></span>
+    <span data-i18n="sys_online" id="wsStatusLabel">Online</span>
     <span style="flex:1"></span>
-    <button onclick="App.toggleTheme()" title="Toggle theme">&#9788;</button>
+    <div class="theme-switch" onclick="App.toggleTheme()" title="Toggle theme"></div>
     <button id="langToggle" onclick="App.toggleLang()">EN</button>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <span class="status"><span class="dot" id="wsDot" style="width:7px;height:7px;border-radius:50%;background:var(--green)"></span><span id="wsLabel" data-i18n="sys_ws_connected">Connected</span></span>
-    <span class="status" style="margin-left:auto">v3.6</span>
+    <div class="topbar-left">
+      <div class="target-url">
+        <span class="url-label">Target</span>
+        <input id="targetUrl" value="http://124.174.108.70" placeholder="Platform URL" onchange="App.setTargetUrl(this.value)">
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span style="font-size:12px;color:var(--text3)">v3.6</span>
+    </div>
   </div>
 
   <!-- Dashboard -->
   <div id="page-dashboard" class="page active">
-    <div class="stat-grid" id="statGrid"></div>
+    <h2 data-i18n="home_title">Evaluation Overview</h2>
+    <div class="stat-grid" id="statGrid">
+      <div class="stat-card skeleton" style="height:100px"></div>
+      <div class="stat-card skeleton" style="height:100px"></div>
+      <div class="stat-card skeleton" style="height:100px"></div>
+      <div class="stat-card skeleton" style="height:100px"></div>
+    </div>
 
-    <div class="card mb-4">
+    <div class="card">
+      <div class="card-header"><h3>Evaluation Controls</h3></div>
       <div class="controls">
-        <select id="agentSelect" style="min-width:160px"></select>
+        <select id="agentSelect" style="min-width:180px"><option>Loading agents...</option></select>
         <select id="evalProfile" style="min-width:160px" onchange="App.onProfileChange()">
-          <option value="patrol" data-i18n-opt="eval_profile_patrol">Patrol ~5min</option>
-          <option value="full" selected data-i18n-opt="eval_profile_full">Full Platform ~18min</option>
-          <option value="deep" data-i18n-opt="eval_profile_deep">Deep ~30min</option>
-          <option value="custom" data-i18n-opt="eval_profile_custom">Custom</option>
+          <option value="full" selected>Full Platform &middot; ~18min</option>
+          <option value="patrol">Patrol &middot; ~5min</option>
+          <option value="deep">Deep Scan &middot; ~30min</option>
+          <option value="custom">Custom</option>
         </select>
         <span id="customOpts" style="display:none;gap:6px">
-          <input id="numQuestions" type="number" value="3" min="1" max="20" style="width:60px" placeholder="Qty">
+          <input id="numQuestions" type="number" value="3" min="1" max="20" style="width:60px">
           <span style="font-size:12px;color:var(--text3)">questions</span>
-          <input id="maxTurns" type="number" value="3" min="1" max="10" style="width:60px" placeholder="Turns">
+          <input id="maxTurns" type="number" value="3" min="1" max="10" style="width:60px">
           <span style="font-size:12px;color:var(--text3)">turns</span>
         </span>
         <button class="btn btn-primary" onclick="App.startEval()"><span data-i18n="test_start_btn">Start Evaluation</span></button>
-        <button class="btn btn-outline btn-sm" onclick="App.loadDashboard()"><span data-i18n="btn_refresh">Refresh</span></button>
+        <button class="btn btn-outline btn-sm" onclick="App.loadDashboard()">Refresh</button>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-wrap"><div class="progress-bar" id="progressFill"></div></div>
       <div id="evalStatus" style="display:none;font-size:12px;color:var(--text2);margin-bottom:8px"></div>
       <div id="liveEvalPanel" style="display:none">
-        <div class="flex-between mb-4"><h3 data-i18n="live_title">Live Evaluation</h3><button class="btn btn-outline btn-sm" onclick="document.getElementById('liveEvalBody').innerHTML=''">Clear</button></div>
+        <div class="card-header"><h3 data-i18n="live_title">Live Evaluation</h3><button class="btn btn-ghost btn-sm" onclick="document.getElementById('liveEvalBody').innerHTML=''">Clear</button></div>
         <div class="log-console" id="liveEvalBody"><div class="empty-state">Start an evaluation to see the live process</div></div>
       </div>
     </div>
 
     <div class="two-col">
-      <div class="card"><h3 data-i18n="chart_trend">Score Trend</h3><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
-      <div class="card"><h3 data-i18n="chart_radar">Dimension Radar</h3><div class="chart-wrap"><canvas id="radarChart"></canvas></div></div>
+      <div class="card"><div class="card-header"><h3 data-i18n="chart_trend">Score Trend</h3></div><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
+      <div class="card"><div class="card-header"><h3 data-i18n="chart_radar">Dimension Radar</h3></div><div class="chart-wrap"><canvas id="radarChart"></canvas></div></div>
     </div>
-
-    <div class="card"><h3 data-i18n="recent_reports">Recent Reports</h3><div id="recentReports" class="empty-state">Loading...</div></div>
+    <div class="card"><div class="card-header"><h3 data-i18n="recent_reports">Recent Reports</h3></div><div id="recentReports"><div class="empty-state">Loading...</div></div></div>
   </div>
 
   <!-- Platform Health -->
   <div id="page-platform-health" class="page">
-    <h2 data-i18n="health_title">Platform Health</h2>
+    <h2 data-i18n="health_title">Platform Health Monitoring</h2>
     <div class="controls">
-      <button class="btn btn-outline btn-sm" id="phRefreshBtn"><span data-i18n="health_refresh_btn">Refresh Check</span></button>
-      <button class="btn btn-outline btn-sm" id="phFullRefreshBtn"><span data-i18n="health_refresh_text">Full Health Check</span></button>
+      <button class="btn btn-outline btn-sm" id="phRefreshBtn">Refresh Check</button>
+      <button class="btn btn-outline btn-sm" id="phFullRefreshBtn">Full Health Check</button>
     </div>
-    <div id="phStatus" class="mb-4"></div>
+    <div id="phStatus" style="margin-bottom:16px"></div>
     <div class="two-col">
-      <div class="card"><h3>Interaction</h3><div id="phInteraction"><span class="text-muted">Loading...</span></div></div>
-      <div class="card"><h3>Technical Metrics</h3><div id="phTechMetrics"><span class="text-muted">Loading...</span></div></div>
+      <div class="card"><h3>Interaction Metrics</h3><div id="phInteraction"></div></div>
+      <div class="card"><h3>Technical Performance</h3><div id="phTechMetrics"></div></div>
     </div>
   </div>
 
@@ -160,43 +258,23 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3
   <div id="page-test-runner" class="page">
     <h2 data-i18n="test_title">Test Runner</h2>
     <div class="controls">
-      <select id="trAgent" style="min-width:160px"></select>
-      <select id="trProfile">
-        <option value="full">Full Platform ~18min</option>
-        <option value="patrol">Patrol ~5min</option>
-        <option value="deep">Deep ~30min</option>
-      </select>
+      <select id="trAgent" style="min-width:160px"><option>Teaching Platform</option></select>
+      <select id="trProfile"><option value="full">Full Platform ~18min</option><option value="patrol">Patrol ~5min</option><option value="deep">Deep ~30min</option></select>
       <input id="trScenarios" type="number" value="3" min="1" max="20" style="width:60px" title="Scenarios">
       <button class="btn btn-primary" id="trStartBtn"><span data-i18n="test_start_btn">Start Test</span></button>
-      <button class="btn btn-danger btn-sm" id="trStopBtn" style="display:none"><span data-i18n="test_stop_btn">Stop</span></button>
+      <button class="btn btn-outline btn-sm" id="trStopBtn" style="display:none">Stop</button>
     </div>
-    <div id="trStatus" class="mb-4" style="font-size:13px"></div>
-    <div class="card mb-4">
-      <h3 data-i18n="test_event_log">Live Event Log</h3>
-      <div class="log-console" id="trEventLog"><span class="text-muted">Waiting for test to start...</span></div>
-    </div>
-    <div class="card">
-      <h3 data-i18n="test_history">Session History</h3>
-      <div id="trSessions"><span class="text-muted">Loading...</span></div>
-    </div>
+    <div id="trStatus" style="margin-bottom:16px;font-size:13px"></div>
+    <div class="card"><div class="card-header"><h3 data-i18n="test_event_log">Live Event Log</h3></div><div class="log-console" id="trEventLog"><span class="text-muted">Waiting for test to start...</span></div></div>
+    <div class="card" style="margin-top:16px"><div class="card-header"><h3 data-i18n="test_history">Session History</h3></div><div id="trSessions"></div></div>
   </div>
 
   <!-- Reports -->
   <div id="page-reports" class="page">
     <h2 data-i18n="reports_title">Evaluation Reports</h2>
     <div class="two-col">
-      <div class="card">
-        <div class="controls">
-          <button class="btn btn-outline btn-sm" onclick="App.reportsLoad()">Refresh</button>
-          <button class="btn btn-outline btn-sm" id="rpCompareBtn" onclick="App.reportsCompare()">Compare</button>
-          <button class="btn btn-outline btn-sm" id="rpExitCompareBtn" style="display:none" onclick="App.reportsExitCompare()">Exit Compare</button>
-        </div>
-        <div id="rpList"><span class="text-muted">Loading...</span></div>
-      </div>
-      <div class="card" id="rpDetailCard">
-        <h3>Detail</h3>
-        <div id="rpDetail"><span class="text-muted">Select a report to view details</span></div>
-      </div>
+      <div class="card"><div class="card-header"><h3>Report List</h3><div class="flex"><button class="btn btn-outline btn-sm" onclick="App.reportsLoad()">Refresh</button><button class="btn btn-outline btn-sm" id="rpCompareBtn" onclick="App.reportsCompare()">Compare</button><button class="btn btn-outline btn-sm" id="rpExitCompareBtn" style="display:none" onclick="App.reportsExitCompare()">Exit</button></div></div><div id="rpList"></div></div>
+      <div class="card"><div class="card-header"><h3>Detail</h3></div><div id="rpDetail"><div class="empty-state">Select a report to view</div></div></div>
     </div>
   </div>
 
@@ -205,19 +283,19 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3
     <h2 data-i18n="cal_title">Human Calibration Workspace</h2>
     <div class="controls">
       <button class="btn btn-primary btn-sm" id="calLoadBtn">Load Items</button>
-      <button class="btn btn-outline btn-sm" id="calResultsBtn">View Statistics</button>
-      <button class="btn btn-outline btn-sm" id="calGenBtn">Generate Calibration Set</button>
+      <button class="btn btn-outline btn-sm" id="calResultsBtn">View Stats</button>
+      <button class="btn btn-outline btn-sm" id="calGenBtn">Generate Set</button>
       <span id="calProg" style="font-size:12px;color:var(--text2)"></span>
     </div>
-    <div class="grid-3">
-      <div class="card"><h3>Queue</h3><div id="calItems"><div class="empty-state">Click Load to begin</div></div></div>
-      <div class="card"><h3>Scoring</h3><div id="calScore"><div class="empty-state">Select a QA pair from the queue</div></div></div>
-      <div class="card"><h3>Statistics</h3><div id="calStats"><div class="empty-state">Submit scores to view statistics</div></div></div>
+    <div class="three-col">
+      <div class="card"><h3>Queue</h3><div id="calItems" style="max-height:500px;overflow-y:auto"></div></div>
+      <div class="card"><h3>Scoring Panel</h3><div id="calScore"></div></div>
+      <div class="card"><h3>Statistics</h3><div id="calStats"></div></div>
     </div>
   </div>
 </main>
 
-<div class="toast" id="toastContainer"></div>
+<div class="toast-container" id="toastContainer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/test/js/i18n.js"></script>
