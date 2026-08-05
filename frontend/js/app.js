@@ -48,8 +48,8 @@ function toggleLang(){
 }
 
 // ── Animated number counting ──
-function animateValue(el,end,dur){
-  if(!el)return;el.textContent=String(end);el.style.animation='countUp .5s var(--transition)';
+function animateValue(el,end){
+  if(!el)return;el.textContent=String(end);el.style.opacity='0';el.style.transform='translateY(4px)';requestAnimationFrame(function(){el.style.transition='opacity .4s,transform .4s';el.style.opacity='1';el.style.transform='translateY(0)'});
 }
 
 // ═══════════════════ Dashboard ═══════════════════
