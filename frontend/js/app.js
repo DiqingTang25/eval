@@ -48,9 +48,7 @@ function toggleLang(){
 }
 
 // ── Animated number counting ──
-function animateValue(el,end){
-  if(!el)return;el.textContent=String(end);el.style.opacity='0';el.style.transform='translateY(4px)';requestAnimationFrame(function(){el.style.transition='opacity .4s,transform .4s';el.style.opacity='1';el.style.transform='translateY(0)'});
-}
+function animateValue(el,v){if(!el)return;el.textContent=String(v)}
 
 // ═══════════════════ Dashboard ═══════════════════
 var trendChart=null,radarChart=null;
@@ -64,8 +62,7 @@ function loadDashboard(){
       {v:d.qa_approved||0,l:'card_qa_approved',sub:'Approved QA pairs'},
       {v:d.qa_pending||0,l:'card_qa_pending',sub:'Pending review'}
     ];
-    s.innerHTML=items.map(function(x,i){return'<div class="stat-card" style="animation:fadeIn .4s var(--transition) '+(.1*i).toFixed(1)+'s both"><div class="stat-label">'+t(x.l)+'</div><div class="stat-value" id="statVal'+i+'">-</div><div class="stat-sub">'+x.sub+'</div></div>'}).join('');
-    setTimeout(function(){items.forEach(function(x,i){animateValue(document.getElementById('statVal'+i),x.v)})},100);
+    s.innerHTML=items.map(function(x,i){return'<div class="stat-card"><div class="stat-label">'+t(x.l)+'</div><div class="stat-value">'+x.v+'</div><div class="stat-sub">'+x.sub+'</div></div>'}).join('');
     renderCharts(d);
   }).catch(function(){});
 
