@@ -15,22 +15,26 @@ test_service = TestService()
 
 from pydantic import BaseModel
 
+class BrowserEvalRequest(BaseModel):
+    """全平台浏览器遍历测评请求"""
+    phases: list[int] = [1, 2, 3, 4, 5]
+    mode: str = "guided"
+    headless: bool = True
+    include_quiz: bool = True
+    target_url: str = ""
+    agent_id: str = "platform"
+    schema_driven: bool = False        # v4.0: 使用探索器发现的 schema
+    platform_schema_path: str = ""     # v4.0: schema 文件路径
+
+
 class TestRunRequest(BaseModel):
     agent_id: str = "platform"
     num_questions: int = 1
     max_turns: int = 3
     profile: str = "standard"
     target_url: str = ""
-
-
-class BrowserEvalRequest(BaseModel):
-    """全平台浏览器遍历测评请求"""
-    phases: list[int] = [1, 2, 3, 4, 5]  # 要测评的Phase
-    mode: str = "guided"  # guided | self | both
-    headless: bool = True
-    include_quiz: bool = True  # 是否验证Quiz自动出答案
-    target_url: str = ""  # 用户指定的被测平台URL
-    agent_id: str = "platform"  # 默认platform, 由前端传入
+    schema_driven: bool = False        # v4.0
+    platform_schema_path: str = ""     # v4.0
 
 
 @router.post("/run")
@@ -42,6 +46,8 @@ async def trigger_test(body: TestRunRequest = TestRunRequest()):
         max_turns=body.max_turns,
         profile=body.profile,
         target_url=body.target_url,
+        schema_driven=body.schema_driven,
+        platform_schema_path=body.platform_schema_path,
     )
 
 

@@ -585,5 +585,11 @@
   "scenario_div": "📝 Scenario {0}/{1}",
   "score_line": "Overall:{0}/5 | Correct:{1} Relevant:{2} Complete:{3} Guidance:{4} Follow-up:{5} Boundary:{6}",
   "page_of": "{0} total · page {1}/{2} ",
-  "key": "Key"
+  "key": "Key",
+  "nav_explorer": "🔍 Explorer",
+  "explorer_title": "Platform Explorer",
+  "explorer_desc": "Auto-discover teaching platform structure: phases, lessons, steps, APIs, and AI agent endpoints.",
+  "explorer_config": "Exploration Config",
+  "explorer_hint": "Leave credentials empty to auto-detect auth. Headless mode recommended for servers.",
+  "explorer_history": "Exploration History"
 }

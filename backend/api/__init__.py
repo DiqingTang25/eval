@@ -46,3 +46,15 @@ try:
     api_router.include_router(i18n.router, prefix="/i18n", tags=["i18n"])
 except ImportError:
     pass
+
+try:
+    from . import explorer
+    api_router.include_router(explorer.router, prefix="/explorer", tags=["Explorer"])
+except ImportError:
+    pass
+
+try:
+    from . import settings
+    api_router.include_router(settings.router, prefix="/settings", tags=["Settings"])
+except ImportError:
+    pass

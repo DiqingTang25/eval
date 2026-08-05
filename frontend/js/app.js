@@ -4,10 +4,82 @@
 var API=(function(){try{var p=location.pathname;return(p.startsWith('/test/')||p==='/test')?'/test':''}catch(e){return''}})();
 var DIMS=['correctness','relevancy','completeness','guidance','followup_quality','boundary_compliance','turn_consistency','knowledge_scaffolding','overhelping','fairness_bias'];
 
+// ═══════════════════ Built-in i18n ═══════════════════
+var _lang=(function(){try{return localStorage.getItem('lang')||'zh'}catch(e){return'zh'}})();
+var _dict={
+  nav_home:{zh:'Overview',en:'Overview'},
+  nav_platform_health:{zh:'Platform Health',en:'Platform Health'},
+  nav_test:{zh:'Test Runner',en:'Test Runner'},
+  nav_reports:{zh:'Reports',en:'Reports'},
+  nav_calibration:{zh:'Calibration',en:'Calibration'},
+  sys_online:{zh:'Online',en:'Online'},
+  sys_ws_connected:{zh:'Connected',en:'Connected'},
+  sys_ws_disconnected:{zh:'Disconnected',en:'Disconnected'},
+  home_title:{zh:'Evaluation Overview',en:'Evaluation Overview'},
+  live_title:{zh:'Live Evaluation',en:'Live Evaluation'},
+  chart_trend:{zh:'Score Trend',en:'Score Trend'},
+  chart_radar:{zh:'Dimension Radar',en:'Dimension Radar'},
+  recent_reports:{zh:'Recent Reports',en:'Recent Reports'},
+  reports_no_data:{zh:'No reports yet',en:'No reports yet'},
+  test_start_btn:{zh:'Start Evaluation',en:'Start Evaluation'},
+  test_stop_btn:{zh:'Stop',en:'Stop'},
+  test_title:{zh:'Test Runner',en:'Test Runner'},
+  test_event_log:{zh:'Live Event Log',en:'Live Event Log'},
+  test_history:{zh:'Session History',en:'Session History'},
+  test_no_history:{zh:'No session history',en:'No session history'},
+  btn_refresh:{zh:'Refresh',en:'Refresh'},
+  reports_title:{zh:'Evaluation Reports',en:'Evaluation Reports'},
+  health_title:{zh:'Platform Health',en:'Platform Health'},
+  health_refresh_btn:{zh:'Refresh Check',en:'Refresh Check'},
+  health_refresh_text:{zh:'Full Health Check',en:'Full Health Check'},
+  cal_title:{zh:'Human Calibration Workspace',en:'Human Calibration Workspace'},
+  cal_load_btn:{zh:'Load Items',en:'Load Items'},
+  cal_results_btn:{zh:'View Statistics',en:'View Statistics'},
+  cal_generate_btn:{zh:'Generate Calibration Set',en:'Generate Calibration Set'},
+  card_total_tests:{zh:'Total Tests',en:'Total Tests'},
+  card_avg_score:{zh:'Avg Score',en:'Avg Score'},
+  card_qa_approved:{zh:'Approved QA',en:'Approved QA'},
+  card_qa_pending:{zh:'Pending',en:'Pending'},
+  dim_correctness:{zh:'Correctness',en:'Correctness'},
+  dim_relevancy:{zh:'Relevancy',en:'Relevancy'},
+  dim_completeness:{zh:'Completeness',en:'Completeness'},
+  dim_guidance:{zh:'Guidance',en:'Guidance'},
+  dim_followup_quality:{zh:'Follow-up Quality',en:'Follow-up Quality'},
+  dim_boundary_compliance:{zh:'Boundary Compliance',en:'Boundary Compliance'},
+  dim_turn_consistency:{zh:'Turn Consistency',en:'Turn Consistency'},
+  dim_knowledge_scaffolding:{zh:'Knowledge Scaffolding',en:'Knowledge Scaffolding'},
+  dim_overhelping:{zh:'Over-helping',en:'Over-helping'},
+  dim_fairness_bias:{zh:'Fairness',en:'Fairness'},
+  nav_explorer:{zh:'🔍 平台探索',en:'🔍 Explorer'},
+  explorer_title:{zh:'平台探索器',en:'Platform Explorer'},
+  explorer_desc:{zh:'自动发现教学平台结构：阶段、课时、步骤、API端点和AI助手交互模式。',en:'Auto-discover teaching platform structure: phases, lessons, steps, APIs, and AI agent endpoints.'},
+  explorer_config:{zh:'探索配置',en:'Exploration Config'},
+  explorer_hint:{zh:'留空凭证以自动检测认证方式。服务器模式推荐使用无头浏览器。',en:'Leave credentials empty to auto-detect auth. Headless mode recommended for servers.'},
+  explorer_history:{zh:'探索历史',en:'Exploration History'},
+  explorer_no_history:{zh:'暂无探索记录',en:'No exploration sessions yet'},
+  explorer_url_required:{zh:'请输入目标平台URL',en:'Please enter a target URL'},
+  explorer_phases:{zh:'阶段',en:'Phases'},
+  explorer_steps:{zh:'步骤',en:'Steps'},
+  explorer_apis:{zh:'API',en:'APIs'},
+  explorer_conf:{zh:'置信度',en:'Conf'},
+  explorer_start_btn:{zh:'🚀 开始探索',en:'🚀 Start Exploration'},
+  explorer_cancel_btn:{zh:'⏹ 取消',en:'⏹ Cancel'},
+  explorer_use_schema:{zh:'✅ 使用此Schema进行测评',en:'✅ Use This Schema for Evaluation'},
+  explorer_view_schema:{zh:'📄 查看Schema',en:'📄 View Schema'},
+  explorer_download_schema:{zh:'💾 下载Schema',en:'💾 Download Schema'},
+  explorer_schema_active:{zh:'🧬 Schema-Driven 模式已激活',en:'🧬 Schema-Driven Mode Active'},
+  schema_indicator:{zh:'🧬 Schema模式',en:'🧬 Schema Mode'}
+};
+function t(k){var e=_dict[k];return e?e[_lang]||e.zh||k:k}
+function setLang(l){_lang=l;_dict=window._i18nExt||_dict}
+
+// Merge external i18n.js dictionary if loaded
+window._i18nExt=null;
+window._mergeI18n=function(ext){window._i18nExt=ext}
+
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function get(u){return fetch(API+u).then(function(r){return r.json()})}
 function post(u,b){return fetch(API+u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json()})}
-function t(k){var fn=window.t||function(x){return x};return fn.apply(null,arguments)}
 function toast(msg,type){type=type||'info';var c=document.getElementById('toastContainer');if(!c)return;var d=document.createElement('div');d.className='toast-item';d.style.background=type==='error'?'var(--red2)':type==='success'?'var(--green2)':'var(--surface)';d.style.borderColor=type==='error'?'var(--red)':type==='success'?'var(--green)':'var(--border)';d.textContent=msg;c.appendChild(d);setTimeout(function(){d.style.opacity='0';d.style.transition='opacity .3s';setTimeout(function(){d.remove()},300)},3500)}
 
 var _currentPage='dashboard', _targetUrl='http://124.174.108.70';
@@ -26,6 +98,7 @@ function showPage(name){
   if(name==='test-runner'){trLoad();return}
   if(name==='reports'){reportsLoad();return}
   if(name==='calibration'){calInit();return}
+  if(name==='explorer'){exploreInit();return}
 }
 
 function applyI18n(){
@@ -40,10 +113,9 @@ function toggleTheme(){
 }
 
 function toggleLang(){
-  var cur=localStorage.getItem('lang')||'zh',next=cur==='zh'?'en':'zh';
-  localStorage.setItem('lang',next);
-  if(window.setLang)window.setLang(next);
-  document.getElementById('langToggle').textContent=next==='zh'?'EN':'CN';
+  _lang=_lang=="zh"?"en":"zh";localStorage.setItem("lang",_lang);
+  if(window.setLang)window.setLang(_lang);
+  document.getElementById("langToggle").textContent=_lang=="zh"?"EN":"CN";
   applyI18n();showPage(_currentPage);
 }
 
@@ -67,6 +139,10 @@ function loadDashboard(){
     renderCharts(d);
   }).catch(function(){});
 
+  // Schema-driven indicator
+  var si=document.getElementById('schemaIndicator');
+  if(si){si.style.display=localStorage.getItem('schemaDriven')==='true'?'':'none'}
+
   get('/api/dashboard/sessions?page_size=5').then(function(r){
     var el=document.getElementById('recentReports');if(!el)return;
     if(r&&r.items&&r.items.length)el.innerHTML=r.items.map(function(x){return'<span class="badge badge-blue" style="margin:2px;animation:fadeIn .3s var(--transition) both">'+escHtml(x.agent_id)+' &middot; '+(x.status||'?')+'</span>'}).join(' ');
@@ -86,17 +162,46 @@ function renderCharts(d){
   var tEl=document.getElementById('trendChart');
   if(tEl){
     var trend=(d.trend||[]).slice().reverse();
-    var grd=gradCtx.createLinearGradient(0,0,0,200);
-    grd.addColorStop(0,dark?'rgba(129,140,248,.2)':'rgba(99,102,241,.15)');
-    grd.addColorStop(1,'rgba(99,102,241,0)');
     if(trendChart)trendChart.destroy();
-    trendChart=new Chart(tEl,{type:'line',data:{labels:trend.map(function(p,i){return p.ts?String(p.ts).replace('T',' ').substring(5,16):(i+1)}),datasets:[{data:trend.map(function(p){return p.score}),borderColor:dark?'#818cf8':'#6366f1',backgroundColor:grd,fill:true,tension:.4,borderWidth:2.5,pointRadius:4,pointBackgroundColor:dark?'#818cf8':'#6366f1',pointBorderColor:'#fff',pointBorderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false}},scales:{y:{min:0,max:5,ticks:{stepSize:1},grid:{color:grid}},x:{grid:{color:grid}}}}});
+    trendChart=new Chart(tEl,{
+      type:'line',
+      data:{
+        labels:trend.map(function(p,i){return p.ts?String(p.ts).replace('T',' ').substring(5,16):(i+1)}),
+        datasets:[{
+          data:trend.map(function(p){return p.score}),
+          borderColor:dark?'#818cf8':'#6366f1',
+          backgroundColor:dark?'rgba(129,140,248,.1)':'rgba(99,102,241,.08)',
+          fill:true,tension:.4,borderWidth:2.5,pointRadius:4
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{y:{min:0,max:5,ticks:{stepSize:1},grid:{color:grid}},x:{grid:{color:grid}}}
+      }
+    });
   }
   var rEl=document.getElementById('radarChart');
   if(rEl){
     var latest=d.latest||{};
     if(radarChart)radarChart.destroy();
-    radarChart=new Chart(rEl,{type:'radar',data:{labels:labels,datasets:[{data:DIMS.slice(0,8).map(function(k){return latest[k]||0}),borderColor:dark?'#818cf8':'#6366f1',backgroundColor:dark?'rgba(129,140,248,.15)':'rgba(99,102,241,.1)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:dark?'#818cf8':'#6366f1'}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false}},scales:{r:{min:0,max:5,ticks:{stepSize:1,backdropColor:'transparent'},grid:{color:grid},pointLabels:{color:tick,font:{size:11}}}}});
+    radarChart=new Chart(rEl,{
+      type:'radar',
+      data:{
+        labels:labels,
+        datasets:[{
+          data:DIMS.slice(0,8).map(function(k){return latest[k]||0}),
+          borderColor:dark?'#818cf8':'#6366f1',
+          backgroundColor:dark?'rgba(129,140,248,.15)':'rgba(99,102,241,.1)',
+          borderWidth:2.5,pointRadius:4
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{r:{min:0,max:5,ticks:{stepSize:1,backdropColor:'transparent'},grid:{color:grid},pointLabels:{color:tick,font:{size:11}}}}
+      }
+    });
   }
 }
 
@@ -115,6 +220,11 @@ function startEval(){
   var params,endpoint;
   if(profile==='custom'){params={agent_id:'platform',num_questions:parseInt(document.getElementById('numQuestions').value)||3,max_turns:parseInt(document.getElementById('maxTurns').value)||3,profile:'custom',target_url:_targetUrl};endpoint='/api/tests/run'}
   else{params=presets[profile]||presets.full;params.target_url=_targetUrl;endpoint='/api/tests/run-browser'}
+  // Schema-driven mode (from Platform Explorer)
+  if(localStorage.getItem('schemaDriven')==='true'){
+    params.schema_driven=true;
+    params.platform_schema_path=localStorage.getItem('schemaPath')||'';
+  }
   post(endpoint,params).then(function(data){
     if(data.status==='started'){if(body)body.innerHTML='<div class="log-line" style="color:var(--green)">Session started: '+data.session_id+'</div>';if(bar)bar.innerHTML='<span class="badge badge-green">Running: '+data.session_id+'</span>';pBar.style.width='30%'}
     else{if(body)body.innerHTML='<div class="log-line" style="color:var(--red)">Failed: '+JSON.stringify(data)+'</div>';pBar.classList.remove('active')}
@@ -219,7 +329,7 @@ function reportsLoad(){
   get('/api/reports?page_size=50').then(function(data){
     var el=document.getElementById('rpList');if(!el)return;
     var items=data.items||[];if(!items.length){el.innerHTML='<div class="empty-state">'+t('reports_no_data')+'</div>';return}
-    el.innerHTML=items.map(function(r,i){return'<div class="list-item" onclick="App.rpSelect(\''+r.id+'\')" style="animation:fadeIn .3s '+(.02*i).toFixed(2)+'s both"><div class="flex-between"><strong>'+escHtml(r.agent_id||'Report #'+r.id)+'</strong><span style="font-weight:700">'+(r.overall_score!=null?r.overall_score.toFixed(2):'?')+' <span style="font-size:11px;color:var(--text3)">/ 5.0</span></span></div><div style="font-size:11px;color:var(--text3);margin-top:4px">'+(r.created_at||'').substring(0,16)+(_rpCmpIds.indexOf(r.id)>=0?' &middot; <span class="badge badge-blue">Selected</span>':'')+'</div></div>'}).join('');
+    el.innerHTML=items.map(function(r,i){return'<div class="list-item" onclick="App.rpSelect(\''+r.id+'\')" style="animation:fadeIn .3s '+(.02*i).toFixed(2)+'s both"><div class="flex-between"><strong>'+escHtml(r.agent_id||'Report #'+r.id)+'</strong><span style="font-weight:700">'+((r.overall||r.overall_score||0)!=null?(r.overall||r.overall_score||0).toFixed(2):'?')+' <span style="font-size:11px;color:var(--text3)">/ 5.0</span></span></div><div style="font-size:11px;color:var(--text3);margin-top:4px">'+(r.created_at||'').substring(0,16)+(_rpCmpIds.indexOf(r.id)>=0?' &middot; <span class="badge badge-blue">Selected</span>':'')+'</div></div>'}).join('');
   }).catch(function(){});
 }
 function rpSelect(id){
@@ -227,7 +337,7 @@ function rpSelect(id){
   get('/api/reports/'+id).then(function(r){
     var el=document.getElementById('rpDetail');if(!el)return;
     var html='<h3 style="margin-bottom:12px">'+escHtml(r.agent_id||'Report')+'</h3>';
-    html+='<div class="kv-row"><span>Overall Score</span><span class="kv-val" style="font-size:18px;color:var(--accent)">'+(r.overall_score!=null?r.overall_score.toFixed(2):'?')+'</span></div>';
+    html+='<div class="kv-row"><span>Overall Score</span><span class="kv-val" style="font-size:18px;color:var(--accent)">'+((r.overall||r.overall_score||0)!=null?(r.overall||r.overall_score||0).toFixed(2):'?')+'</span></div>';
     html+='<div class="kv-row"><span>Created</span><span>'+ (r.created_at||'')+'</span></div>';
     if(r.scores){html+='<div style="margin-top:16px"><table><thead><tr><th>Dimension</th><th>Score</th><th></th></tr></thead><tbody>';
       DIMS.forEach(function(d){var v=r.scores[d];if(v!=null){var cls=v>=4?'high':v>=3?'mid':'low';html+='<tr><td>'+t('dim_'+d)+'</td><td><strong>'+Number(v).toFixed(1)+'</strong></td><td style="width:120px"><div class="score-bar"><div class="score-bar-fill '+cls+'" style="width:'+(v*20)+'%"></div></div></td></tr>'}});
@@ -303,12 +413,165 @@ function connectWS(){
   }catch(ex){}
 }
 
+// ═══════════════════ Platform Explorer ═══════════════════
+var _exploreTimer=null,_explorePoll=null,_exploreStartTs=0,_exploreSessionId='',_exploreSchemaPath='';
+
+function _fmtDur(s){s=Math.round(s||0);var m=Math.floor(s/60),sec=s%60;return m>0?m+'m '+sec+'s':sec+'s'}
+function _el(id){return document.getElementById(id)}
+
+function exploreInit(){
+  var eu=_el('exploreUrl');if(eu&&!_exploreSessionId)eu.value=_targetUrl;
+  exploreLoadHistory();
+}
+
+function exploreStart(){
+  var url=(_el('exploreUrl')?(_el('exploreUrl').value||'').trim():'');
+  if(!url){toast(t('explorer_url_required')||'Please enter a target URL','error');return}
+  if(!url.startsWith('http'))url='https://'+url;
+
+  var body={
+    target_url:url,
+    username:_el('exploreUser')?_el('exploreUser').value:'',
+    password:_el('explorePass')?_el('explorePass').value:'',
+    headless:_el('exploreHeadless')?_el('exploreHeadless').checked:true,
+    max_depth:parseInt((_el('exploreDepth')||{}).value)||3,
+    max_pages:parseInt((_el('explorePages')||{}).value)||50,
+    api_threshold:0.50
+  };
+
+  var sBtn=_el('exploreStartBtn');if(sBtn)sBtn.disabled=true;
+  var cBtn=_el('exploreCancelBtn');if(cBtn)cBtn.style.display='';
+  var prog=_el('exploreProgress');if(prog)prog.style.display='';
+  var res=_el('exploreResults');if(res)res.style.display='none';
+  var st=_el('exploreStatus');if(st)st.textContent='Starting exploration...';
+  var bar=_el('exploreProgressBar');if(bar)bar.style.width='5%';
+  _exploreStartTs=Date.now();
+  if(_exploreTimer)clearInterval(_exploreTimer);
+  _exploreTimer=setInterval(function(){var e=_el('exploreElapsed');if(e)e.textContent=_fmtDur((Date.now()-_exploreStartTs)/1000)},1000);
+
+  post('/api/explorer/run',body).then(function(r){
+    if(r.status==='started'){
+      _exploreSessionId=r.session_id;
+      var st2=_el('exploreStatus');if(st2)st2.textContent='Exploring... (L0: Auth)';
+      var bar2=_el('exploreProgressBar');if(bar2)bar2.style.width='15%';
+      if(_explorePoll)clearInterval(_explorePoll);
+      _explorePoll=setInterval(explorePollStatus,2000);
+      toast('Exploration started — '+r.session_id,'success');
+    }else if(r.status==='busy'){
+      toast('An exploration is already running','error');
+      exploreResetUI();
+    }else{
+      toast('Failed: '+(r.error||r.message||'unknown'),'error');
+      exploreResetUI();
+    }
+  }).catch(function(e){
+    toast('Network error: '+e.message,'error');
+    exploreResetUI();
+  });
+}
+
+function exploreCancel(){
+  post('/api/explorer/cancel').then(function(r){
+    toast(r.message||'Exploration cancelled');
+    exploreResetUI();
+  }).catch(function(){exploreResetUI()});
+}
+
+function explorePollStatus(){
+  get('/api/explorer/status').then(function(r){
+    if(!r.running){
+      if(_exploreTimer){clearInterval(_exploreTimer);_exploreTimer=null}
+      if(_explorePoll){clearInterval(_explorePoll);_explorePoll=null}
+      if(_exploreSessionId)exploreLoadResult(_exploreSessionId);
+      exploreResetUI();
+    }else{
+      var bar=_el('exploreProgressBar');if(bar){var w=parseFloat(bar.style.width)||15;bar.style.width=Math.min(90,w+Math.random()*3)+'%'}
+    }
+  }).catch(function(){});
+}
+
+function exploreLoadResult(sid){
+  get('/api/explorer/sessions/'+sid).then(function(r){
+    var res=_el('exploreResults');if(res)res.style.display='';
+    var el1=_el('expPhases');if(el1)el1.textContent=r.phases_found||0;
+    var el2=_el('expLessons');if(el2)el2.textContent=r.lessons_found||0;
+    var el3=_el('expSteps');if(el3)el3.textContent=r.steps_found||0;
+    var el4=_el('expAPIs');if(el4)el4.textContent=r.api_endpoints_found||0;
+    var el5=_el('expConf');if(el5)el5.textContent=Math.round((r.overall_confidence||0)*100)+'%';
+    var el6=_el('expDur');if(el6)el6.textContent=_fmtDur(r.duration_seconds||0);
+    var bar=_el('exploreProgressBar');if(bar)bar.style.width='100%';
+    var st=_el('exploreStatus');if(st)st.textContent=r.status==='completed'?'Completed!':'Failed';
+    _exploreSchemaPath=r.schema_path||'';
+
+    if(r.warnings&&r.warnings.items&&r.warnings.items.length>0){
+      var ew=_el('expWarnings');if(ew)ew.style.display='';
+      var ewl=_el('expWarnList');if(ewl)ewl.innerHTML=r.warnings.items.map(function(w){return '<div>⚠️ '+escHtml(w)+'</div>'}).join('');
+    }
+    if(r.is_ready){
+      var ub=_el('expUseSchemaBtn');if(ub)ub.style.display='';
+      toast('Exploration complete! Schema ready.','success');
+    }
+  }).catch(function(e){toast('Failed to load result: '+e.message,'error')});
+}
+
+function exploreUseSchema(){
+  if(!_exploreSchemaPath){toast('No schema available','error');return}
+  _targetUrl=(_el('exploreUrl')?_el('exploreUrl').value:'')||_targetUrl;
+  localStorage.setItem('schemaDriven','true');
+  localStorage.setItem('schemaPath',_exploreSchemaPath);
+  localStorage.setItem('targetUrl',_targetUrl);
+  var tu=_el('targetUrl');if(tu)tu.value=_targetUrl;
+  var si=_el('schemaIndicator');if(si)si.style.display='';
+  toast('Schema activated! Evaluation will use discovered platform structure.','success');
+  setTimeout(function(){showPage('dashboard')},1000);
+}
+
+function exploreViewSchema(){
+  if(!_exploreSessionId){toast('No exploration session','error');return}
+  window.open(API+'/api/explorer/schema/'+_exploreSessionId,'_blank');
+}
+
+function exploreDownloadSchema(){
+  if(!_exploreSessionId){toast('No exploration session','error');return}
+  var a=document.createElement('a');a.href=API+'/api/explorer/schema/'+_exploreSessionId;
+  a.download='platform_schema.yaml';document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+function exploreLoadHistory(){
+  get('/api/explorer/sessions?page=1&page_size=20').then(function(r){
+    var el=_el('exploreHistory');if(!el)return;
+    var sessions=r.sessions||[];
+    if(sessions.length===0){el.innerHTML='<div class="empty-state">'+t('explorer_no_history')+'</div>';return}
+    el.innerHTML=sessions.map(function(s){
+      var badge=s.status==='completed'?'<span class="badge badge-green">✅ Done</span>':
+        s.status==='running'?'<span class="badge badge-blue">🔄 Running</span>':
+        s.status==='failed'?'<span class="badge badge-red">❌ Failed</span>':
+        '<span class="badge badge-amber">'+escHtml(s.status)+'</span>';
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px" onclick="App.exploreLoadResult(\''+escHtml(s.session_id)+'\')">'+
+        badge+' <b>'+escHtml(s.target_url)+'</b><br>'+
+        '<span style="color:var(--text3)">'+
+        (t('explorer_phases')||'Phases')+':'+(s.phases_found||0)+' '+
+        (t('explorer_steps')||'Steps')+':'+(s.steps_found||0)+' '+
+        (t('explorer_apis')||'APIs')+':'+(s.api_endpoints_found||0)+' '+
+        (t('explorer_conf')||'Conf')+':'+Math.round((s.overall_confidence||0)*100)+'%'+
+        ' · '+_fmtDur(s.duration_seconds||0)+' · '+escHtml(s.started_at||'')+'</span></div>';
+    }).join('');
+  }).catch(function(){});
+}
+
+function exploreResetUI(){
+  if(_exploreTimer){clearInterval(_exploreTimer);_exploreTimer=null}
+  if(_explorePoll){clearInterval(_explorePoll);_explorePoll=null}
+  var sBtn=_el('exploreStartBtn');if(sBtn)sBtn.disabled=false;
+  var cBtn=_el('exploreCancelBtn');if(cBtn)cBtn.style.display='none';
+  var bar=_el('exploreProgressBar');if(bar)bar.style.width='0%';
+}
+
 // ═══════════════════ Export ═══════════════════
-window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,trLoad:trLoad,trStart:trStart,trStop:trStop,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop};
+window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,trLoad:trLoad,trStart:trStart,trStop:trStop,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult};
 
 document.addEventListener('DOMContentLoaded',function(){
-  var lang=localStorage.getItem('lang')||'zh';
-  document.getElementById('langToggle').textContent=lang==='zh'?'EN':'CN';
+  document.getElementById('langToggle').textContent=_lang=='zh'?'EN':'CN';
   var savedUrl=localStorage.getItem('targetUrl');if(savedUrl){_targetUrl=savedUrl;document.getElementById('targetUrl').value=savedUrl}
   loadDashboard();onProfileChange();setTimeout(connectWS,500);
 });

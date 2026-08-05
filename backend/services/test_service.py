@@ -72,6 +72,8 @@ class TestService:
         max_turns: int = 3,
         profile: str = "standard",
         target_url: str = "",
+        schema_driven: bool = False,
+        platform_schema_path: str = "",
     ) -> dict:
         """启动一次评测"""
         if self._running:
@@ -98,7 +100,8 @@ class TestService:
                     "max_turns": max_turns,
                     "profile": profile,
                     "target_url": target_url,
-                    # P0-15: 记录超时配置
+                    "schema_driven": schema_driven,
+                    "platform_schema_path": platform_schema_path,
                     "watchdog": {
                         "scenario_timeout": self.scenario_timeout,
                         "global_timeout": self.global_timeout,

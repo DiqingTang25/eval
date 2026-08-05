@@ -584,5 +584,11 @@
   "scenario_div": "📝 场景 {0}/{1}",
   "score_line": "综合:{0}/5 | 正确:{1} 相关:{2} 完整:{3} 引导:{4} 追问:{5} 边界:{6}",
   "page_of": "共 {0} 条，第 {1}/{2} 页 ",
-  "key": "key"
+  "key": "key",
+  "nav_explorer": "🔍 平台探索",
+  "explorer_title": "平台探索器",
+  "explorer_desc": "自动发现教学平台结构：阶段、课时、步骤、API端点和AI助手交互模式。",
+  "explorer_config": "探索配置",
+  "explorer_hint": "留空凭证以自动检测认证方式。服务器模式推荐使用无头浏览器。",
+  "explorer_history": "探索历史"
 }

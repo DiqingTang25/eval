@@ -170,6 +170,7 @@ tbody tr:hover{background:var(--accent2)}
     <a data-page="test-runner" onclick="App.showPage('test-runner')"><span class="nav-dot"></span><span data-i18n="nav_test">Test Runner</span></a>
     <a data-page="reports" onclick="App.showPage('reports')"><span class="nav-dot"></span><span data-i18n="nav_reports">Reports</span></a>
     <a data-page="calibration" onclick="App.showPage('calibration')"><span class="nav-dot"></span><span data-i18n="nav_calibration">Calibration</span></a>
+    <a data-page="explorer" onclick="App.showPage('explorer')"><span class="nav-dot"></span><span data-i18n="nav_explorer">Explorer</span></a>
   </nav>
   <div class="sidebar-footer">
     <span class="status-dot online" id="wsStatusDot"></span>
@@ -204,7 +205,9 @@ tbody tr:hover{background:var(--accent2)}
     </div>
 
     <div class="card">
-      <div class="card-header"><h3>Evaluation Controls</h3></div>
+      <div class="card-header"><h3>Evaluation Controls</h3>
+        <span id="schemaIndicator" style="display:none;font-size:11px;color:var(--accent);font-weight:600">🧬 Schema-Driven Mode</span>
+      </div>
       <div class="controls">
         <select id="evalProfile" style="min-width:180px" onchange="App.onProfileChange()">
           <option value="full" selected>Full Platform &middot; ~18min</option>
@@ -289,12 +292,105 @@ tbody tr:hover{background:var(--accent2)}
       <div class="card"><h3>Statistics</h3><div id="calStats"></div></div>
     </div>
   </div>
+
+  <!-- Platform Explorer -->
+  <div id="page-explorer" class="page">
+    <h2 data-i18n="explorer_title">Platform Explorer</h2>
+    <p style="color:var(--text2);margin-bottom:16px;font-size:13px" data-i18n="explorer_desc">
+      Auto-discover teaching platform structure: phases, lessons, steps, APIs, and AI agent endpoints.
+    </p>
+
+    <div class="card">
+      <div class="card-header"><h3 data-i18n="explorer_config">Exploration Config</h3></div>
+      <div class="controls" style="flex-wrap:wrap;gap:10px">
+        <input id="exploreUrl" placeholder="https://teaching-platform.com" style="min-width:280px" value="">
+        <input id="exploreUser" placeholder="Username" style="width:130px">
+        <input id="explorePass" type="password" placeholder="Password" style="width:130px">
+        <select id="exploreDepth" style="width:100px">
+          <option value="1">Depth 1</option>
+          <option value="2">Depth 2</option>
+          <option value="3" selected>Depth 3</option>
+          <option value="4">Depth 4</option>
+        </select>
+        <select id="explorePages" style="width:100px">
+          <option value="10">10 pages</option>
+          <option value="30">30 pages</option>
+          <option value="50" selected>50 pages</option>
+          <option value="100">100 pages</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="exploreHeadless" checked> Headless
+        </label>
+        <button class="btn btn-primary" id="exploreStartBtn" onclick="App.exploreStart()">
+          🚀 Start Exploration
+        </button>
+        <button class="btn btn-outline btn-sm" id="exploreCancelBtn" onclick="App.exploreCancel()" style="display:none">
+          ⏹ Cancel
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">
+        <span data-i18n="explorer_hint">Leave credentials empty to auto-detect auth. Headless mode recommended for servers.</span>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="exploreProgress" style="display:none;margin:12px 0">
+      <div class="progress-wrap"><div class="progress-bar active" id="exploreProgressBar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2)">
+        <span id="exploreStatus">Preparing...</span>
+        <span id="exploreElapsed">00:00</span>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="exploreResults" style="display:none">
+      <div class="stat-grid" style="grid-template-columns:repeat(6,1fr)">
+        <div class="stat-card"><div class="stat-label">Phases</div><div class="stat-value" id="expPhases">0</div></div>
+        <div class="stat-card"><div class="stat-label">Lessons</div><div class="stat-value" id="expLessons">0</div></div>
+        <div class="stat-card"><div class="stat-label">Steps</div><div class="stat-value" id="expSteps">0</div></div>
+        <div class="stat-card"><div class="stat-label">API Endpoints</div><div class="stat-value" id="expAPIs">0</div></div>
+        <div class="stat-card"><div class="stat-label">Confidence</div><div class="stat-value" id="expConf">0%</div></div>
+        <div class="stat-card"><div class="stat-label">Duration</div><div class="stat-value" id="expDur">0s</div></div>
+      </div>
+
+      <div class="card" id="expWarnings" style="display:none">
+        <div class="card-header"><h3>⚠️ Warnings</h3></div>
+        <div id="expWarnList" style="font-size:12px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Actions</h3></div>
+        <div class="controls">
+          <button class="btn btn-primary btn-sm" id="expUseSchemaBtn" onclick="App.exploreUseSchema()">
+            ✅ Use This Schema for Evaluation
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="App.exploreViewSchema()">
+            📄 View Schema YAML
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="App.exploreDownloadSchema()">
+            💾 Download Schema
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-header"><h3 data-i18n="explorer_history">Exploration History</h3>
+        <button class="btn btn-outline btn-sm" onclick="App.exploreLoadHistory()">Refresh</button>
+      </div>
+      <div id="exploreHistory" style="max-height:300px;overflow-y:auto">
+        <div class="empty-state">No exploration sessions yet</div>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/test/js/i18n.js?v=3.6.1"></script>
-<script src="/test/js/app.js?v=3.6.1"></script>
+<script src="/test/js/i18n.js?v=3.6.4"></script>
+<script src="/test/js/app.js?v=3.6.4"></script>
 </body>
 </html>

@@ -8,6 +8,7 @@ from .web_eval_result import WebEvalResult
 from .knowledge_base import KnowledgeBase, KBDocument
 from .evidence_trail import EvidenceTrail
 from .evidence_memory import EvidenceMemory
+from .exploration_session import ExplorationSession
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "KBDocument",
     "EvidenceTrail",
     "EvidenceMemory",
+    "ExplorationSession",
 ]
