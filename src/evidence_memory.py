@@ -48,6 +48,11 @@ KB_DOMAIN = os.getenv("VOLC_KB_DOMAIN", "api-knowledgebase.mlp.cn-beijing.volces
 KB_SEARCH_URL = f"https://{KB_DOMAIN}/api/knowledge/collection/search_knowledge"
 KB_UPLOAD_URL = f"https://{KB_DOMAIN}/api/knowledge/collection/upload_document"
 
+# v3.6: 记忆库的KB操作全部走 hiagent_kb.py 的统一查询接口
+# 不在已有Phase KB中创建独立collection (evaluation_memory), 避免403/400
+# 搜索时: 跨所有Phase collection检索 → 聚合结果
+# 上传时: 跳过KB上传, 只依赖 MySQL + Redis (KB upload需要HMAC签名, 且不应污染课程KB)
+
 # 所有已知Phase KB (与 hiagent_kb.py 保持一致)
 _KB_SOURCES = {
     "phase1": {
@@ -93,6 +98,7 @@ def _resolve_kb_credentials() -> tuple[str, str, str]:
     return "", "", ""
 
 _kb_id, _kb_key, _kb_source = _resolve_kb_credentials()
+# v3.6: _kb_name 仅用于标识, 不再传给KB API (搜索走 hiagent_kb 的 phase_* collections)
 _kb_name = os.getenv("VOLC_KB_MEMORY_NAME", "evaluation_memory")
 
 # ── Redis key 前缀 ──
@@ -472,119 +478,57 @@ class EvidenceMemory:
 
     def _store_volc(self, record: dict) -> bool:
         """
-        上传评测摘要文档到火山KB (复用已有Phase KB的 service_resource_id)
+        v3.6: KB上传已禁用 — 已有Phase KB为课程内容专用, 不应混入评测记忆。
 
-        API: POST /api/knowledge/collection/upload_document
-        Auth: Bearer {api_key}
-        Body: 同 hiagent_kb.py 模式, name="evaluation_memory" 做逻辑隔离
+        原因:
+          - upload_document 返回403 (Bearer token无写入权限, 需HMAC-SHA256签名)
+          - 记忆数据不应污染课程知识库
+          - MySQL + Redis 已满足存储需求
 
-        注意: upload_document 端点需要验证。如果KB控制台API文档显示不同端点，
-        修改模块级 KB_UPLOAD_URL 常量即可。
+        如需启用KB记忆库, 需在火山引擎控制台创建独立的KB实例,
+        配置 VOLC_KB_MEMORY_SERVICE_ID + VOLC_KB_MEMORY_API_KEY,
+        并确认 upload_document 端点可用。
         """
-        if not self._kb_id or not self._kb_key:
-            return False
-
-        title = f"eval_{record['session_id'][:12]}_{record.get('phase', 'unknown')}"
-        body = json.dumps({
-            "service_resource_id": self._kb_id,
-            "name": self._kb_name,
-            "documents": [{
-                "content": record.get("summary", ""),
-                "title": title,
-                "metadata": json.dumps({
-                    "session_id": record["session_id"],
-                    "is_failure_case": record.get("is_failure_case", False),
-                    "failure_type": record.get("failure_type", ""),
-                    "overall_score": record.get("overall_score", 0.0),
-                }),
-            }],
-        }, ensure_ascii=False).encode("utf-8")
-
-        req = urllib.request.Request(KB_UPLOAD_URL, data=body, headers={
-            "Authorization": f"Bearer {self._kb_key}",
-            "Content-Type": "application/json",
-        })
-
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                if data.get("code") == 0:
-                    logger.debug("EvidenceMemory: KB upload OK: %s", title)
-                    return True
-                else:
-                    logger.warning(
-                        "EvidenceMemory: KB upload failed: code=%s msg=%s",
-                        data.get("code"), data.get("message", ""),
-                    )
-                    return False
-        except urllib.error.HTTPError as e:
-            body_resp = e.read().decode("utf-8", errors="replace")[:300]
-            logger.warning(
-                "EvidenceMemory: KB upload HTTP %d — 端点可能需要调整: %s",
-                e.code, body_resp,
-            )
-            return False
-        except Exception as e:
-            logger.warning("EvidenceMemory: KB upload network error: %s", e)
-            return False
+        logger.debug("EvidenceMemory: KB upload skipped (v3.6: MySQL+Redis only)")
+        return False
 
     def _search_volc(self, query: str, top_k: int = 5) -> list[dict]:
         """
-        火山KB 语义检索
+        v3.6: 跨所有Phase KB collection检索 (复用 hiagent_kb.py 统一查询接口)
 
-        API: POST /api/knowledge/collection/search_knowledge
-        (与 hiagent_kb.py 使用完全相同的端点+认证模式)
+        不再使用不存在的 "evaluation_memory" collection,
+        改为在 phase_1/phase_2/phase_4/domestic_ai_makers_pbl_platform 中搜索,
+        匹配课程内容 → 间接找到相关评测场景。
+
+        注意: 这是课程内容检索 (非评测记忆检索),
+        评测记忆的语义检索由 MySQL 余弦相似度兜底。
         """
-        if not self._kb_id or not self._kb_key:
-            return []
-
-        body = json.dumps({
-            "service_resource_id": self._kb_id,
-            "name": self._kb_name,
-            "query": query[:2000],
-            "limit": top_k,
-        }, ensure_ascii=False).encode("utf-8")
-
-        req = urllib.request.Request(KB_SEARCH_URL, data=body, headers={
-            "Authorization": f"Bearer {self._kb_key}",
-            "Content-Type": "application/json",
-        })
-
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            logger.warning("EvidenceMemory: KB search HTTP %d", e.code)
-            return []
-        except Exception as e:
-            logger.warning("EvidenceMemory: KB search error: %s", e)
+            from src.hiagent_kb import query_all_phase_kbs, KBChunk
+        except ImportError:
+            logger.debug("EvidenceMemory: hiagent_kb not available for KB search")
             return []
 
-        if data.get("code") != 0:
-            logger.warning(
-                "EvidenceMemory: KB search API error: code=%s msg=%s",
-                data.get("code"), data.get("message", ""),
-            )
-            return []
-
-        result_list = data.get("data", {}).get("result_list", [])
+        all_results = query_all_phase_kbs(query, limit=max(3, top_k // 4 + 1), timeout=10)
         results = []
-        for r in result_list:
-            content = r.get("content", "")
-            score = r.get("score", 0.0)
-            # 尝试从KB返回的content中提取结构化信息
-            results.append({
-                "source": "volc_kb",
-                "similarity": round(score, 4),
-                "question_text": content[:200],
-                "kb_content": content,
-                "is_failure_case": "failure" in content.lower() or "veto" in content.lower(),
-                "failure_type": "",
-                "overall_score": 0.0,
-                "scores": {},
-            })
+        for phase, r in all_results.items():
+            if r.error or not r.chunks:
+                continue
+            for chunk in r.chunks:
+                results.append({
+                    "source": f"volc_kb/{phase}",
+                    "similarity": round(chunk.score, 4),
+                    "question_text": chunk.content[:200],
+                    "kb_content": chunk.content,
+                    "is_failure_case": False,  # 课程内容不标记失败案例
+                    "failure_type": "",
+                    "overall_score": 0.0,
+                    "scores": {},
+                })
 
-        return results
+        # 按相似度排序，取 top_k
+        results.sort(key=lambda x: x.get("similarity", 0.0), reverse=True)
+        return results[:top_k]
 
     def _mark_kb_stored(self, session_id: str):
         """标记 MySQL 中的记录已写入KB"""

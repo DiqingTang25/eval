@@ -30,7 +30,7 @@ from .api import api_router
 
 app = FastAPI(
     title="AI Agent 评测平台",
-    version="3.4.0",
+    version="3.6.0",
     description="AI Agent 全自动化测评系统 — 10维度评分 / 多Judge投票 / 火山引擎知识库 / Token成本追踪 / 速率限制 / Prometheus指标",
 )
 

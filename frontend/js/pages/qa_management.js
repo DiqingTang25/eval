@@ -4,6 +4,7 @@
 
 import api from '../api.js';
 import { showToast, formatDate, truncate } from '../utils.js';
+import { t, onLangChange, tStatus } from '../i18n-bridge.js';
 
 const QAPage = {
     state: {
@@ -24,6 +25,13 @@ const QAPage = {
             return;
         }
         this.state.initialized = true;
+        // 语言切换时重新渲染 (仅当本页面处于激活状态)
+        onLangChange(() => {
+            if (document.getElementById('page-qa') &&
+                document.getElementById('page-qa').classList.contains('active')) {
+                this.render();
+            }
+        });
     },
 
     async render() {
@@ -40,28 +48,28 @@ const QAPage = {
         el.innerHTML = `
           <div class="filter-bar">
             <select id="qaFilterStatus">
-              <option value="pending" selected>待审核</option>
-              <option value="all">全部</option>
-              <option value="approved">已通过</option>
-              <option value="rejected">已拒绝</option>
+              <option value="pending" selected>${t('qa_filter_pending')}</option>
+              <option value="all">${t('qa_filter_all')}</option>
+              <option value="approved">${t('qa_filter_approved')}</option>
+              <option value="rejected">${t('qa_filter_rejected')}</option>
             </select>
             <select id="qaFilterPhase">
-              <option value="all">全部阶段</option>
+              <option value="all">${t('qa_filter_all_phase')}</option>
               <option>PHASE 01</option><option>PHASE 02</option><option>PHASE 03</option><option>PHASE 04</option><option>PHASE 05</option>
             </select>
             <select id="qaFilterType">
-              <option value="all">全部题型</option>
-              <option value="概念解释">概念解释</option><option value="操作步骤">操作步骤</option>
-              <option value="对比分析">对比分析</option><option value="应用场景">应用场景</option>
+              <option value="all">${t('qa_filter_all_type')}</option>
+              <option value="概念解释">${t('qa_type_concept')}</option><option value="操作步骤">${t('qa_type_procedure')}</option>
+              <option value="对比分析">${t('qa_type_comparison')}</option><option value="应用场景">${t('qa_type_scenario')}</option>
             </select>
-            <input id="qaSearch" type="text" placeholder="🔍 搜索问题/答案..." style="width:200px">
-            <button class="btn btn-primary btn-sm" id="qaGenerateBtn">🔄 从Excel生成QA</button>
-            <button class="btn btn-outline btn-sm" id="qaBatchApproveBtn">✅ 批量通过</button>
+            <input id="qaSearch" type="text" placeholder="${t('qa_search_ph')}" style="width:200px">
+            <button class="btn btn-primary btn-sm" id="qaGenerateBtn">${t('qa_generate_btn')}</button>
+            <button class="btn btn-outline btn-sm" id="qaBatchApproveBtn">${t('qa_batch_approve_btn')}</button>
             <span id="qaStatsText" style="font-size:12px;color:var(--text-secondary)"></span>
           </div>
           <div class="qa-layout">
-            <div class="qa-list" id="qaList"><div class="qa-empty">加载中...</div></div>
-            <div class="qa-detail" id="qaDetail"><div class="qa-empty">← 选择一条QA查看详情</div></div>
+            <div class="qa-list" id="qaList"><div class="qa-empty">${t('sys_loading')}</div></div>
+            <div class="qa-detail" id="qaDetail"><div class="qa-empty">${t('qa_select_hint')}</div></div>
           </div>
           <div class="pagination" id="qaPagination"></div>
         `;
@@ -100,14 +108,14 @@ const QAPage = {
             this.renderList(data);
             this.renderPagination(data);
         } catch (e) {
-            document.getElementById('qaList').innerHTML = '<div class="qa-empty">加载失败: ' + e.message + '</div>';
+            document.getElementById('qaList').innerHTML = '<div class="qa-empty">' + t('load_failed').replace('{0}', e.message) + '</div>';
         }
     },
 
     renderList(data) {
         const el = document.getElementById('qaList');
         if (!data.items?.length) {
-            el.innerHTML = '<div class="qa-empty">暂无QA数据</div>';
+            el.innerHTML = '<div class="qa-empty">' + t('qa_no_data') + '</div>';
             return;
         }
         el.innerHTML = data.items.map(q => `
@@ -115,7 +123,7 @@ const QAPage = {
             <div class="qa-q">${truncate(q.question, 70)}</div>
             <div class="qa-meta">
               <span>${q.phase}</span> · <span>${q.type}</span>
-              <span class="badge badge-${q.status}">${q.status}</span>
+              <span class="badge badge-${q.status}">${tStatus(q.status)}</span>
             </div>
           </div>
         `).join('');
@@ -127,7 +135,7 @@ const QAPage = {
             if (el) el.innerHTML = '';
             return;
         }
-        let html = `<span class="page-info">${data.total} 条, ${data.page}/${data.total_pages} 页</span>`;
+        let html = `<span class="page-info">${t('qa_page_of', data.total, data.page, data.total_pages).replace('{0}', data.total).replace('{1}', data.page).replace('{2}', data.total_pages)}</span>`;
         if (data.page > 1) html = `<button data-page="${data.page - 1}">◀</button>` + html;
         if (data.page < data.total_pages) html += `<button data-page="${data.page + 1}">▶</button>`;
         el.innerHTML = html;
@@ -142,8 +150,9 @@ const QAPage = {
     async loadStats() {
         try {
             const data = await api.get('/api/qa/stats');
-            document.getElementById('qaStatsText').textContent =
-                `待审:${data.pending} | 通过:${data.approved} | 拒绝:${data.rejected} | 共${data.total}`;
+            document.getElementById('qaStatsText').textContent = t('qa_stats_fmt')
+                .replace('{0}', data.pending).replace('{1}', data.approved)
+                .replace('{2}', data.rejected).replace('{3}', data.total);
         } catch (e) { /* ignore */ }
     },
 
@@ -154,7 +163,7 @@ const QAPage = {
             this.renderDetail(qa);
             this.loadList(); // 刷新列表高亮
         } catch (e) {
-            showToast('加载QA详情失败', 'error');
+            showToast(t('qa_load_detail_failed'), 'error');
         }
     },
 
@@ -162,28 +171,28 @@ const QAPage = {
         const el = document.getElementById('qaDetail');
         const isPending = qa.status === 'pending';
         el.innerHTML = `
-          <h3 style="color:var(--accent-blue);margin-bottom:10px">📝 ${qa.qa_id}</h3>
+          <h3 style="color:var(--accent-blue);margin-bottom:10px">${t('qa_detail_title_prefix')}${qa.qa_id}</h3>
           <div style="display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap">
-            <span class="badge badge-${qa.status}">${qa.status}</span>
+            <span class="badge badge-${qa.status}">${tStatus(qa.status)}</span>
             <span style="font-size:12px;color:var(--text-secondary)">${qa.phase} | ${qa.type} | ${qa.difficulty}</span>
           </div>
-          <label>问题</label>
+          <label>${t('qa_question_label')}</label>
           <textarea id="qaEditQuestion">${qa.question || ''}</textarea>
-          <label>黄金答案</label>
+          <label>${t('qa_answer_label')}</label>
           <textarea id="qaEditAnswer" style="min-height:120px">${qa.golden_answer || ''}</textarea>
-          <label>知识点</label>
+          <label>${t('qa_knowledge_points')}</label>
           <div style="font-size:12px;color:var(--text-secondary)">${(qa.knowledge_points || []).join(', ')}</div>
-          <label>来源</label>
+          <label>${t('qa_source_label')}</label>
           <div style="font-size:12px;color:var(--text-muted);background:var(--bg-primary);padding:8px;border-radius:4px">
             ${qa.source?.document || 'N/A'} / ${qa.source?.sheet || ''}
           </div>
           <div style="margin-top:14px;display:flex;gap:8px">
             ${isPending ? `
-              <button class="btn btn-success btn-sm" id="qaApproveBtn">✅ 通过</button>
-              <button class="btn btn-danger btn-sm" id="qaRejectBtn">❌ 拒绝</button>
-              <button class="btn btn-warning btn-sm" id="qaSaveBtn">✏️ 保存修改</button>
-            ` : '<span style="color:var(--text-secondary);font-size:13px">已审核 · ' + (qa.reviewer_notes || '') + '</span>'}
-            <button class="btn btn-outline btn-sm" id="qaDeleteBtn">🗑 删除</button>
+              <button class="btn btn-success btn-sm" id="qaApproveBtn">${t('qa_approve_btn')}</button>
+              <button class="btn btn-danger btn-sm" id="qaRejectBtn">${t('qa_reject_btn')}</button>
+              <button class="btn btn-warning btn-sm" id="qaSaveBtn">${t('qa_save_btn')}</button>
+            ` : '<span style="color:var(--text-secondary);font-size:13px">' + t('qa_already_reviewed_prefix') + (qa.reviewer_notes || '') + '</span>'}
+            <button class="btn btn-outline btn-sm" id="qaDeleteBtn">${t('qa_delete_btn')}</button>
           </div>
         `;
 
@@ -197,20 +206,20 @@ const QAPage = {
     async approve(qaId) {
         try {
             await api.post(`/api/qa/${qaId}/approve`);
-            showToast('已通过', 'success');
+            showToast(t('qa_approved'), 'success');
             this.selectQA(qaId);
             this.loadStats();
-        } catch (e) { showToast('操作失败', 'error'); }
+        } catch (e) { showToast(t('operation_failed'), 'error'); }
     },
 
     async reject(qaId) {
-        const reason = prompt('拒绝原因（可选）:');
+        const reason = prompt(t('qa_reject_reason_prompt'));
         try {
             await api.post(`/api/qa/${qaId}/reject`, { reason: reason || '' });
-            showToast('已拒绝', 'success');
+            showToast(t('qa_rejected'), 'success');
             this.selectQA(qaId);
             this.loadStats();
-        } catch (e) { showToast('操作失败', 'error'); }
+        } catch (e) { showToast(t('operation_failed'), 'error'); }
     },
 
     async saveEdit(qaId) {
@@ -218,48 +227,48 @@ const QAPage = {
         const golden_answer = document.getElementById('qaEditAnswer')?.value;
         try {
             await api.put(`/api/qa/${qaId}`, { question, golden_answer });
-            showToast('修改已保存', 'success');
+            showToast(t('qa_saved'), 'success');
             this.selectQA(qaId);
             this.loadStats();
-        } catch (e) { showToast('保存失败', 'error'); }
+        } catch (e) { showToast(t('qa_save_failed'), 'error'); }
     },
 
     async deleteOne(qaId) {
-        if (!confirm('确定删除此QA？')) return;
+        if (!confirm(t('qa_confirm_delete'))) return;
         try {
             await api.delete(`/api/qa/${qaId}`);
-            showToast('已删除', 'success');
+            showToast(t('qa_deleted'), 'success');
             this.state.selectedId = null;
-            document.getElementById('qaDetail').innerHTML = '<div class="qa-empty">← 选择一条QA查看详情</div>';
+            document.getElementById('qaDetail').innerHTML = '<div class="qa-empty">' + t('qa_select_hint') + '</div>';
             this.loadList();
             this.loadStats();
-        } catch (e) { showToast('删除失败', 'error'); }
+        } catch (e) { showToast(t('qa_delete_failed'), 'error'); }
     },
 
     async batchApprove() {
-        if (!confirm('确定批量通过当前筛选的所有待审核QA？')) return;
+        if (!confirm(t('qa_batch_confirm'))) return;
         try {
             const data = await api.get('/api/qa', { status: 'pending', page_size: 100 });
             const ids = (data.items || []).map(q => q.qa_id);
-            if (!ids.length) { showToast('没有待审核的QA', 'info'); return; }
+            if (!ids.length) { showToast(t('qa_batch_none'), 'info'); return; }
             await api.post('/api/qa/batch/approve', { qa_ids: ids });
-            showToast(`已批量通过 ${ids.length} 条`, 'success');
+            showToast(t('qa_batch_success').replace('{0}', ids.length), 'success');
             this.loadList();
             this.loadStats();
-        } catch (e) { showToast('批量操作失败', 'error'); }
+        } catch (e) { showToast(t('qa_batch_failed'), 'error'); }
     },
 
     async generateQA() {
-        document.getElementById('qaList').innerHTML = '<div class="qa-empty">⏳ 正在从Excel生成QA...</div>';
+        document.getElementById('qaList').innerHTML = '<div class="qa-empty">' + t('qa_generating') + '</div>';
         try {
             const data = await api.post('/api/qa/generate');
-            showToast(`已生成 ${data.total} 条QA，请审核`, 'success');
+            showToast(t('qa_generate_success').replace('{0}', data.total), 'success');
             this.state.filterStatus = 'pending';
             document.getElementById('qaFilterStatus').value = 'pending';
             this.loadList();
             this.loadStats();
         } catch (e) {
-            showToast('生成失败: ' + e.message, 'error');
+            showToast(t('qa_generate_failed').replace('{0}', e.message), 'error');
             this.loadList();
         }
     },

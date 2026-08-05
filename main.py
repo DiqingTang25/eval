@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AI Agent 全自动化测评系统 v3.4
+AI Agent 全自动化测评系统 v3.6
 
 评测流程: 问题生成 → 浏览器操控Agent → 追问 → 6维度评分 + 边界检测 → 报告
 
@@ -28,7 +28,7 @@ def cmd_run():
 
     from src.test_runner import TestRunner
 
-    print("🤖 AI Agent 自动化测评系统 v3.4")
+    print("🤖 AI Agent 自动化测评系统 v3.6")
     runner = TestRunner()
     runner.run_all()
 

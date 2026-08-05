@@ -4,14 +4,15 @@
 
 import api from '../api.js';
 import { showToast, formatDate, ringColor, scoreColor } from '../utils.js';
+import { t, onLangChange } from '../i18n-bridge.js';
 
 const DIM_LABELS = {
-    performance: '性能',
-    accessibility: '可访问性',
-    best_practices: '最佳实践',
-    ai_function: 'AI功能',
-    ui_ux: 'UI/UX',
-    content: '内容',
+    performance: () => t('we_dim_performance'),
+    accessibility: () => t('we_dim_accessibility'),
+    best_practices: () => t('we_dim_best_practices'),
+    ai_function: () => t('we_dim_ai_function'),
+    ui_ux: () => t('we_dim_ui_ux'),
+    content: () => t('we_dim_content'),
 };
 
 const DIM_ICONS = {
@@ -35,6 +36,13 @@ const WebEvalPage = {
     init() {
         if (this.state.initialized) return;
         this.state.initialized = true;
+        // 语言切换时重渲染 (若当前页面处于激活状态)
+        onLangChange(() => {
+            if (document.getElementById('page-web-eval') &&
+                document.getElementById('page-web-eval').classList.contains('active')) {
+                this.render();
+            }
+        });
     },
 
     async render() {
@@ -47,37 +55,37 @@ const WebEvalPage = {
     renderLayout() {
         const el = document.getElementById('page-web-eval');
         el.innerHTML = `
-          <div class="page-header"><h2>🌐 网页评测</h2></div>
+          <div class="page-header"><h2>🌐 ${t('we_title')}</h2></div>
 
           <div class="card" style="margin-bottom:16px">
-            <h3 style="color:var(--text-secondary);font-size:14px;margin-bottom:12px">🔍 评测配置</h3>
+            <h3 style="color:var(--text-secondary);font-size:14px;margin-bottom:12px">${t('we_config_title')}</h3>
             <div class="flex flex-wrap gap-2 items-center">
-              <label style="font-size:13px">URL:</label>
+              <label style="font-size:13px">${t('we_url_label')}</label>
               <input id="weUrl" type="text" value="http://124.174.108.70"
-                     style="flex:1;min-width:280px" placeholder="输入目标网页 URL">
-              <button class="btn btn-primary" id="weRunBtn">▶ 开始评测</button>
+                     style="flex:1;min-width:280px" placeholder="${t('web_url_placeholder')}">
+              <button class="btn btn-primary" id="weRunBtn">${t('we_start_btn')}</button>
             </div>
             <div id="weProgress" style="display:none;margin-top:12px">
               <div class="progress-bar"><div class="progress-fill" style="width:100%;animation:pulse 1.5s infinite"></div></div>
-              <div style="font-size:11px;color:var(--accent-yellow);text-align:center;margin-top:4px">⏳ 评测进行中...</div>
+              <div style="font-size:11px;color:var(--accent-yellow);text-align:center;margin-top:4px">${t('we_progress_text')}</div>
             </div>
           </div>
 
           <div id="weLatestResult" style="display:none;margin-bottom:16px">
             <div class="card">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-                <h3 style="color:var(--accent-blue)">📊 最新评测结果</h3>
-                <button class="btn btn-outline btn-sm" id="weClearLatest">✕ 收起</button>
+                <h3 style="color:var(--accent-blue)">${t('we_result_title')}</h3>
+                <button class="btn btn-outline btn-sm" id="weClearLatest">${t('we_collapse')}</button>
               </div>
               <div id="weResultContent"></div>
             </div>
           </div>
 
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h3 style="color:var(--text-secondary);font-size:14px">📋 评测历史</h3>
-            <button class="btn btn-outline btn-sm" id="weRefreshBtn">🔄 刷新</button>
+            <h3 style="color:var(--text-secondary);font-size:14px">${t('we_history_title')}</h3>
+            <button class="btn btn-outline btn-sm" id="weRefreshBtn">${t('we_refresh_btn')}</button>
           </div>
-          <div id="weResultsList"><div class="qa-empty">加载中...</div></div>
+          <div id="weResultsList"><div class="qa-empty">${t('sys_loading')}</div></div>
         `;
 
         // 事件绑定
@@ -91,7 +99,7 @@ const WebEvalPage = {
     // ── 运行评测 ──
     async runEval() {
         const url = document.getElementById('weUrl')?.value?.trim();
-        if (!url) { showToast('请输入URL', 'error'); return; }
+        if (!url) { showToast(t('web_url_required'), 'error'); return; }
 
         this.state.running = true;
         const btn = document.getElementById('weRunBtn');
@@ -102,14 +110,14 @@ const WebEvalPage = {
         try {
             const data = await api.post('/api/web-eval/run', { url });
             if (data.ok) {
-                showToast(`评测完成 · 综合得分: ${data.overall_score?.toFixed(1) || 'N/A'}`, 'success');
+                showToast(t('web_eval_done') + (data.overall_score?.toFixed(1) || 'N/A'), 'success');
                 this.renderLatestResult(data.detail || data);
                 await this.loadResults();
             } else {
-                showToast('评测失败: ' + (data.error || '未知错误'), 'error');
+                showToast(t('we_run_failed') + ': ' + (data.error || t('eval_error_unknown')), 'error');
             }
         } catch (e) {
-            showToast('请求失败: ' + e.message, 'error');
+            showToast(t('request_failed', e.message), 'error');
         } finally {
             this.state.running = false;
             if (btn) btn.disabled = false;
@@ -140,7 +148,7 @@ const WebEvalPage = {
             return `
               <div class="score-ring ${cls}" style="width:110px;height:110px">
                 <div class="ring-value">${numVal.toFixed(0)}</div>
-                <div class="ring-label">${DIM_ICONS[d]} ${DIM_LABELS[d]}</div>
+                <div class="ring-label">${DIM_ICONS[d]} ${DIM_LABELS[d]()}</div>
               </div>`;
         }).join('');
 
@@ -148,14 +156,14 @@ const WebEvalPage = {
           <div style="text-align:center;margin-bottom:12px">
             <div class="score-ring ${ringCls}" style="width:100px;height:100px;display:inline-flex">
               <div class="ring-value">${overall.toFixed(0)}</div>
-              <div class="ring-label">综合得分</div>
+              <div class="ring-label">${t('we_overall')}</div>
             </div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${data.url || ''}</div>
           </div>
           <div class="ring-cards">${ringCards}</div>
           ${data.raw_result ? `
           <details style="margin-top:12px">
-            <summary style="cursor:pointer;font-size:12px;color:var(--text-secondary)">📋 查看原始结果</summary>
+            <summary style="cursor:pointer;font-size:12px;color:var(--text-secondary)">${t('we_raw_result')}</summary>
             <pre style="background:var(--bg-primary);padding:10px;border-radius:4px;font-size:11px;max-height:300px;overflow:auto;margin-top:8px">${JSON.stringify(data.raw_result, null, 2)}</pre>
           </details>` : ''}
         `;
@@ -169,7 +177,7 @@ const WebEvalPage = {
         try {
             const data = await api.get('/api/web-eval/results', { page: this.state.page, page_size: this.state.pageSize });
             if (!data.items?.length) {
-                el.innerHTML = '<div class="qa-empty">暂无评测结果</div>';
+                el.innerHTML = `<div class="qa-empty">${t('we_no_data')}</div>`;
                 return;
             }
 
@@ -193,7 +201,7 @@ const WebEvalPage = {
             // 分页
             if (data.total_pages > 1) {
                 el.innerHTML += `<div class="pagination" style="margin-top:12px">
-                  <span class="page-info">${data.total} 条, ${data.page}/${data.total_pages} 页</span>
+                  <span class="page-info">${t('page_of', data.total, data.page, data.total_pages)}</span>
                   ${data.page > 1 ? `<button data-we-page="${data.page - 1}">◀</button>` : ''}
                   ${data.page < data.total_pages ? `<button data-we-page="${data.page + 1}">▶</button>` : ''}
                 </div>`;
@@ -219,7 +227,7 @@ const WebEvalPage = {
                 });
             });
         } catch (e) {
-            el.innerHTML = `<div class="qa-empty">加载失败: ${e.message}</div>`;
+            el.innerHTML = `<div class="qa-empty">${t('load_failed', e.message)}</div>`;
         }
     },
 
@@ -234,24 +242,24 @@ const WebEvalPage = {
                 document.getElementById('weLatestResult').scrollIntoView({ behavior: 'smooth' });
             }
         } catch (e) {
-            showToast('加载详情失败', 'error');
+            showToast(t('web_detail_load_fail'), 'error');
         }
         this.loadResults(); // 刷新高亮
     },
 
     // ── 删除结果 ──
     async deleteResult(id) {
-        if (!confirm('确定删除此评测结果？')) return;
+        if (!confirm(t('web_delete_confirm'))) return;
         try {
             await api.delete(`/api/web-eval/results/${id}`);
-            showToast('已删除', 'success');
+            showToast(t('web_deleted'), 'success');
             if (this.state.selectedId === id) {
                 this.state.selectedId = null;
                 document.getElementById('weLatestResult').style.display = 'none';
             }
             this.loadResults();
         } catch (e) {
-            showToast('删除失败', 'error');
+            showToast(t('web_delete_fail'), 'error');
         }
     },
 };
