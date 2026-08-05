@@ -3,150 +3,224 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>AI Agent 评测平台 v3.6</title>
-<script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light')}catch(e){}</script>
-<link rel="stylesheet" href="/test/css/style.css">
+<title>AI Agent Evaluation Platform v3.6</title>
+<style>
+:root{--bg:#f8f9fb;--surface:#fff;--text:#1a1d2e;--text2:#5a5f72;--text3:#9296a6;--border:#e8ebf2;--accent:#4f6ef7;--accent2:#eef1ff;--green:#22c55e;--green2:#e6f9ef;--red:#ef4444;--red2:#fef2f2;--amber:#f59e0b;--amber2:#fffbeb;--radius:8px;--shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--bg)}
+[data-theme=dark]{--bg:#0f1119;--surface:#1a1d2e;--text:#e4e6f0;--text2:#9498b0;--text3:#636880;--border:#262a3a;--accent:#6b8cff;--accent2:#1a2040;--green:#4ade80;--green2:#0f2618;--red:#f87171;--red2:#2a1215;--amber:#fbbf24;--amber2:#261e0a}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:flex}
+.sidebar{width:220px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-brand{padding:0 20px 24px;font-size:15px;font-weight:700;letter-spacing:-.3px;color:var(--text);border-bottom:1px solid var(--border);margin-bottom:8px}
+.sidebar-brand span{color:var(--accent)}
+.sidebar-nav{flex:1;padding:8px 0}
+.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:13px;color:var(--text2);text-decoration:none;transition:all .15s;border-left:3px solid transparent;cursor:pointer}
+.sidebar-nav a:hover{color:var(--text);background:var(--accent2)}
+.sidebar-nav a.active{color:var(--accent);background:var(--accent2);border-left-color:var(--accent);font-weight:600}
+.sidebar-nav a .icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:15px;opacity:.7}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3)}
+.sidebar-footer button{background:none;border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2)}
+.sidebar-footer button:hover{background:var(--accent2);color:var(--accent)}
+.sidebar-footer .dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.main{flex:1;overflow-y:auto;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:flex-end;padding:12px 24px;gap:12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.topbar .status{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px}
+.page{display:none;padding:24px}
+.page.active{display:block}
+h2{font-size:20px;font-weight:700;letter-spacing:-.3px;margin-bottom:20px}
+h3{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-size:11px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-val{font-size:32px;font-weight:700;letter-spacing:-1px;color:var(--text);margin-top:4px}
+.stat-label{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+select,input[type=number]{padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);color:var(--text);outline:none;font-family:inherit}
+select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover{background:var(--accent2);border-color:var(--accent)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{background:var(--red);color:#fff}
+.badge{display:inline-flex;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-green{background:var(--green2);color:var(--green)}
+.badge-red{background:var(--red2);color:var(--red)}
+.badge-amber{background:var(--amber2);color:var(--amber)}
+.badge-blue{background:var(--accent2);color:var(--accent)}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;margin:8px 0 16px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;width:0%}
+.log-console{max-height:400px;overflow-y:auto;font-size:12px;font-family:'SF Mono','Cascadia Code',monospace;background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);line-height:1.7}
+.log-line{padding:1px 0;border-bottom:1px solid var(--border);color:var(--text2)}
+.text-muted{color:var(--text3)}
+.empty-state{padding:40px;text-align:center;color:var(--text3);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);font-weight:600}
+.list-item{padding:10px 14px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;font-size:13px;transition:all .12s}
+.list-item:hover{border-color:var(--accent);background:var(--accent2)}
+.list-item.active{border-color:var(--accent);background:var(--accent2);font-weight:600}
+.score-ring{width:48px;height:48px;border-radius:50%;border:3px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
+.chart-wrap{position:relative;height:200px}
+.flex{display:flex;gap:8px}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.mt-4{margin-top:16px}
+.mb-4{margin-bottom:16px}
+.grid-3{display:grid;grid-template-columns:1fr 2fr 1fr;gap:16px}
+.cal-dim-row{display:flex;align-items:center;margin:6px 0;font-size:12px;gap:8px}
+.cal-dim-name{width:90px;flex-shrink:0;color:var(--text)}
+.cal-score-btn{width:28px;height:24px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;font-size:11px;color:var(--text2)}
+.cal-score-btn:hover{border-color:var(--accent)}
+.cal-score-btn.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+.toast{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast-item{padding:10px 16px;border-radius:6px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.12);animation:slideIn .25s ease;pointer-events:auto;background:var(--surface);border:1px solid var(--border)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.key-val{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.key-val:last-child{border-bottom:none}
+</style>
 </head>
 <body>
 
-<div class="header">
-  <h1>🤖 AI Agent 评测平台 v3.6</h1>
-  <div class="header-right">
-    <button class="lang-toggle" onclick="App.toggleTheme()">🌙</button>
-    <button class="lang-toggle" id="langToggle" onclick="App.toggleLang()">EN</button>
-    <span id="sysStatus"><span class="live-dot"></span><span data-i18n="sys_online">在线</span></span>
+<aside class="sidebar">
+  <div class="sidebar-brand"><span>Eval</span> Platform</div>
+  <nav class="sidebar-nav">
+    <a class="active" data-page="dashboard" onclick="App.showPage('dashboard')"><span class="icon">&#9632;</span><span data-i18n="nav_home">Overview</span></a>
+    <a data-page="platform-health" onclick="App.showPage('platform-health')"><span class="icon">&#9673;</span><span data-i18n="nav_platform_health">Platform Health</span></a>
+    <a data-page="test-runner" onclick="App.showPage('test-runner')"><span class="icon">&#9654;</span><span data-i18n="nav_test">Test Runner</span></a>
+    <a data-page="reports" onclick="App.showPage('reports')"><span class="icon">&#9776;</span><span data-i18n="nav_reports">Reports</span></a>
+    <a data-page="calibration" onclick="App.showPage('calibration')"><span class="icon">&#9678;</span><span data-i18n="nav_calibration">Calibration</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <span class="dot"></span><span data-i18n="sys_online">Online</span>
+    <span style="flex:1"></span>
+    <button onclick="App.toggleTheme()" title="Toggle theme">&#9788;</button>
+    <button id="langToggle" onclick="App.toggleLang()">EN</button>
   </div>
-</div>
+</aside>
 
-<nav class="nav">
-  <a class="active" data-page="dashboard" onclick="App.showPage('dashboard');return false">📊 <span data-i18n="nav_home">首页</span></a>
-  <a data-page="platform-health" onclick="App.showPage('platform-health');return false">🔌 <span data-i18n="nav_platform_health">平台监控</span></a>
-  <a data-page="test-runner" onclick="App.showPage('test-runner');return false">🧪 <span data-i18n="nav_test">测试运行</span></a>
-  <a data-page="reports" onclick="App.showPage('reports');return false">📋 <span data-i18n="nav_reports">报告</span></a>
-  <a data-page="calibration" onclick="App.showPage('calibration');return false">🎯 <span data-i18n="nav_calibration">校准</span></a>
-</nav>
-
-<!-- Dashboard -->
-<div id="page-dashboard" class="page active">
-  <div class="stat-grid">
-    <div class="card"><h3 data-i18n="card_total_tests">📊 历史测试</h3><div class="val" id="totalTests">-</div></div>
-    <div class="card"><h3 data-i18n="card_avg_score">⭐ 平均综合分</h3><div class="val" id="avgScore">-</div></div>
-    <div class="card"><h3 data-i18n="card_qa_approved">✅ 已审核QA</h3><div class="val" id="qaApproved">-</div></div>
-    <div class="card"><h3 data-i18n="card_qa_pending">🕐 待审</h3><div class="val" id="qaPending">-</div></div>
+<main class="main">
+  <div class="topbar">
+    <span class="status"><span class="dot" id="wsDot" style="width:7px;height:7px;border-radius:50%;background:var(--green)"></span><span id="wsLabel" data-i18n="sys_ws_connected">Connected</span></span>
+    <span class="status" style="margin-left:auto">v3.6</span>
   </div>
 
-  <div class="controls">
-    <select id="agentSelect"></select>
-    <select id="evalProfile" style="width:auto" onchange="App.onProfileChange()">
-      <option value="patrol">🔍 巡检 ~5min</option>
-      <option value="full" selected>📋 全平台 ~18min</option>
-      <option value="deep">🔬 深度 ~30min</option>
-      <option value="custom">⚙️ 自定义</option>
-    </select>
-    <span id="customOpts" style="display:none;gap:4px">
-      <input id="numQuestions" type="number" value="3" min="1" max="20" style="width:55px">
-      <span>题×</span><input id="maxTurns" type="number" value="3" min="1" max="10" style="width:55px"><span>轮</span>
-    </span>
-    <button class="btn btn-primary" onclick="App.startEval()">▶ <span data-i18n="test_start_btn">开始测评</span></button>
-    <button class="btn btn-outline btn-sm" onclick="App.loadDashboard()">🔄 <span data-i18n="btn_refresh">刷新</span></button>
-  </div>
-  <div id="evalModeHint" style="font-size:11px;color:var(--dim);margin:4px 0"></div>
-  <div id="evalStatusBar" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:12px">
-    <span id="wsIndicator" style="color:#dc2626">🔌 WS断开</span> |
-    <span>⏱️ <b id="evalElapsed">00:00</b></span> |
-    <span>📍 <span id="evalStep">就绪</span></span>
-  </div>
-  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-  <div id="liveEvalPanel" style="display:none">
-    <div class="live-eval-header"><h3>🔍 实时评测</h3><button class="btn btn-outline btn-sm" onclick="document.getElementById('liveEvalBody').innerHTML=''">清空</button></div>
-    <div class="live-eval-body" id="liveEvalBody"><div class="qa-empty">点击"开始测评"查看完整过程</div></div>
-  </div>
-  <div class="score-mini-grid" id="scoreMiniGrid"></div>
-  <div class="two-col">
-    <div class="card"><h3 data-i18n="chart_trend">📈 得分趋势</h3><div style="position:relative;height:200px"><canvas id="trendChart" style="width:100%;height:100%"></canvas></div></div>
-    <div class="card"><h3 data-i18n="chart_radar">🎯 维度分布</h3><div style="position:relative;height:200px"><canvas id="radarChart" style="width:100%;height:100%"></canvas></div></div>
-  </div>
-  <div class="card"><h3 data-i18n="recent_reports">📋 最近报告</h3><div id="recentReports">加载中...</div></div>
-</div>
+  <!-- Dashboard -->
+  <div id="page-dashboard" class="page active">
+    <div class="stat-grid" id="statGrid"></div>
 
-<!-- Platform Health -->
-<div id="page-platform-health" class="page">
-  <div class="page-header"><h2>📡 <span data-i18n="health_title">平台监控</span></h2></div>
-  <div class="controls">
-    <button class="btn btn-outline btn-sm" id="phRefreshBtn">🔄 <span data-i18n="health_refresh_btn">刷新检测</span></button>
-    <button class="btn btn-outline btn-sm" id="phFullRefreshBtn">⏳ <span data-i18n="health_refresh_text">全量检测</span></button>
-  </div>
-  <div id="phStatus" style="margin:8px 0"></div>
-  <div class="two-col">
-    <div class="card"><h3>📊 平台交互</h3><div id="phInteraction"><span class="text-muted">加载中...</span></div></div>
-    <div class="card"><h3>📈 技术指标</h3><div id="phTechMetrics"><span class="text-muted">加载中...</span></div></div>
-  </div>
-</div>
-
-<!-- Test Runner -->
-<div id="page-test-runner" class="page">
-  <div class="page-header"><h2>🧪 <span data-i18n="test_title">测试运行</span></h2></div>
-  <div class="controls">
-    <select id="trAgent"></select>
-    <select id="trProfile">
-      <option value="full">📋 全平台 ~18min</option>
-      <option value="patrol">🔍 巡检 ~5min</option>
-      <option value="deep">🔬 深度 ~30min</option>
-    </select>
-    <input id="trScenarios" type="number" value="3" min="1" max="20" style="width:60px" title="场景数">
-    <button class="btn btn-primary" id="trStartBtn">▶ <span data-i18n="test_start_btn">开始测试</span></button>
-    <button class="btn btn-outline btn-sm" id="trStopBtn" style="display:none">⏹ <span data-i18n="test_stop_btn">停止</span></button>
-  </div>
-  <div id="trStatus" style="margin:8px 0;font-size:13px"></div>
-  <div class="card">
-    <h3 data-i18n="test_event_log">📋 实时事件日志</h3>
-    <div id="trEventLog" style="max-height:400px;overflow-y:auto;font-size:12px;font-family:monospace;background:var(--bg-primary);padding:8px;border-radius:6px"><span class="text-muted">等待测试启动...</span></div>
-  </div>
-  <div class="card mt-4">
-    <h3 data-i18n="test_history">📋 历史会话</h3>
-    <div id="trSessions"><span class="text-muted">加载中...</span></div>
-  </div>
-</div>
-
-<!-- Reports -->
-<div id="page-reports" class="page">
-  <div class="page-header"><h2>📋 <span data-i18n="reports_title">评测报告</span></h2></div>
-  <div class="two-col">
-    <div class="card" style="flex:1">
-      <h3>📋 <span data-i18n="reports_title">列表</span></h3>
-      <button class="btn btn-outline btn-sm" style="margin-bottom:8px" onclick="App.reportsLoad()">🔄 刷新</button>
-      <button class="btn btn-outline btn-sm" id="rpCompareBtn" style="margin-bottom:8px" onclick="App.reportsCompare()">⚖️ 对比</button>
-      <div id="rpList"><span class="text-muted">加载中...</span></div>
+    <div class="card mb-4">
+      <div class="controls">
+        <select id="agentSelect" style="min-width:160px"></select>
+        <select id="evalProfile" style="min-width:160px" onchange="App.onProfileChange()">
+          <option value="patrol" data-i18n-opt="eval_profile_patrol">Patrol ~5min</option>
+          <option value="full" selected data-i18n-opt="eval_profile_full">Full Platform ~18min</option>
+          <option value="deep" data-i18n-opt="eval_profile_deep">Deep ~30min</option>
+          <option value="custom" data-i18n-opt="eval_profile_custom">Custom</option>
+        </select>
+        <span id="customOpts" style="display:none;gap:6px">
+          <input id="numQuestions" type="number" value="3" min="1" max="20" style="width:60px" placeholder="Qty">
+          <span style="font-size:12px;color:var(--text3)">questions</span>
+          <input id="maxTurns" type="number" value="3" min="1" max="10" style="width:60px" placeholder="Turns">
+          <span style="font-size:12px;color:var(--text3)">turns</span>
+        </span>
+        <button class="btn btn-primary" onclick="App.startEval()"><span data-i18n="test_start_btn">Start Evaluation</span></button>
+        <button class="btn btn-outline btn-sm" onclick="App.loadDashboard()"><span data-i18n="btn_refresh">Refresh</span></button>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div id="evalStatus" style="display:none;font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+      <div id="liveEvalPanel" style="display:none">
+        <div class="flex-between mb-4"><h3 data-i18n="live_title">Live Evaluation</h3><button class="btn btn-outline btn-sm" onclick="document.getElementById('liveEvalBody').innerHTML=''">Clear</button></div>
+        <div class="log-console" id="liveEvalBody"><div class="empty-state">Start an evaluation to see the live process</div></div>
+      </div>
     </div>
-    <div class="card" style="flex:2" id="rpDetailCard">
-      <h3>📄 详情</h3>
-      <div id="rpDetail"><span class="text-muted">← 选择一个报告查看详情</span></div>
+
+    <div class="two-col">
+      <div class="card"><h3 data-i18n="chart_trend">Score Trend</h3><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
+      <div class="card"><h3 data-i18n="chart_radar">Dimension Radar</h3><div class="chart-wrap"><canvas id="radarChart"></canvas></div></div>
+    </div>
+
+    <div class="card"><h3 data-i18n="recent_reports">Recent Reports</h3><div id="recentReports" class="empty-state">Loading...</div></div>
+  </div>
+
+  <!-- Platform Health -->
+  <div id="page-platform-health" class="page">
+    <h2 data-i18n="health_title">Platform Health</h2>
+    <div class="controls">
+      <button class="btn btn-outline btn-sm" id="phRefreshBtn"><span data-i18n="health_refresh_btn">Refresh Check</span></button>
+      <button class="btn btn-outline btn-sm" id="phFullRefreshBtn"><span data-i18n="health_refresh_text">Full Health Check</span></button>
+    </div>
+    <div id="phStatus" class="mb-4"></div>
+    <div class="two-col">
+      <div class="card"><h3>Interaction</h3><div id="phInteraction"><span class="text-muted">Loading...</span></div></div>
+      <div class="card"><h3>Technical Metrics</h3><div id="phTechMetrics"><span class="text-muted">Loading...</span></div></div>
     </div>
   </div>
-</div>
 
-<!-- Calibration -->
-<div id="page-calibration" class="page">
-  <div class="page-header"><h2>🎯 <span data-i18n="cal_title">人类校准工作台</span></h2></div>
-  <div class="controls">
-    <button class="btn btn-primary btn-sm" id="calLoadBtn">📋 加载待校准项</button>
-    <button class="btn btn-outline btn-sm" id="calResultsBtn">📊 查看统计</button>
-    <button class="btn btn-outline btn-sm" id="calGenBtn">🔄 生成校准集</button>
-    <span id="calProg" style="font-size:12px"></span>
+  <!-- Test Runner -->
+  <div id="page-test-runner" class="page">
+    <h2 data-i18n="test_title">Test Runner</h2>
+    <div class="controls">
+      <select id="trAgent" style="min-width:160px"></select>
+      <select id="trProfile">
+        <option value="full">Full Platform ~18min</option>
+        <option value="patrol">Patrol ~5min</option>
+        <option value="deep">Deep ~30min</option>
+      </select>
+      <input id="trScenarios" type="number" value="3" min="1" max="20" style="width:60px" title="Scenarios">
+      <button class="btn btn-primary" id="trStartBtn"><span data-i18n="test_start_btn">Start Test</span></button>
+      <button class="btn btn-danger btn-sm" id="trStopBtn" style="display:none"><span data-i18n="test_stop_btn">Stop</span></button>
+    </div>
+    <div id="trStatus" class="mb-4" style="font-size:13px"></div>
+    <div class="card mb-4">
+      <h3 data-i18n="test_event_log">Live Event Log</h3>
+      <div class="log-console" id="trEventLog"><span class="text-muted">Waiting for test to start...</span></div>
+    </div>
+    <div class="card">
+      <h3 data-i18n="test_history">Session History</h3>
+      <div id="trSessions"><span class="text-muted">Loading...</span></div>
+    </div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:16px;margin-top:12px">
-    <div class="card"><h3>校准队列</h3><div id="calItems"><div class="qa-empty">点击加载</div></div></div>
-    <div class="card"><h3>评分</h3><div id="calScore"><div class="qa-empty">← 选择QA</div></div></div>
-    <div class="card"><h3>统计</h3><div id="calStats"><div class="qa-empty">提交后显示</div></div></div>
-  </div>
-</div>
 
-<!-- Toast -->
-<div id="toastContainer" style="position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px"></div>
+  <!-- Reports -->
+  <div id="page-reports" class="page">
+    <h2 data-i18n="reports_title">Evaluation Reports</h2>
+    <div class="two-col">
+      <div class="card">
+        <div class="controls">
+          <button class="btn btn-outline btn-sm" onclick="App.reportsLoad()">Refresh</button>
+          <button class="btn btn-outline btn-sm" id="rpCompareBtn" onclick="App.reportsCompare()">Compare</button>
+          <button class="btn btn-outline btn-sm" id="rpExitCompareBtn" style="display:none" onclick="App.reportsExitCompare()">Exit Compare</button>
+        </div>
+        <div id="rpList"><span class="text-muted">Loading...</span></div>
+      </div>
+      <div class="card" id="rpDetailCard">
+        <h3>Detail</h3>
+        <div id="rpDetail"><span class="text-muted">Select a report to view details</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calibration -->
+  <div id="page-calibration" class="page">
+    <h2 data-i18n="cal_title">Human Calibration Workspace</h2>
+    <div class="controls">
+      <button class="btn btn-primary btn-sm" id="calLoadBtn">Load Items</button>
+      <button class="btn btn-outline btn-sm" id="calResultsBtn">View Statistics</button>
+      <button class="btn btn-outline btn-sm" id="calGenBtn">Generate Calibration Set</button>
+      <span id="calProg" style="font-size:12px;color:var(--text2)"></span>
+    </div>
+    <div class="grid-3">
+      <div class="card"><h3>Queue</h3><div id="calItems"><div class="empty-state">Click Load to begin</div></div></div>
+      <div class="card"><h3>Scoring</h3><div id="calScore"><div class="empty-state">Select a QA pair from the queue</div></div></div>
+      <div class="card"><h3>Statistics</h3><div id="calStats"><div class="empty-state">Submit scores to view statistics</div></div></div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toastContainer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/test/js/i18n.js"></script>
 <script src="/test/js/app.js"></script>
-
 </body>
 </html>
