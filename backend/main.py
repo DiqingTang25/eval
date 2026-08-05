@@ -34,6 +34,32 @@ app = FastAPI(
     description="AI Agent 全自动化测评系统 — 10维度评分 / 多Judge投票 / 火山引擎知识库 / Token成本追踪 / 速率限制 / Prometheus指标",
 )
 
+
+# ── /test 前缀兼容中间件 ──
+# 当用户通过 /test/ 前缀访问时 (如 /test/js/foo.js, /test/api/bar),
+# 静态文件挂载和API路由都只匹配 /js/ 和 /api/。
+# 此中间件将 /test/ 前缀 stripping 掉，让后续的挂载/路由正常工作。
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class TestPrefixMiddleware(BaseHTTPMiddleware):
+    """将 /test/js/... → /js/..., /test/api/... → /api/..., /test/css/... → /css/..."""
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        if path.startswith("/test/") and not path.startswith("/test/api/"):
+            # Static files: rewrite /test/js/... → /js/...
+            new_path = path[5:]  # strip "/test"
+            request.scope["path"] = new_path
+            request.scope["raw_path"] = new_path.encode()
+        elif path.startswith("/test/api/"):
+            # API: rewrite /test/api/... → /api/...
+            new_path = path[5:]  # strip "/test"
+            request.scope["path"] = new_path
+            request.scope["raw_path"] = new_path.encode()
+        response = await call_next(request)
+        return response
+
+app.add_middleware(TestPrefixMiddleware)
+
 # ── 中间件 ──
 app.add_middleware(GZipMiddleware, minimum_size=500)  # 压缩 >500B 的响应
 setup_cors(app)
