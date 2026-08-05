@@ -76,6 +76,9 @@ export function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// 简写别名 (calibration/reports 等页面使用)
+export const escHtml = escapeHtml;
+
 export function $$(selector, parent = document) {
     return Array.from(parent.querySelectorAll(selector));
 }
