@@ -16,10 +16,11 @@ test_service = TestService()
 from pydantic import BaseModel
 
 class TestRunRequest(BaseModel):
-    agent_id: str = "mock"
+    agent_id: str = "platform"
     num_questions: int = 1
     max_turns: int = 3
     profile: str = "standard"
+    target_url: str = ""
 
 
 class BrowserEvalRequest(BaseModel):
@@ -28,6 +29,8 @@ class BrowserEvalRequest(BaseModel):
     mode: str = "guided"  # guided | self | both
     headless: bool = True
     include_quiz: bool = True  # 是否验证Quiz自动出答案
+    target_url: str = ""  # 用户指定的被测平台URL
+    agent_id: str = "platform"  # 默认platform, 由前端传入
 
 
 @router.post("/run")
@@ -38,6 +41,7 @@ async def trigger_test(body: TestRunRequest = TestRunRequest()):
         num_questions=body.num_questions,
         max_turns=body.max_turns,
         profile=body.profile,
+        target_url=body.target_url,
     )
 
 
@@ -54,6 +58,7 @@ async def trigger_browser_eval(body: BrowserEvalRequest = BrowserEvalRequest()):
         mode=body.mode,
         headless=body.headless,
         include_quiz=body.include_quiz,
+        target_url=body.target_url,
     )
 
 

@@ -8,6 +8,10 @@ test:
   debug: false
   random_seed: null
 
+  # === v4.0 通用平台支持 (新增) ===
+  schema_driven: false             # ★ true=从 platform_schema.yaml 动态读取平台结构
+  platform_schema_path: ""         # ★ schema文件路径, 留空则自动查找 output/platform_probe/platform_schema.yaml
+
   # === 三层级联评测开关 (v3.3) ===
   use_embedding: true              # L2: 云端Embedding语义相似度 (硅基流动bge-m3, 需 SILICONFLOW_API_KEY; 缺则自动降级跳过)
   use_structure: true              # L2: 结构化关键词覆盖 (默认启用)

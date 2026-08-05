@@ -1,0 +1,76 @@
+# Platform Explorer 配置
+# Phase 1 MVP — 探索器独立配置, 不影响现有测评配置
+
+explorer:
+  version: "0.1.0"
+
+  # ── 浏览器 ──
+  browser:
+    headless: true
+    viewport_width: 1280
+    viewport_height: 800
+    timeout_ms: 30000
+    navigation_timeout_ms: 30000
+
+  # ── 探索范围 ──
+  scope:
+    max_depth: 3           # BFS 最大深度
+    max_pages: 50           # 最大访问页面数
+    same_origin_only: true  # 仅同源探索
+    follow_subdomains: false  # 是否跟踪子域名
+
+  # ── L0: 认证 ──
+  auth:
+    auto_detect: true
+    form_login_timeout_ms: 15000
+    post_login_wait_seconds: 3
+    interactive_fallback: true  # 复杂认证时回退到交互式
+
+  # ── L1: 流量捕获 ──
+  capture:
+    save_har: true
+    max_response_body_bytes: 50000
+    ignore_static_resources: true  # 跳过 .js/.css/.png 等
+
+  # ── L2: 教学结构推断 ──
+  structure:
+    enabled: false            # Phase 1: 关闭(L2未完整实现)
+    llm_assisted: false       # Phase 2: 启用LLM辅助推断
+    hierarchy_patterns:       # 常见教学平台层次模式
+      - ["phase", "lesson", "step"]
+      - ["module", "lesson", "topic"]
+      - ["course", "chapter", "section"]
+      - ["week", "day", "activity"]
+
+  # ── L3: API分类 ──
+  classification:
+    api_threshold: 0.50       # Vespasian 风格阈值
+    high_confidence_threshold: 0.70
+    llm_enumeration:
+      enabled: false          # Phase 1: 关闭, Phase 2: 启用
+      model: "deepseek-chat"
+      gray_zone_only: true    # 仅对灰色端点 (0.50-0.70) 调用LLM
+      max_llm_calls: 10       # 每次探索最大LLM调用次数
+
+  # ── L4: Schema生成 ──
+  schema:
+    output_format: "yaml"
+    credential_redaction: true
+    schema_version: "1.0"
+    generate_report: true     # 同时生成 exploration_report.md
+
+  # ── 输出 ──
+  output:
+    dir: "output/platform_probe"
+    save_intermediate: true   # 保存中间文件 (capture.json, api_catalog.json)
+    save_screenshots: true
+
+  # ── LLM 配置 (可选, Phase 2 使用) ──
+  llm:
+    provider: "deepseek"
+    api_key_env: "OPENAI_API_KEY"  # 从环境变量读取
+    base_url: "https://api.deepseek.com/v1"
+    cheap_model: "deepseek-chat"   # 高Token任务
+    smart_model: "deepseek-chat"   # 低Token决策
+    temperature: 0.1
+    max_tokens: 2000

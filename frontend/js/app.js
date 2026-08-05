@@ -48,10 +48,8 @@ function toggleLang(){
 }
 
 // ── Animated number counting ──
-function animateValue(el,start,end,dur){
-  var startTime=null;dur=dur||800;
-  function step(ts){startTime=startTime||ts;var p=Math.min((ts-startTime)/dur,1);var e=--p*p*p+1;el.textContent=typeof end==='number'?end.toFixed(end%1?2:0):end;if(p<1)requestAnimationFrame(step)}
-  requestAnimationFrame(step);
+function animateValue(el,end,dur){
+  if(!el)return;el.textContent=String(end);el.style.animation='countUp .5s var(--transition)';
 }
 
 // ═══════════════════ Dashboard ═══════════════════
@@ -67,7 +65,7 @@ function loadDashboard(){
       {v:d.qa_pending||0,l:'card_qa_pending',sub:'Pending review'}
     ];
     s.innerHTML=items.map(function(x,i){return'<div class="stat-card" style="animation:fadeIn .4s var(--transition) '+(.1*i).toFixed(1)+'s both"><div class="stat-label">'+t(x.l)+'</div><div class="stat-value" id="statVal'+i+'">-</div><div class="stat-sub">'+x.sub+'</div></div>'}).join('');
-    setTimeout(function(){items.forEach(function(x,i){animateValue(document.getElementById('statVal'+i),0,x.v)})},100);
+    setTimeout(function(){items.forEach(function(x,i){animateValue(document.getElementById('statVal'+i),x.v)})},100);
     renderCharts(d);
   }).catch(function(){});
 
@@ -75,12 +73,6 @@ function loadDashboard(){
     var el=document.getElementById('recentReports');if(!el)return;
     if(r&&r.items&&r.items.length)el.innerHTML=r.items.map(function(x){return'<span class="badge badge-blue" style="margin:2px;animation:fadeIn .3s var(--transition) both">'+escHtml(x.agent_id)+' &middot; '+(x.status||'?')+'</span>'}).join(' ');
     else el.innerHTML='<div class="empty-state">'+t('reports_no_data')+'</div>';
-  }).catch(function(){});
-
-  get('/api/agents').then(function(a){
-    var sel=document.getElementById('agentSelect');if(!sel)return;
-    var keys=Object.keys(a||{});
-    sel.innerHTML=keys.map(function(k){return'<option value="'+k+'">'+(a[k]&&a[k].name||k)+'</option>'}).join('');
   }).catch(function(){});
 }
 

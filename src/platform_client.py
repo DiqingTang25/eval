@@ -114,6 +114,41 @@ class PlatformClient:
         self.session.trust_env = False
         self.session.proxies = {"http": None, "https": None}
 
+    @classmethod
+    def from_schema(cls, schema_path: str, **overrides) -> "PlatformClient":
+        """
+        从 platform_schema.yaml 创建客户端 (v4.0 新增)
+
+        读取探索器生成的 schema, 动态配置端点前缀和认证信息。
+        overrides 参数可覆盖 schema 中的任何设置。
+
+        用法:
+          client = PlatformClient.from_schema("output/platform_probe/platform_schema.yaml")
+          client = PlatformClient.from_schema("schema.yaml", username="custom_user", verbose=False)
+        """
+        from src.schema_adapter import SchemaAdapter
+
+        adapter = SchemaAdapter(schema_path)
+        auth = adapter.get_auth()
+
+        return cls(
+            base_url=overrides.get("base_url", adapter.base_url),
+            username=overrides.get("username", DEFAULT_USERNAME),
+            password=overrides.get("password", DEFAULT_PASSWORD),
+            min_interval=overrides.get("min_interval", 4.0),
+            timeout=overrides.get("timeout", 45),
+            max_retries=overrides.get("max_retries", 4),
+            verbose=overrides.get("verbose", True),
+            api_prefix=overrides.get(
+                "api_prefix",
+                adapter.get_api_prefix("interactive") or "/phase3-api",
+            ),
+            content_api_prefix=overrides.get(
+                "content_api_prefix",
+                adapter.get_api_prefix("content") or "/api",
+            ),
+        )
+
     # ── 内部工具 ──
     def _log(self, msg: str):
         if self.verbose:

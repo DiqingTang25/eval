@@ -71,6 +71,7 @@ class TestService:
         num_questions: int = 1,
         max_turns: int = 3,
         profile: str = "standard",
+        target_url: str = "",
     ) -> dict:
         """启动一次评测"""
         if self._running:
@@ -96,6 +97,7 @@ class TestService:
                     "num_questions": num_questions,
                     "max_turns": max_turns,
                     "profile": profile,
+                    "target_url": target_url,
                     # P0-15: 记录超时配置
                     "watchdog": {
                         "scenario_timeout": self.scenario_timeout,
@@ -127,7 +129,7 @@ class TestService:
         # 后台线程
         self._eval_thread = threading.Thread(
             target=self._run_in_thread,
-            args=(agent_id, num_questions, max_turns, profile, session_id, project_root),
+            args=(agent_id, num_questions, max_turns, profile, session_id, project_root, target_url),
             daemon=True,
         )
         self._eval_thread.start()
@@ -156,6 +158,7 @@ class TestService:
     async def start_browser_eval(
         self, phases: list = None, mode: str = "guided",
         headless: bool = True, include_quiz: bool = True,
+        target_url: str = "",
     ) -> dict:
         """启动全平台浏览器遍历测评"""
         if self._running:
@@ -174,7 +177,7 @@ class TestService:
 
         thread = threading.Thread(
             target=self._run_browser_eval,
-            args=(phases, mode, headless, include_quiz, session_id, project_root),
+            args=(phases, mode, headless, include_quiz, session_id, project_root, target_url),
             daemon=True,
             name=f"browser-eval-{session_id[:8]}",
         )
