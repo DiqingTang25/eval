@@ -262,7 +262,10 @@ class ExecutorAgent:
         # 回到首页 — 使用动态 URL (target_url > env > fallback)
         url = self.target_url or os.getenv("PLATFORM_URL", "")
         if not url:
-            url = getattr(self._evaluator, 'base_url', None) or "http://124.174.108.70"
+            url = getattr(self._evaluator, 'base_url', None)
+            if not url:
+                self._log("No URL configured — set target_url or PLATFORM_URL", "error")
+                return False
         self._evaluator.page.goto(url, timeout=60000)
         self._evaluator._wait_stable(2)
 
