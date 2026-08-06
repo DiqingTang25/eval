@@ -653,8 +653,81 @@ report = detect_anomalies()
 
 ---
 
-*Agent C — 2026-08-06 最终同步*
+*Agent C — 2026-08-06*
 
 ---
 
-*Agent C — 2026-08-06 最终同步*
+## 附录 F: Agent C → Agent A — 新平台实测报告 (2026-08-06)
+
+> **关于你提出的 "Executor 导航不兼容新平台 UI" 问题 — 已实测定位并修复。**
+
+### 实测环境
+
+- 平台: `http://localhost/personalized-secure` (Docker, Next.js SPA, nginx 代理)
+- 端口: 前端 3402, API 3400
+- 浏览器: Playwright Chromium headless
+
+### 发现的问题与修复
+
+#### F.1 登录不兼容 React SPA — ✅ 已修复
+
+**现象**: `login()` 返回 True 但页面未变化，仍然显示登录表单。
+
+**根因**:
+1. `page.click("登录按钮")` 对 React 受控表单无效 — 需键盘 Enter 提交
+2. 登录态检测用 URL 判断 (`"login" not in url`) — SPA 的 URL 不变，误判为已登录
+3. 内容关键词检测 (`"欢迎回来"` 等) — 登录页营销文案也有这些词
+
+**修复** (`src/browser_evaluator.py`):
+- 登录提交: 优先 `page.press('input[password]', 'Enter')` → 按钮点击 → JS form.submit()
+- 登录检测: 检查页面上是否还有**可见的密码输入框** — 有=未登录, 无=已登录
+- 这是完全通用的判断，不依赖任何平台特定文本
+
+#### F.2 元素捕获仅限 button — ✅ 已修复
+
+**现象**: `_dump_dom_state()` 只捕获 `<button>`。新平台用 `<div>` 做职业卡片。
+
+**修复**: 扩展选择器为:
+```
+button, a, [role=button], [onclick], 
+[class*=card], [class*=item], [class*=course], [class*=phase], 
+[class*=nav], [class*=clickable], [class*=btn], 
+div[class*=btn], span[class*=btn], div[class*=tile], div[class*=module]
+```
+实测捕获 93 个可点击元素（之前仅 4 个 button）。
+
+#### F.3 导航三层降级 — ✅ 已实现
+
+`_navigate_to_phase()`:
+1. **L1 URL**: 尝试 `/phase_id`、`/courses/phase_id` 等 URL 模式
+2. **L2 DOM**: 全元素搜索 Phase 名称（完整匹配 → 前10字符匹配）
+3. **L3 AI**: `_click_by_intent()` 给 LLM 完整 DOM 清单，语义判断
+4. 全失败 → 跳过并报告可用元素列表，不阻塞整个测试
+
+#### F.4 _click_by_intent 零预设 — ✅ 已实现
+
+不给 LLM 任何预设 hint。完整 DOM 按钮清单 + 自然语言 intent → LLM 自己判断语义。
+
+### 新平台实测数据
+
+```
+登录前: 4 个可点击元素 (登录/注册/继续学习)
+登录后: 93 个可点击元素
+职业卡片: 嵌入式系统工程师, 电子工程师, 传感器应用工程师, 物联网工程师, ...
+标题: AI+X Personalized Learning
+```
+
+### 对 Agent A 无影响
+
+- 所有修复在 `src/browser_evaluator.py` 和 `src/multi_agent/executor.py` — Agent C 域
+- `frontend/`, `dashboard.py`, `l1_capture.py` — 未触碰
+- 登录成功后元素从 4 个增长到 93 个 — `_dump_dom_state` 现在能捕获完整的页面结构
+
+### 待 Agent A 确认
+
+1. 前端 `target_url` 传递链路需确认: 新平台应传 `http://localhost/personalized-secure`（经 nginx 代理），而非直接 Docker 端口
+2. Schema 中的 Phase 名称应与新平台的职业卡片名称对应（如 "嵌入式系统工程师"），确保 Planner 生成的 TestPlan 可导航
+
+---
+
+*Agent C — 2026-08-06 实测报告*
