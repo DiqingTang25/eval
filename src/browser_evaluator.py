@@ -75,12 +75,14 @@ class BrowserEvaluator:
     """浏览器驱动的测评器 — 模拟真实学习流"""
 
     def __init__(self, headless: bool = True, phase_filter: int = None,
-                 day_filter: int = None, mode: str = "guided", resume: bool = False):
+                 day_filter: int = None, mode: str = "guided", resume: bool = False,
+                 base_url: str = ""):
         self.headless = headless
         self.phase_filter = phase_filter
         self.day_filter = day_filter
         self.mode = mode  # "guided" | "self" | "both"
         self.resume = resume
+        self.base_url = base_url if base_url else BASE_URL  # 默认使用硬编码, 允许Multi-Agent覆盖
 
         # 加载已有报告 — 保留未重跑的 Phase 数据
         existing = self._load_existing_report()
@@ -93,7 +95,7 @@ class BrowserEvaluator:
             self.results = {
                 "meta": {
                     "started_at": datetime.now(timezone.utc).isoformat(),
-                    "platform": BASE_URL,
+                    "platform": self.base_url,
                     "evaluator_version": "4.0-browser",
                 },
                 "phases": self.existing_phases.copy(),  # 保留已有
@@ -105,7 +107,7 @@ class BrowserEvaluator:
             self.results = {
                 "meta": {
                     "started_at": datetime.now(timezone.utc).isoformat(),
-                    "platform": BASE_URL,
+                    "platform": self.base_url,
                     "evaluator_version": "4.0-browser",
                 },
                 "phases": {},
@@ -264,38 +266,92 @@ class BrowserEvaluator:
     # Phase 1: 登录
     # ═══════════════════════════════════════════════════════════
 
-    def login(self) -> bool:
-        """登录教学平台"""
+    def login(self, credentials: dict = None) -> bool:
+        """登录教学平台 (自适应: Schema驱动 > 启发式 > 回退)
+
+        :param credentials: 可选 dict{"username", "password", "login_url"}
+                           来自 Schema 的 auth 信息, 优先使用
+        """
         self._log("登录平台...", "step")
+        creds = credentials or {}
+        username = creds.get("username", USERNAME)
+        password = creds.get("password", PASSWORD)
+        login_url = creds.get("login_url", "")
+
         try:
-            self.page.goto(BASE_URL, timeout=60000)
+            # 如果有指定的登录URL → 先导航
+            target = login_url or self.base_url
+            self.page.goto(target, timeout=60000)
             self._wait_stable(2)
 
-            # 检查是否已登录
+            # 检查是否已登录 (通用检测: URL 已不是登录页, 且页面有内容)
             body = self._get_page_text()
-            if "Phase" in body and "登录" not in body[:500]:
-                self._log("已是登录状态", "ok")
-                return True
+            current_url = self.page.url
+            # 如果URL已经不包含 login/auth/signin, 且有足够内容 → 可能已登录
+            if not any(kw in current_url.lower() for kw in ["login", "auth", "signin"]):
+                if len(body) > 200 and "登录" not in body[:300]:
+                    self._log("已是登录状态 (URL判断)", "ok")
+                    return True
 
-            # 填写表单
+            # 填写表单 (通用: 遍历所有可见input)
+            inputs_filled = 0
             for inp in self.page.locator("input:not([type=hidden])").all():
                 if not inp.is_visible():
                     continue
-                t = inp.get_attribute("type") or "text"
-                if t == "text":
-                    inp.fill(USERNAME)
-                elif t == "password":
-                    inp.fill(PASSWORD)
+                t = (inp.get_attribute("type") or "text").lower()
+                ph = (inp.get_attribute("placeholder") or "").lower()
+                name = (inp.get_attribute("name") or "").lower()
 
-            # 点击登录
-            for btn in self.page.locator("button").all():
-                if btn.is_visible() and "登录" in (btn.text_content() or ""):
+                # 判断输入框类型: type > placeholder > name
+                is_user = "user" in t or "user" in ph or "user" in name or "email" in t or "email" in ph or t == "text"
+                is_pass = "password" in t
+
+                if is_pass:
+                    inp.fill(password)
+                    inputs_filled += 1
+                elif is_user and t != "password":
+                    inp.fill(username)
+                    inputs_filled += 1
+
+            # 如果没填成功, 用旧策略: 第一个text=input填用户名, password填密码
+            if inputs_filled == 0:
+                for inp in self.page.locator("input:not([type=hidden])").all():
+                    if not inp.is_visible():
+                        continue
+                    t = inp.get_attribute("type") or "text"
+                    if t == "text":
+                        inp.fill(username)
+                    elif t == "password":
+                        inp.fill(password)
+
+            # 点击登录 (多语言: 登录/Login/Sign in/Submit)
+            clicked = False
+            login_keywords = ["登录", "Login", "Sign in", "登 录", "submit", "Submit"]
+            for btn in self.page.locator("button, input[type=submit]").all():
+                if not btn.is_visible():
+                    continue
+                btn_text = (btn.text_content() or btn.get_attribute("value") or "").strip()
+                if any(kw.lower() in btn_text.lower() for kw in login_keywords):
                     btn.click()
+                    clicked = True
                     break
+
+            # 回退: 点 type=submit
+            if not clicked:
+                submit_btn = self.page.locator("button[type=submit], input[type=submit]").first
+                if submit_btn.is_visible(timeout=2000):
+                    submit_btn.click()
+                    clicked = True
 
             self._wait_stable(4)
             body = self._get_page_text()
-            ok = "Phase" in body and "登录" not in body[:500]
+            current_url = self.page.url
+
+            # 成功判断 (通用: URL不再是登录页 + 有内容)
+            still_login = any(kw in current_url.lower() for kw in ["login", "auth", "signin"])
+            has_content = len(body) > 200
+            ok = has_content and not still_login
+
             self._log("登录成功" if ok else "登录可能失败", "ok" if ok else "warn")
             self._ss("login")
             return ok
@@ -312,7 +368,7 @@ class BrowserEvaluator:
         self._log(f"导航: Phase {phase_num} → Day {day_num}")
 
         # 回到首页
-        self.page.goto(BASE_URL, timeout=60000)
+        self.page.goto(self.base_url, timeout=60000)
         self._wait_stable(2)
 
         # 点击 Phase 按钮
@@ -347,13 +403,21 @@ class BrowserEvaluator:
     # ═══════════════════════════════════════════════════════════
 
     def enter_learning_mode(self, mode: str = "guided") -> bool:
-        """进入学习模式: guided(帮帮我) 或 self(我自己来)"""
+        """进入学习模式: guided(帮帮我) 或 self(我自己来)
+
+        按钮文本可通过环境变量覆盖 (适配不同平台):
+          EVAL_TEXT_GUIDED_MODE — guided 模式按钮文本 (默认: 进入引导学习)
+          EVAL_TEXT_SELF_MODE    — self 模式按钮文本   (默认: 进入自主探索)
+        """
+        import os as _os
+        guided_text = _os.getenv("EVAL_TEXT_GUIDED_MODE", "进入引导学习")
+        self_text = _os.getenv("EVAL_TEXT_SELF_MODE", "进入自主探索")
         if mode == "guided":
-            texts = ["进入引导学习"]
+            texts = [guided_text]
         elif mode == "self":
-            texts = ["进入自主探索"]
+            texts = [self_text]
         else:
-            texts = ["进入引导学习", "进入自主探索"]
+            texts = [guided_text, self_text]
 
         ok, text = self._find_and_click(texts)
         if not ok:
@@ -408,8 +472,10 @@ class BrowserEvaluator:
         # 截图
         self._ss(f"step{step_index}_checklist")
 
-        # 点击 "本步已完成"
-        ok, _ = self._find_and_click(["本步已完成"])
+        # 点击 "本步已完成" (文本可通过 EVAL_TEXT_STEP_DONE 环境变量覆盖)
+        import os as _os
+        step_done_text = _os.getenv("EVAL_TEXT_STEP_DONE", "本步已完成")
+        ok, _ = self._find_and_click([step_done_text])
         if ok:
             self._wait_stable(2)
             result.completed = True
@@ -426,8 +492,10 @@ class BrowserEvaluator:
         q = question or "你好，可以帮我理解这个步骤吗？"
         body_before = len(self._get_page_text())
 
-        # 点击 "我卡住了" — 滚动到 Agent 面板区域
-        self._find_and_click(["我卡住了"])
+        # 点击 "我卡住了" (文本可通过 EVAL_TEXT_AGENT_HELP 覆盖)
+        import os as _os
+        help_text = _os.getenv("EVAL_TEXT_AGENT_HELP", "我卡住了")
+        self._find_and_click([help_text])
         self._wait_stable(2)
 
         # Agent 面板在页面底部, 默认折叠。需要展开它。
@@ -515,8 +583,10 @@ class BrowserEvaluator:
             return {"ok": False, "error": "no textarea"}
 
     def go_next_step(self) -> bool:
-        """点击'下一步'"""
-        ok, _ = self._find_and_click(["下一步"])
+        """点击'下一步' (文本可通过 EVAL_TEXT_NEXT_STEP 覆盖)"""
+        import os as _os
+        next_text = _os.getenv("EVAL_TEXT_NEXT_STEP", "下一步")
+        ok, _ = self._find_and_click([next_text])
         if ok:
             self._wait_stable(2)
             self._log("→ 下一步", "ok")
@@ -585,7 +655,7 @@ class BrowserEvaluator:
             for attempt in range(3):
                 try:
                     resp = req.post(
-                        f"{BASE_URL}/phase3-api/agent/chat",
+                        f"{self.base_url}/phase3-api/agent/chat",
                         json=body,
                         headers={
                             "Authorization": f"Bearer {token}",
@@ -639,7 +709,7 @@ class BrowserEvaluator:
         # — 浏览器补充验证: 确认 Phase 5 页面可访问 —
         browser_ok = False
         try:
-            self.page.goto(BASE_URL, timeout=30000)
+            self.page.goto(self.base_url, timeout=30000)
             self._wait_stable(2)
             ok, _ = self._find_and_click(["Phase 05"])
             if ok:
@@ -836,7 +906,7 @@ class BrowserEvaluator:
         """运行完整测评"""
         print("=" * 60)
         print("🔬 浏览器驱动测评 v4.0")
-        print(f"   平台: {BASE_URL}  |  用户: {USERNAME}")
+        print(f"   平台: {self.base_url}  |  用户: {USERNAME}")
         if self.resume:
             print(f"   🔄 续跑模式: Phase {sorted(self.completed_phases)} 已完成, 跳过")
         print("=" * 60)

@@ -34,9 +34,10 @@ class ExecutorAgent:
             ...
     """
 
-    def __init__(self, headless: bool = True, mode: str = "guided"):
+    def __init__(self, headless: bool = True, mode: str = "guided", target_url: str = ""):
         self.headless = headless
         self.mode = mode
+        self.target_url = target_url
         self._evaluator: Optional[BrowserEvaluator] = None
         self._plan: Optional[TestPlan] = None
         self._step_index = 0
@@ -70,12 +71,13 @@ class ExecutorAgent:
         with self._init_browser() as page:
             self._evaluator.page = page
 
-            # 1. 登录
-            if not self._evaluator.login():
+            # 1. 登录 — 传入 Schema 中的认证信息 (动态适配不同平台的登录方式)
+            creds = self._get_auth_credentials()
+            if not self._evaluator.login(credentials=creds):
                 yield StepResult(
                     phase_name="LOGIN", lesson_name="", step_name="",
                     step_index=0, total_steps=self._total_steps,
-                    error="登录失败",
+                    error=f"登录失败 (url={self.target_url or self._evaluator.base_url})",
                 )
                 return
 
@@ -194,11 +196,11 @@ class ExecutorAgent:
 
     def _navigate_to_phase(self, phase_name: str) -> bool:
         """用 Schema 中的 Phase 名称导航"""
-        # 回到首页
-        self._evaluator.page.goto(
-            os.getenv("PLATFORM_URL", "http://124.174.108.70"),
-            timeout=60000,
-        )
+        # 回到首页 — 使用动态 URL (target_url > env > fallback)
+        url = self.target_url or os.getenv("PLATFORM_URL", "")
+        if not url:
+            url = getattr(self._evaluator, 'base_url', None) or "http://124.174.108.70"
+        self._evaluator.page.goto(url, timeout=60000)
         self._evaluator._wait_stable(2)
 
         # 用 Phase 名称点击 (Self-Healing 会自动回退)
@@ -320,7 +322,36 @@ class ExecutorAgent:
         page = browser.new_page(viewport={"width": 1440, "height": 900})
         self._browser = browser
         self._playwright = p
+        # 创建 BrowserEvaluator 实例, 传入 target_url 覆盖硬编码 BASE_URL
+        if self._evaluator is None:
+            self._evaluator = BrowserEvaluator(headless=self.headless, base_url=self.target_url)
         return _BrowserContext(page, browser, p)
+
+    def _get_auth_credentials(self) -> dict:
+        """从 Schema + 环境变量 获取登录凭证 (动态适配不同平台)"""
+        creds = {
+            "username": os.getenv("PLATFORM_USERNAME", ""),
+            "password": os.getenv("PLATFORM_PASSWORD", ""),
+        }
+        # 尝试从 Schema 读取
+        try:
+            from src.schema_adapter import SchemaAdapter
+            candidates = ["output/platform_probe/platform_schema.yaml", "output/platform_schema.yaml"]
+            for c in candidates:
+                if Path(c).exists():
+                    adapter = SchemaAdapter(c)
+                    auth = adapter.get_auth()
+                    creds["login_url"] = auth.get("login_url", "")
+                    # Schema 中的 fields 可能包含字段名提示
+                    for f in auth.get("fields", []):
+                        if "user" in str(f).lower():
+                            creds["username_field"] = str(f)
+                        elif "pass" in str(f).lower():
+                            creds["password_field"] = str(f)
+                    break
+        except Exception:
+            pass
+        return creds
 
     def _log(self, msg: str, level: str = "info"):
         prefix = {"info": "  [E]", "ok": "  [E] OK", "warn": "  [E] WARN", "error": "  [E] ERR"}
@@ -344,6 +375,7 @@ class ExecutorAgent:
             self._evaluator = BrowserEvaluator(
                 headless=self.headless,
                 mode=self.mode,
+                base_url=self.target_url,  # 动态 URL, 覆盖硬编码 BASE_URL
             )
             # 启用 Self-Healing
             from src.self_healing import apply_self_healing

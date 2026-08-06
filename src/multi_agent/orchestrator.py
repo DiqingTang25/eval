@@ -90,10 +90,24 @@ class MultiAgentOrchestrator:
                 strategy=self.strategy,
             )
 
+        # DIAG: 记录 plan 详情到 /tmp
+        try:
+            import json as _json, os as _os
+            _d = plan.to_ws_dict()
+            _d["_phase_count"] = len(plan.phases)
+            _d["_total_lessons"] = sum(len(p.lessons) for p in plan.phases)
+            _d["_cwd"] = _os.getcwd()
+            _path = __import__('tempfile').gettempdir() + '/orchestrator_plan.json'
+            with open(_path, 'w') as _f:
+                _json.dump(_d, _f, indent=2, default=str)
+        except Exception as _e:
+            import traceback as _tb
+            logger.error(f"Plan diag write failed: {_e}\n{_tb.format_exc()}")
+
         self._emit("multi_agent:plan_ready", plan.to_ws_dict())
 
         # ── Phase 2: Execute ───────────────────────────
-        executor = ExecutorAgent(headless=self.headless, mode=self.mode)
+        executor = ExecutorAgent(headless=self.headless, mode=self.mode, target_url=self.target_url)
         executor.set_plan(plan)
 
         step_results = []
