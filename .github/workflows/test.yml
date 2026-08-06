@@ -115,6 +115,81 @@ jobs:
           PLATFORM_USERNAME: ${{ secrets.PLATFORM_USERNAME }}
           PLATFORM_PASSWORD: ${{ secrets.PLATFORM_PASSWORD }}
 
+  # ── Agent C 全量单元测试 (每次 push/PR) ──
+  agent_c:
+    runs-on: ubuntu-latest
+    needs: syntax
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Agent C — Self-Healing
+        run: python tests/test_self_healing.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      - name: Agent C — Visual Assertion
+        run: python tests/test_visual_assertion.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      - name: Agent C — Coverage Tracker
+        run: python tests/test_coverage_tracker.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      - name: Agent C — MCP Server
+        run: python tests/test_mcp_server.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      - name: Agent C — Multi-Agent
+        run: python tests/test_multi_agent.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+  # ── 平台浏览器快速巡检 (仅 workflow_dispatch, 需要 Playwright + 平台可达) ──
+  browser_quick_check:
+    runs-on: ubuntu-latest
+    needs: agent_c
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies + Playwright
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m playwright install chromium --with-deps
+      - name: Pre-check platform reachability
+        run: |
+          if curl -sf --connect-timeout 5 http://124.174.108.70/test/api/mcp/health -o /dev/null; then
+            echo "PLATFORM_REACHABLE=true" >> $GITHUB_ENV
+          else
+            echo "PLATFORM_REACHABLE=false" >> $GITHUB_ENV
+            echo "::warning::Platform unreachable from GitHub runner — skipping browser check"
+          fi
+      - name: Agent C — Coverage Report
+        if: env.PLATFORM_REACHABLE == 'true'
+        run: |
+          python -c "
+          from src.coverage_tracker import CoverageTracker
+          t = CoverageTracker()
+          r = t.compute()
+          print(f'Schema: {r[\"schema_available\"]}, Coverage: {r.get(\"overall\", {}).get(\"coverage_pct\", \"N/A\")}%')
+          "
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      - name: Agent C — MCP Health Check
+        if: env.PLATFORM_REACHABLE == 'true'
+        run: |
+          curl -s http://124.174.108.70/test/api/mcp/tools | python -c "
+          import sys,json; d=json.load(sys.stdin)
+          print(f'MCP Tools: {d[\"count\"]}, Schema: {d[\"schema_available\"]}')"
+
   # ── LLM-dependent tests (push to main only, not PR) ──
   llm:
     runs-on: ubuntu-latest

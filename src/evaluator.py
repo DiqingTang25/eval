@@ -298,10 +298,11 @@ class Evaluator:
 
         # ── DeepSeek (默认主Judge) ──
         if primary_api_key:
+            model_name = os.getenv("OPENAI_MODEL", "deepseek-chat")
             clients.append({
                 "name": "deepseek",
                 "client": self.client,
-                "model": "deepseek-chat",
+                "model": model_name,
                 "temperature": 0.1,
                 "supports_json_format": True,
             })

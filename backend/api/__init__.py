@@ -47,14 +47,25 @@ try:
 except ImportError:
     pass
 
+# v4.0 核心路由 — 平台探索器 (无条件加载, 错误直接暴露)
 try:
     from . import explorer
     api_router.include_router(explorer.router, prefix="/explorer", tags=["Explorer"])
-except ImportError:
-    pass
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).error(f"Explorer route load failed: {e}")
 
 try:
     from . import settings
     api_router.include_router(settings.router, prefix="/settings", tags=["Settings"])
-except ImportError:
-    pass
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).error(f"Settings route load failed: {e}")
+
+# v4.0 Agent C — MCP Server (Schema→Tools)
+try:
+    from . import mcp
+    api_router.include_router(mcp.router, prefix="/mcp", tags=["MCP"])
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).error(f"MCP route load failed: {e}")

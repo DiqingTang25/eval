@@ -15,6 +15,14 @@ test_service = TestService()
 
 from pydantic import BaseModel
 
+class MultiAgentRequest(BaseModel):
+    """Multi-Agent 测试编排请求 (Agent C)"""
+    strategy: str = "spot_check"       # full | spot_check | risk_driven
+    phases: list[str] = []             # Phase ID 白名单 (空=全部)
+    mode: str = "guided"
+    headless: bool = True
+    target_url: str = ""
+
 class BrowserEvalRequest(BaseModel):
     """全平台浏览器遍历测评请求"""
     phases: list[int] = [1, 2, 3, 4, 5]
@@ -37,8 +45,28 @@ class TestRunRequest(BaseModel):
     platform_schema_path: str = ""     # v4.0
 
 
+@router.post("/run-multi-agent")
+async def trigger_multi_agent(body: MultiAgentRequest = None):
+    """启动 Multi-Agent 测试编排 (Agent C)
+
+    Planner → Executor → Verifier → Reporter
+    Schema 驱动, 三通道验证 (Text + Visual + API)
+    """
+    if body is None:
+        body = MultiAgentRequest()
+    return await test_service.start_multi_agent(
+        strategy=body.strategy,
+        phases=body.phases or None,
+        mode=body.mode,
+        headless=body.headless,
+        target_url=body.target_url,
+    )
+
+
 @router.post("/run")
-async def trigger_test(body: TestRunRequest = TestRunRequest()):
+async def trigger_test(body: TestRunRequest = None):
+    if body is None:
+        body = TestRunRequest()
     """启动LLM问答测评"""
     return await test_service.start_run(
         agent_id=body.agent_id,
@@ -52,7 +80,9 @@ async def trigger_test(body: TestRunRequest = TestRunRequest()):
 
 
 @router.post("/run-browser")
-async def trigger_browser_eval(body: BrowserEvalRequest = BrowserEvalRequest()):
+async def trigger_browser_eval(body: BrowserEvalRequest = None):
+    if body is None:
+        body = BrowserEvalRequest()
     """启动全平台浏览器遍历测评 (Playwright真实模拟)
 
     覆盖: 登录 → 逐Phase → 逐Day → 帮帮我模式 → Step完成

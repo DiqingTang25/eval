@@ -158,6 +158,43 @@ class TestService:
             },
         }
 
+    async def start_multi_agent(
+        self, strategy: str = "spot_check",
+        phases: list[str] = None, mode: str = "guided",
+        headless: bool = True, target_url: str = "",
+    ) -> dict:
+        """启动 Multi-Agent 测试编排 (Agent C)
+
+        Planner → Executor → Verifier → Reporter
+        Schema 驱动, 零硬编码, 三通道验证
+        """
+        if self._running:
+            return {"status": "busy", "error": "已有测试在运行中"}
+
+        self._main_loop = asyncio.get_running_loop()
+        project_root = Path(__file__).parent.parent.parent
+        self._running = True
+        self._cancel_requested.clear()
+
+        session_id = f"multi_agent_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+        self._current_session_id = session_id
+
+        thread = threading.Thread(
+            target=self._run_multi_agent,
+            args=(strategy, phases, mode, headless, session_id, project_root, target_url),
+            daemon=True,
+            name=f"multi-agent-{session_id[:8]}",
+        )
+        thread.start()
+
+        return {
+            "status": "started",
+            "session_id": session_id,
+            "evaluator_type": "multi_agent",
+            "strategy": strategy,
+            "phases": phases or "all (from schema)",
+        }
+
     async def start_browser_eval(
         self, phases: list = None, mode: str = "guided",
         headless: bool = True, include_quiz: bool = True,
@@ -198,6 +235,68 @@ class TestService:
             "est_duration_minutes": round(total_days * 0.8),
         }
 
+    def _run_multi_agent(
+        self, strategy: str, phases: list[str], mode: str,
+        headless: bool, session_id: str, project_root: Path, target_url: str = "",
+    ) -> None:
+        """后台线程执行 Multi-Agent 流水线 (Agent C)"""
+        import os as _os
+        _os.chdir(str(project_root))
+
+        try:
+            from src.multi_agent import MultiAgentOrchestrator
+
+            def ws_cb(event_type: str, data: dict):
+                if self._main_loop:
+                    asyncio.run_coroutine_threadsafe(
+                        ws_manager.broadcast({
+                            "type": event_type,
+                            "data": data,
+                            "running": self._running,
+                        }),
+                        self._main_loop,
+                    )
+
+            orch = MultiAgentOrchestrator(
+                ws_callback=ws_cb,
+                strategy=strategy,
+                phases_filter=phases,
+                headless=headless,
+                mode=mode,
+                target_url=target_url,
+            )
+            report = orch.run()
+
+            # 广播完成
+            if self._main_loop:
+                asyncio.run_coroutine_threadsafe(
+                    ws_manager.broadcast({
+                        "type": "multi_agent:done",
+                        "data": {
+                            "report_path": "",
+                            "pass_rate": report.pass_rate,
+                            "total_steps": report.total_steps,
+                            "failures": report.failures,
+                        },
+                        "running": False,
+                    }),
+                    self._main_loop,
+                )
+        except Exception as e:
+            import traceback
+            logger.error(f"Multi-Agent failed: {e}\n{traceback.format_exc()}")
+            if self._main_loop:
+                asyncio.run_coroutine_threadsafe(
+                    ws_manager.broadcast({
+                        "type": "multi_agent:done",
+                        "data": {"error": str(e), "pass_rate": 0, "total_steps": 0, "failures": 0},
+                        "running": False,
+                    }),
+                    self._main_loop,
+                )
+        finally:
+            self._running = False
+
     def _run_browser_eval(
         self, phases: list, mode: str, headless: bool,
         include_quiz: bool, session_id: str, project_root: Path,
@@ -222,6 +321,9 @@ class TestService:
                 mode=mode,
                 phase_filter=None,  # 全Phase, 由phases列表控制
             )
+            # Agent C: Self-Healing 定位器自动恢复 (四层级联: L0原始→L1语义→L2结构→L3 AI)
+            from src.self_healing import apply_self_healing
+            apply_self_healing(evaluator)
             # 注入 WebSocket 进度回调
             orig_log = evaluator._log
             def _ws_log(msg, level="info"):
@@ -237,6 +339,17 @@ class TestService:
             evaluator._log = _ws_log
             result = evaluator.run()
 
+            # Agent C: Coverage Tracker — 计算测试覆盖率 (不阻塞主流程)
+            coverage_report = None
+            try:
+                from src.coverage_tracker import compute_coverage_after_eval
+                coverage_report = compute_coverage_after_eval()
+                if coverage_report.get("schema_available"):
+                    orig_log(f"Coverage: {coverage_report['overall']['coverage_pct']}% overall, "
+                             f"{len(coverage_report.get('risk_areas',[]))} risk areas", "info")
+            except Exception as coverage_err:
+                orig_log(f"Coverage tracker unavailable: {coverage_err}", "warn")
+
             # 广播: 完成
             summary = result.get("summary", {})
             if self._main_loop:
@@ -251,6 +364,8 @@ class TestService:
                             "days_completed": summary.get("days_completed", 0),
                             "days_total": summary.get("days_total", 0),
                             "phase5_ok": summary.get("phase5_agent_ok", False),
+                            # Agent C: 覆盖率摘要 (若可用)
+                            "coverage": coverage_report.get("overall") if coverage_report else None,
                         },
                     }), self._main_loop)
         except Exception as e:
