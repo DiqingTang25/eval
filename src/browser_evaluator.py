@@ -76,13 +76,15 @@ class BrowserEvaluator:
 
     def __init__(self, headless: bool = True, phase_filter: int = None,
                  day_filter: int = None, mode: str = "guided", resume: bool = False,
-                 base_url: str = ""):
+                 base_url: str = "", username: str = "", password: str = ""):
         self.headless = headless
         self.phase_filter = phase_filter
         self.day_filter = day_filter
         self.mode = mode  # "guided" | "self" | "both"
         self.resume = resume
-        self.base_url = base_url if base_url else BASE_URL  # 默认使用硬编码, 允许Multi-Agent覆盖
+        self.base_url = base_url if base_url else BASE_URL
+        self._username = username if username else USERNAME
+        self._password = password if password else PASSWORD
 
         # 加载已有报告 — 保留未重跑的 Phase 数据
         existing = self._load_existing_report()

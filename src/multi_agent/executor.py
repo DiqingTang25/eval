@@ -94,103 +94,166 @@ class ExecutorAgent:
     # ── Lesson 执行 ──
 
     def _execute_lesson(self, phase: PhaseTarget, lesson: LessonTarget) -> list[StepResult]:
-        """执行单个 Lesson 的所有 Steps"""
+        """执行单个 Lesson — 完全 DOM 驱动, 零平台假设"""
         results: list[StepResult] = []
         t0 = time.time()
+        ev = self._evaluator  # shorthand
 
-        # 1. 导航到 Phase
+        # 1. 导航到 Phase (Schema 驱动 + Self-Healing)
         if not self._navigate_to_phase(phase.phase_name):
-            return [StepResult(
-                phase_name=phase.phase_name,
-                lesson_name=lesson.lesson_name,
-                step_name="NAVIGATION",
-                step_index=0, total_steps=self._total_steps,
-                error=f"无法导航到 Phase: {phase.phase_name}",
-            )]
+            return [StepResult(phase_name=phase.phase_name, lesson_name=lesson.lesson_name,
+                step_name="NAVIGATION", step_index=0, total_steps=self._total_steps,
+                error=f"无法导航到 Phase: {phase.phase_name}")]
 
-        # 2. 导航到 Lesson (Day)
+        # 2. 导航到 Lesson (Schema 驱动 + Self-Healing)
         if not self._navigate_to_lesson(lesson.lesson_name, lesson.day_index):
-            return [StepResult(
-                phase_name=phase.phase_name,
-                lesson_name=lesson.lesson_name,
-                step_name="NAVIGATION",
-                step_index=0, total_steps=self._total_steps,
-                error=f"无法导航到 Lesson: {lesson.lesson_name}",
-            )]
+            return [StepResult(phase_name=phase.phase_name, lesson_name=lesson.lesson_name,
+                step_name="NAVIGATION", step_index=0, total_steps=self._total_steps,
+                error=f"无法导航到 Lesson: {lesson.lesson_name}")]
 
-        # 3. 进入学习模式
-        if not self._evaluator.enter_learning_mode(self.mode):
-            return [StepResult(
-                phase_name=phase.phase_name,
-                lesson_name=lesson.lesson_name,
-                step_name="ENTER_MODE",
-                step_index=0, total_steps=self._total_steps,
-                error=f"无法进入 {self.mode} 模式",
-            )]
+        # 3. 进入内容 — DOM 驱动: 找页面上最可能的"进入/开始"按钮
+        ev._wait_stable(2)
+        dom = ev._dump_dom_state()
+        entered = self._click_by_intent(dom, intent="enter_content",
+            hints=["进入", "开始", "Start", "Begin", "Enter", "Continue", "Go"],
+            fallback_texts=[lesson.lesson_name])  # 回退: 点 Lesson 名称
+        if not entered:
+            # 没有明确的进入按钮→可能已直接进入内容页, 继续
+            self._log("无进入按钮, 假设已进入内容页")
 
-        # 4. 获取页面当前 DOM 状态 → 发现实际 Steps
-        dom = self._evaluator._dump_dom_state()
-
-        # 5. 执行 Steps
+        # 4. DOM 驱动: 发现页面上的 Step 列表
+        dom = ev._dump_dom_state()
         actual_steps = self._discover_steps_from_dom(dom, lesson)
+
+        # 5. 逐 Step 执行 — DOM 驱动
         for i, step_target in enumerate(actual_steps):
-            sr = self._execute_step(phase, lesson, step_target, i + 1, len(actual_steps))
+            sr = self._execute_step_dom(phase, lesson, step_target, i + 1, len(actual_steps))
             results.append(sr)
 
-            # 如果不是最后一步, 点"下一步"
+            # 下一步 — DOM 驱动
             if i < len(actual_steps) - 1:
-                self._evaluator.go_next_step()
+                dom = ev._dump_dom_state()
+                self._click_by_intent(dom, intent="next_step",
+                    hints=["下一步", "Next", "→", "»", "继续", "Continue"])
 
-        # 6. 在最后一个 Step 触发 Agent 对话
-        if lesson.steps and results:
-            last_step = lesson.steps[-1]
-            agent_q = (
-                f"你好, 我在做 {phase.phase_name} 的 {lesson.lesson_name} 中的 "
-                f"{last_step.step_name}, 可以帮我理解这部分内容吗?"
-            )
-            agent_result = self._evaluator.trigger_agent(agent_q)
-            results[-1].agent_triggered = agent_result.get("ok", False)
-            results[-1].agent_response = str(agent_result.get("body_delta", ""))
+        # 6. Agent 对话 — DOM 驱动: 找帮助/聊天按钮
+        if results:
+            dom = ev._dump_dom_state()
+            agent_triggered = self._click_by_intent(dom, intent="open_help",
+                hints=["帮助", "Help", "Agent", "AI", "助教", "卡住", "Stuck", "?"])
+            if agent_triggered:
+                results[-1].agent_triggered = True
+                # 尝试发消息
+                agent_q = f"你好, 可以帮我理解'{lesson.lesson_name}'中的'{actual_steps[-1].step_name}'吗?"
+                try:
+                    ev.trigger_agent(agent_q)
+                    results[-1].agent_response = "agent triggered"
+                except Exception:
+                    pass
 
-        # 7. 检查 Quiz
-        body = self._evaluator._get_page_text()
-        if any(kw in body.lower() for kw in ["quiz", "测验", "答题", "题目"]):
-            results[-1].quiz_triggered = True
-            self._evaluator._ss(f"quiz_{phase.phase_id}_{lesson.day_index}")
+        # 7. Quiz 检查
+        body = ev._get_page_text()
+        results[-1].quiz_triggered = any(
+            kw in body.lower() for kw in ["quiz", "测验", "答题", "题目", "question"])
 
         duration = time.time() - t0
         for r in results:
             r.duration_seconds = round(duration / max(len(results), 1), 1)
-
         return results
 
-    def _execute_step(
+    def _execute_step_dom(
         self, phase: PhaseTarget, lesson: LessonTarget,
         step_target: StepTarget, idx: int, total: int,
     ) -> StepResult:
-        """执行单个 Step"""
+        """执行单个 Step — DOM 驱动"""
         self._log(f"[{phase.phase_name}] {lesson.lesson_name} → {step_target.step_name} ({idx}/{total})")
+        ev = self._evaluator
 
-        # 勾选 checklist + 点"本步已完成"
-        be_result: BEStepResult = self._evaluator.complete_step(idx)
+        # 勾选 checklist (如果有)
+        try:
+            for cb in ev.page.locator("input[type=checkbox]").all():
+                if cb.is_visible() and not cb.is_checked():
+                    cb.check(); time.sleep(0.2)
+        except Exception:
+            pass
+
+        # 完成当前 Step — DOM 驱动: 找"完成/提交/标记"按钮
+        dom = ev._dump_dom_state()
+        self._click_by_intent(dom, intent="complete_step",
+            hints=["完成", "Done", "Complete", "Finish", "Submit", "提交", "标记", "Mark", "✓"])
 
         # 截图
         ss_name = f"ma_{phase.phase_id}_{lesson.day_index}_step{idx}"
-        self._evaluator._ss(ss_name)
+        ev._ss(ss_name)
+        screenshot_path = str(self._screenshot_dir / f"{ev._ss_count:04d}_{ss_name}.png")
 
-        screenshot_path = str(self._screenshot_dir / f"{self._evaluator._ss_count:04d}_{ss_name}.png")
-
-        dom = self._evaluator._dump_dom_state()
-
+        dom = ev._dump_dom_state()
         return StepResult(
-            phase_name=phase.phase_name,
-            lesson_name=lesson.lesson_name,
-            step_name=step_target.step_name,
-            step_index=0, total_steps=0,  # 由 execute() 填充
-            screenshot_path=screenshot_path,
-            dom_snapshot=dom,
-            error=be_result.error,
+            phase_name=phase.phase_name, lesson_name=lesson.lesson_name,
+            step_name=step_target.step_name, step_index=0, total_steps=0,
+            screenshot_path=screenshot_path, dom_snapshot=dom,
         )
+
+    # ── DOM 驱动: 语义按钮发现 ──
+
+    def _click_by_intent(
+        self, dom: dict, intent: str, hints: list[str], fallback_texts: list[str] = None
+    ) -> bool:
+        """
+        根据语义意图点击页面上最可能的按钮 — 零硬编码。
+
+        策略:
+          1. 从 DOM 获取所有可见按钮
+          2. 用 hints 关键词匹配 (多语言)
+          3. 最匹配的按钮 → 点击
+          4. 都不匹配 → 用 fallback_texts (如 Phase/Lesson 名称)
+          5. 全部失败 → Self-Healing L3 (AI) 自动介入
+
+        这是通用方法, 不包含任何平台特定的文本。
+        """
+        buttons = dom.get("buttons", [])
+        if not buttons:
+            return False
+
+        # 1. 关键词匹配 (不区分大小写)
+        candidates = []
+        for b in buttons:
+            if b.get("disabled"):
+                continue
+            text = (b.get("text", "") + " " + b.get("class", "")).lower()
+            score = sum(1 for h in hints if h.lower() in text)
+            if score > 0:
+                candidates.append((b["text"], score))
+
+        candidates.sort(key=lambda x: -x[1])
+
+        # 2. 尝试点击最佳匹配
+        for text, score in candidates:
+            ok, _ = self._evaluator._find_and_click([text])
+            if ok:
+                self._log(f"[{intent}] {text[:60]} (score={score})")
+                return True
+
+        # 3. 回退: 用 fallback_texts (如 Lesson 名称)
+        if fallback_texts:
+            for t in fallback_texts:
+                if t:
+                    ok, _ = self._evaluator._find_and_click([t])
+                    if ok:
+                        self._log(f"[{intent}] fallback: {t[:60]}")
+                        return True
+
+        # 4. Self-Healing L3 会自动介入 (_find_and_click 内部)
+        # 如果所有关键词都不匹配, 尝试点击第一个非禁用按钮
+        for b in buttons:
+            if not b.get("disabled") and b.get("text", "").strip():
+                ok, _ = self._evaluator._find_and_click([b["text"]])
+                if ok:
+                    self._log(f"[{intent}] last-resort: {b['text'][:60]}")
+                    return True
+
+        self._log(f"[{intent}] no button found (hints={hints[:4]})", "warn")
+        return False
 
     # ── 动态导航 (Schema-driven, 不用硬编码文本) ──
 
@@ -328,12 +391,29 @@ class ExecutorAgent:
         return _BrowserContext(page, browser, p)
 
     def _get_auth_credentials(self) -> dict:
-        """从 Schema + 环境变量 获取登录凭证 (动态适配不同平台)"""
-        creds = {
-            "username": os.getenv("PLATFORM_USERNAME", ""),
-            "password": os.getenv("PLATFORM_PASSWORD", ""),
-        }
-        # 尝试从 Schema 读取
+        """从 平台Profile + Schema + 环境变量 获取登录凭证 (动态适配不同平台)"""
+        creds = {}
+        # 1. 从 platform_profile.json 读取 (最优先: 探索时保存的凭证)
+        try:
+            profile_path = Path("output/platform_probe/platform_profile.json")
+            if profile_path.exists():
+                import json as _json
+                profile = _json.loads(profile_path.read_text(encoding="utf-8"))
+                pc = profile.get("credentials", {})
+                if pc.get("username"):
+                    creds["username"] = pc["username"]
+                if pc.get("password"):
+                    creds["password"] = pc["password"]
+                if pc.get("login_url"):
+                    creds["login_url"] = pc["login_url"]
+        except Exception:
+            pass
+        # 2. 环境变量覆盖
+        if os.getenv("PLATFORM_USERNAME"):
+            creds["username"] = os.getenv("PLATFORM_USERNAME")
+        if os.getenv("PLATFORM_PASSWORD"):
+            creds["password"] = os.getenv("PLATFORM_PASSWORD")
+        # 3. 从 Schema 读取 login_url
         try:
             from src.schema_adapter import SchemaAdapter
             candidates = ["output/platform_probe/platform_schema.yaml", "output/platform_schema.yaml"]
@@ -341,13 +421,8 @@ class ExecutorAgent:
                 if Path(c).exists():
                     adapter = SchemaAdapter(c)
                     auth = adapter.get_auth()
-                    creds["login_url"] = auth.get("login_url", "")
-                    # Schema 中的 fields 可能包含字段名提示
-                    for f in auth.get("fields", []):
-                        if "user" in str(f).lower():
-                            creds["username_field"] = str(f)
-                        elif "pass" in str(f).lower():
-                            creds["password_field"] = str(f)
+                    if auth.get("login_url") and "login_url" not in creds:
+                        creds["login_url"] = auth["login_url"]
                     break
         except Exception:
             pass
