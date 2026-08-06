@@ -281,65 +281,101 @@ class ExecutorAgent:
     # ── 动态导航 (Schema-driven, 不用硬编码文本) ──
 
     def _navigate_to_phase(self, phase_name: str) -> bool:
-        """用 Schema 中的 Phase 名称导航"""
-        # 回到首页 — 使用动态 URL (target_url > env > fallback)
+        """三层降级导航到 Phase (Agent A 4.1 P0)
+
+        L1: URL 直接导航 — 尝试 Schema 中的 URL 模式
+        L2: DOM 全元素搜索 — _find_and_click (已扩展为所有可点击元素)
+        L3: AI 语义理解 — _click_by_intent (LLM 从完整 DOM 判断)
+        全失败 → 返回 False, 不阻塞整个测试
+        """
+        # 首先生成候选 URL 列表
         url = self.target_url or os.getenv("PLATFORM_URL", "")
         if not url:
             url = getattr(self._evaluator, 'base_url', None)
             if not url:
-                self._log("No URL configured — set target_url or PLATFORM_URL", "error")
+                self._log("No URL configured", "error")
                 return False
-        self._evaluator.page.goto(url, timeout=60000)
+
+        # 提取 phase_id (从 plan 中查找, 用于 URL 构造)
+        phase_id = ""
+        phase_order = 0
+        if self._plan:
+            for p in self._plan.phases:
+                if p.phase_name == phase_name:
+                    phase_id = p.phase_id
+                    phase_order = p.order
+                    break
+
+        # ── L1: URL 直接导航 ──────────────────────
+        url_candidates = [
+            url,
+            f"{url.rstrip('/')}/{phase_id}" if phase_id else None,
+            f"{url.rstrip('/')}/phase/{phase_id}" if phase_id else None,
+            f"{url.rstrip('/')}/courses/{phase_id}" if phase_id else None,
+            f"{url.rstrip('/')}?phase={phase_id}" if phase_id else None,
+        ]
+        for candidate in [u for u in url_candidates if u]:
+            try:
+                self._evaluator.page.goto(candidate, timeout=10000)
+                self._evaluator._wait_stable(2)
+                body = self._evaluator._get_page_text()
+                if len(body) > 200 and phase_name[:4] in body:
+                    self._log(f"Phase (URL): {candidate}")
+                    return True
+            except Exception:
+                continue
+
+        # 回到首页做 DOM 搜索
+        self._evaluator.page.goto(url, timeout=30000)
         self._evaluator._wait_stable(2)
 
-        # 用 Phase 名称点击 (Self-Healing 会自动回退)
+        # ── L2: DOM 全元素搜索 ────────────────────
+        # 尝试完整名称
         ok, text = self._evaluator._find_and_click([phase_name])
         if ok:
-            self._log(f"Phase: {text}")
+            self._log(f"Phase (DOM): {text}")
+            return True
+        # 尝试部分匹配 (取前10个字符, 忽略后缀差异)
+        if len(phase_name) > 10:
+            ok, text = self._evaluator._find_and_click([phase_name[:10]])
+            if ok:
+                self._log(f"Phase (DOM partial): {text}")
+                return True
+
+        # ── L3: AI 语义理解 ───────────────────────
+        dom = self._evaluator._dump_dom_state()
+        if self._click_by_intent(dom, intent=f"navigate to the phase or course named '{phase_name}'"):
             return True
 
-        # 回退: 用数字匹配 (如 "Phase 01")
-        import re
-        nums = re.findall(r'\d+', phase_name)
-        if nums:
-            for fmt in [f"Phase {nums[0]}", f"Phase 0{nums[0]}", f"0{nums[0]}"]:
-                ok, text = self._evaluator._find_and_click([fmt])
-                if ok:
-                    self._log(f"Phase (fallback): {text}")
-                    return True
-
-        self._log(f"Phase NOT FOUND: {phase_name}", "error")
+        # ── 全失败 → 跳过, 不阻塞 ──────────────────
+        available = [b["text"][:50] for b in dom.get("buttons", [])[:8]]
+        self._log(f"Phase SKIP: '{phase_name}' not found. Available: {available}", "warn")
         return False
 
     def _navigate_to_lesson(self, lesson_name: str, day_index: int) -> bool:
-        """用 Schema 中的 Lesson 名称导航"""
+        """三层降级导航到 Lesson (同 Phase 逻辑)"""
         self._evaluator._wait_stable(2)
 
-        # 优先用 Lesson 名称
+        # L1: 尝试完整 Lesson 名称
         ok, text = self._evaluator._find_and_click([lesson_name])
         if ok:
-            self._log(f"Lesson: {text}")
+            self._log(f"Lesson (DOM): {text}")
             return True
 
-        # 回退: Day N
-        for fmt in [f"Day {day_index}", f"Day 0{day_index}"]:
-            ok, text = self._evaluator._find_and_click([fmt])
+        # L2: 部分匹配
+        if len(lesson_name) > 10:
+            ok, text = self._evaluator._find_and_click([lesson_name[:10]])
             if ok:
-                self._log(f"Lesson (fallback): {text}")
+                self._log(f"Lesson (DOM partial): {text}")
                 return True
 
-        # 回退: 按 CSS class (lesson-card)
-        try:
-            for btn in self._evaluator.page.locator("button.lesson-card, button[class*=lesson]").all():
-                t = (btn.text_content() or "").strip()
-                if f"Day {day_index}" in t and not btn.is_disabled():
-                    btn.click()
-                    self._log(f"Lesson (CSS): {t[:80]}")
-                    return True
-        except Exception:
-            pass
+        # L3: AI 语义理解
+        dom = self._evaluator._dump_dom_state()
+        if self._click_by_intent(dom, intent=f"navigate to the lesson or day named '{lesson_name}'"):
+            return True
 
-        self._log(f"Lesson NOT FOUND: {lesson_name}", "error")
+        available = [b["text"][:50] for b in dom.get("buttons", [])[:8]]
+        self._log(f"Lesson SKIP: '{lesson_name}' not found. Available: {available}", "warn")
         return False
 
     @staticmethod
@@ -401,7 +437,7 @@ class ExecutorAgent:
     # ── 内部 ──
 
     def _init_browser(self):
-        """初始化 Playwright 浏览器 (复用 BrowserEvaluator 的逻辑)"""
+        """初始化 Playwright 浏览器"""
         from playwright.sync_api import sync_playwright
         p = sync_playwright().start()
         browser = p.chromium.launch(
@@ -409,9 +445,14 @@ class ExecutorAgent:
             args=["--no-sandbox", "--disable-setuid-sandbox"],
         )
         page = browser.new_page(viewport={"width": 1440, "height": 900})
+        # 立即导航到目标平台 (4.2 P1: 确保后续 login() 在正确的页面上)
+        if self.target_url:
+            try:
+                page.goto(self.target_url, timeout=15000, wait_until="domcontentloaded")
+            except Exception:
+                pass
         self._browser = browser
         self._playwright = p
-        # 创建 BrowserEvaluator 实例, 传入 target_url 覆盖硬编码 BASE_URL
         if self._evaluator is None:
             self._evaluator = BrowserEvaluator(headless=self.headless, base_url=self.target_url)
         return _BrowserContext(page, browser, p)
@@ -459,6 +500,8 @@ class ExecutorAgent:
         print(f"{prefix.get(level, '  [E]')} {msg}")
 
     def close(self):
+        """关闭浏览器并清理残留进程 (4.3 P1)"""
+        import subprocess as _sp
         if hasattr(self, '_browser') and self._browser:
             try:
                 self._browser.close()
@@ -467,6 +510,14 @@ class ExecutorAgent:
         if hasattr(self, '_playwright') and self._playwright:
             try:
                 self._playwright.stop()
+            except Exception:
+                pass
+        # 强制清理残留 Chrome/Playwright 进程
+        import time as _time
+        _time.sleep(1)
+        for proc in ["chrome-headless-shell", "chromium", "playwright/driver"]:
+            try:
+                _sp.run(["pkill", "-f", proc], capture_output=True, timeout=5)
             except Exception:
                 pass
 

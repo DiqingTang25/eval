@@ -69,3 +69,11 @@ try:
 except Exception as e:
     import logging
     logging.getLogger(__name__).error(f"MCP route load failed: {e}")
+
+# v4.0 Agent C — Health endpoints (4.4 P2, 独立于 dashboard.py)
+try:
+    from . import health
+    api_router.include_router(health.router, prefix="/health", tags=["Health"])
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).error(f"Health route load failed: {e}")

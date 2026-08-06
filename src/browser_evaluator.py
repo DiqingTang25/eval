@@ -170,29 +170,38 @@ class BrowserEvaluator:
             return False
 
     def _find_and_click(self, texts: list[str]) -> tuple[bool, str]:
-        """点击按钮 — 先用 Playwright, 失败后用 JS 兜底"""
+        """点击元素 — 搜索所有可点击元素 (不限于<button>), Playwright + JS 兜底"""
+        # 方式1: Playwright — 搜索所有可点击元素
+        all_sel = "button, a, [role=button], [onclick], [class*=card], [class*=item], [class*=lesson], [class*=course], [class*=phase], [class*=nav], [class*=clickable], [class*=btn]"
         for t in texts:
-            # 方式1: Playwright 标准
             try:
-                for btn in self.page.locator("button").all():
-                    if not btn.is_visible():
+                for el in self.page.locator(all_sel).all():
+                    if not el.is_visible():
                         continue
-                    txt = (btn.text_content() or "").strip()
-                    if t in txt and not btn.is_disabled():
-                        btn.click()
+                    try:
+                        if el.is_disabled():
+                            continue
+                    except Exception:
+                        pass
+                    txt = (el.text_content() or "").strip()
+                    if t in txt:
+                        el.click()
                         return True, txt[:80]
             except Exception:
                 pass
 
-        # 方式2: JS 兜底 — 不依赖 is_visible()
+        # 方式2: JS 兜底 — 搜索所有非禁用可点击元素
         for t in texts:
             result = self.page.evaluate(f"""
                 (() => {{
-                    const buttons = document.querySelectorAll('button');
-                    for (const btn of buttons) {{
-                        if (btn.textContent.includes({json.dumps(t)}) && !btn.disabled) {{
-                            btn.click();
-                            return {{ok: true, text: btn.textContent.trim().substring(0, 80)}};
+                    const all = document.querySelectorAll(
+                        'button, a, [role=button], [onclick], [class*=card], [class*=item], [class*=lesson], [class*=course], [class*=phase], [class*=nav], [class*=clickable], [class*=btn], div, span, li'
+                    );
+                    for (const el of all) {{
+                        if (!el.offsetParent || el.disabled) continue;
+                        if (el.textContent.includes({json.dumps(t)})) {{
+                            el.click();
+                            return {{ok: true, text: el.textContent.trim().substring(0, 80)}};
                         }}
                     }}
                     return {{ok: false}};
@@ -209,25 +218,40 @@ class BrowserEvaluator:
             return ""
 
     def _dump_dom_state(self) -> dict:
-        """导出当前页面关键 DOM 状态"""
-        return self.page.evaluate("""() => ({
-            url: location.href,
-            title: document.title,
-            buttons: [...document.querySelectorAll('button')]
-                .filter(b => b.offsetParent)
-                .map(b => ({
-                    text: b.textContent.trim().substring(0, 100),
-                    class: b.className.substring(0, 60),
-                    disabled: b.disabled
-                })),
-            inputs: [...document.querySelectorAll('input, textarea, [contenteditable=true]')]
-                .filter(el => el.offsetParent)
+        """导出当前页面关键 DOM 状态 — 所有可点击元素 (不限于<button>)"""
+        return self.page.evaluate("""() => {
+            const allClickable = document.querySelectorAll(
+                'button, a, [role=button], [onclick], [class*=card], [class*=item], [class*=lesson], [class*=course], [class*=phase], [class*=nav], [class*=clickable], div[class*=btn], span[class*=btn]'
+            );
+            const buttons = [...allClickable]
+                .filter(el => el.offsetParent && !el.disabled)
                 .map(el => ({
-                    tag: el.tagName, type: el.type || '',
-                    placeholder: el.placeholder || ''
-                })),
-            visibleText: document.body.textContent.substring(0, 1000)
-        })""")
+                    text: (el.textContent || '').trim().substring(0, 100),
+                    class: (el.className || '').substring(0, 60),
+                    tag: el.tagName.toLowerCase(),
+                    href: el.href || el.getAttribute('href') || '',
+                    disabled: el.disabled || false
+                }));
+            // 去重 (按 text)
+            const seen = new Set();
+            const unique = buttons.filter(b => {
+                const key = b.text.substring(0, 30);
+                if (seen.has(key)) return false;
+                seen.add(key); return true;
+            });
+            return {
+                url: location.href,
+                title: document.title,
+                buttons: unique,
+                inputs: [...document.querySelectorAll('input, textarea, [contenteditable=true]')]
+                    .filter(el => el.offsetParent)
+                    .map(el => ({
+                        tag: el.tagName, type: el.type || '',
+                        placeholder: el.placeholder || ''
+                    })),
+                visibleText: (document.body.textContent || '').substring(0, 1000)
+            };
+        }""")
 
     def _save_report(self):
         """断点保存 — 每个Phase结束后调用"""
