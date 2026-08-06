@@ -112,7 +112,20 @@ def main():
     except Exception as e:
         results["checks"]["visual_assertion"] = {"status": "error", "error": str(e)[:200]}
 
-    # ── 6. LLM 可用性 ──
+    # ── 6. Anomaly Detection ──
+    try:
+        from src.anomaly_detector import detect_anomalies
+        report = detect_anomalies()
+        rd = report.to_dict()
+        results["checks"]["anomaly"] = {
+            "status": "attention" if rd.get("needs_attention") else "healthy",
+            "baseline_exists": rd.get("baseline_exists", False),
+            "changes": sum(rd.get("summary", {}).values()),
+        }
+    except Exception as e:
+        results["checks"]["anomaly"] = {"status": "error", "error": str(e)[:200]}
+
+    # ── 7. LLM 可用性 ──
     try:
         from src.llm_client import is_available
         results["checks"]["llm"] = {

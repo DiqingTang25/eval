@@ -616,11 +616,40 @@ Agent B 可受益的 Agent C 模块:
 - Timer: `systemctl status agent-eval-ci.timer`
 - 手动触发: `/opt/agent_eval/venv/bin/python scripts/ci_quick_check.py`
 
-### E.5 待实施任务
+### E.5 Anomaly Detector — 平台变更自动检测 ✅
+
+**文件**: `src/anomaly_detector.py` (210行)
+
+**功能**:
+- 对比当前 `platform_schema.yaml` 与基线 → 检测 API 新增/删除/修改
+- 检测 Phase/Lesson/Step 数量变化
+- 检测 Auth 方式变更 (login_url, auth type)
+- 检测 Target URL 变更
+- 严重度分级: removed=high, added=medium, modified=low
+- 产物: `data/anomaly_report.json`
+
+**集成点**:
+- CI Quick Check 第 6 项
+- Explorer 完成后可调 `save_baseline_now()` 保存基线
+- Health API: `get_health_summary()` 返回异常状态
+
+**API**:
+```python
+from src.anomaly_detector import save_baseline_now, detect_anomalies
+
+# Explorer 完成后 — 保存"已知良好"基线
+save_baseline_now()
+
+# CI 定时 — 检测变更
+report = detect_anomalies()
+# → AnomalyReport(changes=[...], needs_attention=True/False)
+```
+
+### E.6 待实施任务
 
 | # | 优先级 | 任务 | 说明 |
 |---|--------|------|------|
-| 1 | P2 | 平台变更检测 | Schema diff -> 自动告警 |
+| — | — | **全部完成** | 7/7 模块完成并部署 |
 
 ---
 
