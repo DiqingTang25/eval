@@ -310,14 +310,20 @@ class BrowserEvaluator:
             self.page.goto(target, timeout=60000)
             self._wait_stable(2)
 
-            # 检查是否已登录 (通用检测: URL 已不是登录页, 且页面有内容)
+            # 检查是否已登录 — 基于 DOM (SPA兼容)
+            # 核心原则: 有可见的登录输入框 = 未登录
             body = self._get_page_text()
-            current_url = self.page.url
-            # 如果URL已经不包含 login/auth/signin, 且有足够内容 → 可能已登录
-            if not any(kw in current_url.lower() for kw in ["login", "auth", "signin"]):
-                if len(body) > 200 and "登录" not in body[:300]:
-                    self._log("已是登录状态 (URL判断)", "ok")
-                    return True
+            # 检测页面上是否有登录表单输入框
+            login_inputs = self.page.locator(
+                "input[type=password], input[name*=password], input[placeholder*=密码], input[placeholder*=password]"
+            )
+            has_login_inputs = login_inputs.count() > 0 and any(
+                login_inputs.nth(i).is_visible() for i in range(min(login_inputs.count(), 3))
+            )
+
+            if not has_login_inputs and len(body) > 200:
+                self._log("已是登录状态 (无登录表单)", "ok")
+                return True
 
             # 填写表单 (通用: 遍历所有可见input)
             inputs_filled = 0
@@ -350,33 +356,55 @@ class BrowserEvaluator:
                     elif t == "password":
                         inp.fill(password)
 
-            # 点击登录 (多语言: 登录/Login/Sign in/Submit)
+            # 提交登录 — 优先键盘 Enter (兼容 React SPA), 回退按钮点击
             clicked = False
-            login_keywords = ["登录", "Login", "Sign in", "登 录", "submit", "Submit"]
-            for btn in self.page.locator("button, input[type=submit]").all():
-                if not btn.is_visible():
-                    continue
-                btn_text = (btn.text_content() or btn.get_attribute("value") or "").strip()
-                if any(kw.lower() in btn_text.lower() for kw in login_keywords):
-                    btn.click()
-                    clicked = True
-                    break
+            # 方式1: 键盘 Enter (最可靠, React controlled inputs)
+            for pw in self.page.locator("input[type=password], input[name*=password]").all():
+                if pw.is_visible():
+                    try:
+                        pw.press("Enter")
+                        clicked = True
+                        break
+                    except Exception:
+                        continue
 
-            # 回退: 点 type=submit
+            # 方式2: 点击登录按钮
             if not clicked:
-                submit_btn = self.page.locator("button[type=submit], input[type=submit]").first
-                if submit_btn.is_visible(timeout=2000):
-                    submit_btn.click()
+                login_keywords = ["登录", "Login", "Sign in", "Submit"]
+                for btn in self.page.locator("button, input[type=submit]").all():
+                    if not btn.is_visible():
+                        continue
+                    btn_text = (btn.text_content() or btn.get_attribute("value") or "").strip()
+                    if any(kw.lower() in btn_text.lower() for kw in login_keywords):
+                        btn.click()
+                        clicked = True
+                        break
+
+            # 方式3: JS form.submit()
+            if not clicked:
+                try:
+                    self.page.evaluate("""() => {
+                        const form = document.querySelector('form');
+                        if (form) { form.requestSubmit(); return true; }
+                        return false;
+                    }""")
                     clicked = True
+                except Exception:
+                    pass
 
             self._wait_stable(4)
             body = self._get_page_text()
             current_url = self.page.url
 
-            # 成功判断 (通用: URL不再是登录页 + 有内容)
-            still_login = any(kw in current_url.lower() for kw in ["login", "auth", "signin"])
+            # 成功判断 — 登录表单消失 = 登录成功 (SPA兼容)
+            login_inputs_after = self.page.locator(
+                "input[type=password], input[name*=password], input[placeholder*=密码], input[placeholder*=password]"
+            )
+            still_has_form = login_inputs_after.count() > 0 and any(
+                login_inputs_after.nth(i).is_visible() for i in range(min(login_inputs_after.count(), 3))
+            )
             has_content = len(body) > 200
-            ok = has_content and not still_login
+            ok = has_content and not still_has_form
 
             self._log("登录成功" if ok else "登录可能失败", "ok" if ok else "warn")
             self._ss("login")
