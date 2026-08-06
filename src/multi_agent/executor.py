@@ -111,15 +111,13 @@ class ExecutorAgent:
                 step_name="NAVIGATION", step_index=0, total_steps=self._total_steps,
                 error=f"无法导航到 Lesson: {lesson.lesson_name}")]
 
-        # 3. 进入内容 — DOM 驱动: 找页面上最可能的"进入/开始"按钮
+        # 3. 进入内容 — AI从DOM实时发现
         ev._wait_stable(2)
         dom = ev._dump_dom_state()
-        entered = self._click_by_intent(dom, intent="enter_content",
-            hints=["进入", "开始", "Start", "Begin", "Enter", "Continue", "Go"],
-            fallback_texts=[lesson.lesson_name])  # 回退: 点 Lesson 名称
+        entered = self._click_by_intent(dom, intent="enter the learning content for this lesson")
         if not entered:
-            # 没有明确的进入按钮→可能已直接进入内容页, 继续
-            self._log("无进入按钮, 假设已进入内容页")
+            # 可能已直接进入内容页, 继续
+            self._log("no enter button found, assuming content page")
 
         # 4. DOM 驱动: 发现页面上的 Step 列表
         dom = ev._dump_dom_state()
@@ -130,17 +128,15 @@ class ExecutorAgent:
             sr = self._execute_step_dom(phase, lesson, step_target, i + 1, len(actual_steps))
             results.append(sr)
 
-            # 下一步 — DOM 驱动
+            # 下一步 — AI从DOM实时发现
             if i < len(actual_steps) - 1:
                 dom = ev._dump_dom_state()
-                self._click_by_intent(dom, intent="next_step",
-                    hints=["下一步", "Next", "→", "»", "继续", "Continue"])
+                self._click_by_intent(dom, intent="go to the next step or page")
 
-        # 6. Agent 对话 — DOM 驱动: 找帮助/聊天按钮
+        # 6. Agent 对话 — AI从DOM实时发现
         if results:
             dom = ev._dump_dom_state()
-            agent_triggered = self._click_by_intent(dom, intent="open_help",
-                hints=["帮助", "Help", "Agent", "AI", "助教", "卡住", "Stuck", "?"])
+            agent_triggered = self._click_by_intent(dom, intent="open the AI assistant or help chat")
             if agent_triggered:
                 results[-1].agent_triggered = True
                 # 尝试发消息
@@ -177,10 +173,9 @@ class ExecutorAgent:
         except Exception:
             pass
 
-        # 完成当前 Step — DOM 驱动: 找"完成/提交/标记"按钮
+        # 完成当前 Step — AI从DOM实时发现
         dom = ev._dump_dom_state()
-        self._click_by_intent(dom, intent="complete_step",
-            hints=["完成", "Done", "Complete", "Finish", "Submit", "提交", "标记", "Mark", "✓"])
+        self._click_by_intent(dom, intent="mark the current step as complete or done")
 
         # 截图
         ss_name = f"ma_{phase.phase_id}_{lesson.day_index}_step{idx}"
@@ -194,66 +189,94 @@ class ExecutorAgent:
             screenshot_path=screenshot_path, dom_snapshot=dom,
         )
 
-    # ── DOM 驱动: 语义按钮发现 ──
+    # ── DOM 驱动: AI 语义按钮发现 (零预设, 零 hints) ──
 
-    def _click_by_intent(
-        self, dom: dict, intent: str, hints: list[str], fallback_texts: list[str] = None
-    ) -> bool:
+    def _click_by_intent(self, dom: dict, intent: str) -> bool:
         """
-        根据语义意图点击页面上最可能的按钮 — 零硬编码。
+        实时抓取页面所有按钮 → AI 语义理解 → 点击目标按钮。
+
+        不预设任何 hint。所有判断来自当前页面的真实 DOM + LLM 语义理解。
 
         策略:
-          1. 从 DOM 获取所有可见按钮
-          2. 用 hints 关键词匹配 (多语言)
-          3. 最匹配的按钮 → 点击
-          4. 都不匹配 → 用 fallback_texts (如 Phase/Lesson 名称)
-          5. 全部失败 → Self-Healing L3 (AI) 自动介入
-
-        这是通用方法, 不包含任何平台特定的文本。
+          1. 从 DOM 获取所有可见按钮 (text + class + 周围文本)
+          2. 交给 LLM: "这些按钮中, 哪一个的语义是 '{intent}'?"
+          3. LLM 返回按钮 text → 点击
+          4. LLM 不可用时 → 逐个尝试所有按钮 (覆盖率优先)
         """
         buttons = dom.get("buttons", [])
         if not buttons:
             return False
 
-        # 1. 关键词匹配 (不区分大小写)
-        candidates = []
-        for b in buttons:
+        # 构建按钮清单
+        btn_list = []
+        for i, b in enumerate(buttons):
             if b.get("disabled"):
                 continue
-            text = (b.get("text", "") + " " + b.get("class", "")).lower()
-            score = sum(1 for h in hints if h.lower() in text)
-            if score > 0:
-                candidates.append((b["text"], score))
+            btn_list.append({
+                "index": i,
+                "text": b.get("text", "")[:80],
+                "class": b.get("class", "")[:40],
+            })
 
-        candidates.sort(key=lambda x: -x[1])
+        if not btn_list:
+            return False
 
-        # 2. 尝试点击最佳匹配
-        for text, score in candidates:
-            ok, _ = self._evaluator._find_and_click([text])
+        # 1. AI 语义匹配: 让 LLM 从按钮清单中选
+        chosen_text = self._ai_pick_button(btn_list, intent, dom.get("visibleText", "")[:800])
+        if chosen_text:
+            ok, _ = self._evaluator._find_and_click([chosen_text])
             if ok:
-                self._log(f"[{intent}] {text[:60]} (score={score})")
+                self._log(f"[{intent}] AI selected: {chosen_text[:60]}")
                 return True
 
-        # 3. 回退: 用 fallback_texts (如 Lesson 名称)
-        if fallback_texts:
-            for t in fallback_texts:
-                if t:
-                    ok, _ = self._evaluator._find_and_click([t])
-                    if ok:
-                        self._log(f"[{intent}] fallback: {t[:60]}")
-                        return True
+        # 2. LLM 不可用或选择失败 → Self-Healing L3 逐按钮尝试
+        for b in btn_list:
+            ok, _ = self._evaluator._find_and_click([b["text"]])
+            if ok:
+                self._log(f"[{intent}] brute-force: {b['text'][:60]}")
+                return True
 
-        # 4. Self-Healing L3 会自动介入 (_find_and_click 内部)
-        # 如果所有关键词都不匹配, 尝试点击第一个非禁用按钮
-        for b in buttons:
-            if not b.get("disabled") and b.get("text", "").strip():
-                ok, _ = self._evaluator._find_and_click([b["text"]])
-                if ok:
-                    self._log(f"[{intent}] last-resort: {b['text'][:60]}")
-                    return True
-
-        self._log(f"[{intent}] no button found (hints={hints[:4]})", "warn")
+        self._log(f"[{intent}] failed — {len(btn_list)} buttons tried", "warn")
         return False
+
+    def _ai_pick_button(self, buttons: list[dict], intent: str, page_text: str) -> str:
+        """
+        LLM 语义匹配: 从按钮清单中选出语义最接近 intent 的按钮。
+
+        输入: 完整按钮清单 + 页面文本上下文
+        输出: 目标按钮的 text (供 _find_and_click 使用)
+        失败: 返回 "" → 调用方回退到逐按钮尝试
+        """
+        try:
+            from src.llm_client import get_llm_client
+            client, model, _ = get_llm_client()
+            if not client:
+                return ""
+
+            import json as _json
+            btn_json = _json.dumps(buttons, ensure_ascii=False)
+            prompt = f"""你是Web自动化专家。当前页面上有以下按钮:
+
+{btn_json}
+
+页面文本片段:
+{page_text[:600]}
+
+请找出语义最接近 "{intent}" 的按钮, 输出其 text。
+- 如果找到 → {{"text": "按钮文字", "reason": "一句话解释"}}
+- 如果找不到 → {{"text": "", "reason": "解释"}}
+只输出JSON。"""
+
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150, temperature=0.1, timeout=15,
+            )
+            content = resp.choices[0].message.content.strip()
+            data = _json.loads(content)
+            return data.get("text", "")
+        except Exception:
+            return ""
 
     # ── 动态导航 (Schema-driven, 不用硬编码文本) ──
 
