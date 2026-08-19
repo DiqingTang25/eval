@@ -165,12 +165,13 @@ tbody tr:hover{background:var(--accent2)}
 [data-theme=dark] .theme-switch::after{transform:translateX(18px)}
 
 /* Explorer chat (对话式探索 — 主交互) */
-.chat-msgs{display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto;padding:4px 2px}
-.chat-msg{flex-shrink:0;max-width:82%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.chat-msgs{display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto;padding:6px 2px}
+.chat-msg{flex-shrink:0;max-width:82%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
 .chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
 .chat-msg.assistant{align-self:flex-start;background:var(--bg);border:1px solid var(--border);border-bottom-left-radius:4px}
 .chat-input-row{display:flex;gap:8px;margin-top:12px}
-.chat-input-row input{flex:1}
+.chat-input-row input{flex:1;font-family:inherit;font-size:14px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+.chat-input-row input:focus{outline:none;border-color:var(--accent)}
 /* 探索计划确认卡 */
 .plan-card{flex-shrink:0;padding:0;border:1px solid var(--border);overflow:hidden}
 .plan-box{padding:12px 14px}
@@ -186,16 +187,26 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
 /* 卡点干预弹窗 (评测卡点暴露 — 询问用户) */
 #interventionOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
 #interventionOverlay.show{display:flex}
+#interventionBox{width:min(520px,94vw);border-radius:14px;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25);background:var(--card,var(--bg))}
+#intvQuestion{font-size:15px;line-height:1.75;color:var(--text);white-space:pre-wrap;margin:6px 0 10px}
+#intvText{width:100%;font-family:inherit;font-size:14px;line-height:1.6;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box;transition:border-color .15s}
+#intvText:focus{outline:none;border-color:var(--accent)}
+#intvOptions .btn{padding:8px 16px;font-size:13px;border-radius:8px}
+#intvTimeoutHint{margin-top:8px}
 #firstVisitOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:20px}
 #firstVisitOverlay.show{display:flex}
-#firstVisitBox{max-width:520px;width:100%}
-.fv-field{width:100%;margin:6px 0}
+#firstVisitBox{max-width:520px;width:100%;border-radius:14px;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.fv-field{width:100%;margin:4px 0 12px;font-family:inherit;font-size:14px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);box-sizing:border-box}
+.fv-field:focus{outline:none;border-color:var(--accent)}
+#fvBody label{font-size:13px;color:var(--text2);display:block;margin-top:8px}
 #interventionBox{max-width:520px;width:100%}
 #intvOptions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 #intvOptions .btn.sel{outline:2px solid var(--accent);outline-offset:1px}
+#intvCard{display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:12.5px;line-height:1.6}
 .intv-row{margin:3px 0;line-height:1.5}
 .intv-row b{color:var(--accent)}
 .intv-evidence{margin-top:4px;color:var(--text3);font-size:11px;word-break:break-all}
+#intvTimeoutHint{font-size:11.5px;color:var(--text3)}
 </style>
 </head>
 <body>
@@ -342,15 +353,15 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
   <div id="interventionOverlay">
     <div class="card" id="interventionBox">
       <div class="card-header"><h3 data-i18n="intv_title">⚠️ Evaluation blocked — your input needed</h3></div>
-      <div id="intvQuestion" style="font-size:13px;white-space:pre-wrap;margin-bottom:4px"></div>
-      <div id="intvCard" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12px">
+      <div id="intvQuestion"></div>
+      <div id="intvCard">
       </div>
       <div id="intvOptions"></div>
-      <textarea id="intvText" rows="2" style="width:100%;margin-bottom:10px" placeholder="补充信息（例如 新账号/新密码）或直接点击选项"></textarea>
+      <textarea id="intvText" rows="3" placeholder="补充信息（例如 新账号/新密码）或直接点击选项"></textarea>
       <div class="controls">
         <button class="btn btn-primary" id="intvSubmitBtn" onclick="App.intvSubmit()" data-i18n="intv_submit">Submit</button>
       </div>
-      <div style="font-size:11px;color:var(--text3)" id="intvTimeoutHint"></div>
+      <div id="intvTimeoutHint"></div>
     </div>
   </div>
 

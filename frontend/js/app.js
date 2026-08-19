@@ -896,6 +896,7 @@ function _el(id){return document.getElementById(id)}
 function exploreInit(){
   var eu=_el('exploreUrl');if(eu&&!_exploreSessionId)eu.value=_targetUrl;
   exploreLoadHistory();
+  exploreSyncGlobalStatus();
   // 对话式探索: 进入页面即开启对话 (LLM 对话为主, 固定填写为辅)
   if(!_exploreChatStarted)setTimeout(exploreChatStart,100);
 }
@@ -963,6 +964,25 @@ function explorePollStatus(){
       exploreResetUI();
     }else{
       var bar=_el('exploreProgressBar');if(bar){var w=parseFloat(bar.style.width)||15;bar.style.width=Math.min(90,w+Math.random()*3)+'%'}
+    }
+  }).catch(function(){});
+}
+
+// 全局状态同步 — 探索由其他入口(后台/别的设备)启动时, 本页面也能看到进度
+function exploreSyncGlobalStatus(){
+  get('/api/explorer/status').then(function(r){
+    if(r&&r.running&&!_exploreSessionId){
+      _exploreSessionId=r.session_id||'';
+      localStorage.setItem('lastExploreSid',_exploreSessionId);
+      var prog=_el('exploreProgress');if(prog)prog.style.display='';
+      var st=_el('exploreStatus');if(st)st.textContent=t('explorer_chat_starting')||'Exploration started...';
+      var bar=_el('exploreProgressBar');if(bar)bar.style.width='15%';
+      _exploreStartTs=Date.now();
+      if(_exploreTimer)clearInterval(_exploreTimer);
+      _exploreTimer=setInterval(function(){var e=_el('exploreElapsed');if(e)e.textContent=_fmtDur((Date.now()-_exploreStartTs)/1000)},1000);
+      if(_explorePoll)clearInterval(_explorePoll);
+      _explorePoll=setInterval(explorePollStatus,2000);
+      toast('检测到后台探索正在进行, 已同步进度显示','info');
     }
   }).catch(function(){});
 }
@@ -1328,6 +1348,8 @@ document.addEventListener('DOMContentLoaded',function(){
   try{onProfileChange()}catch(e){console.error('onProfileChange',e)}
   try{connectWS()}catch(e){console.error('connectWS',e)}
   setInterval(function(){_profilePolling=false;loadProfile()},30000);
+  // 后台探索全局状态同步 (探索页停留时每 15s 检查一次)
+  setInterval(function(){if(_currentPage==='explorer'&&!_exploreSessionId)exploreSyncGlobalStatus()},15000);
   try{fvShow()}catch(e){console.error('fvShow',e)}
 });
 })();

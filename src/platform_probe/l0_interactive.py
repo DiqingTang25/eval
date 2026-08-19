@@ -129,10 +129,31 @@ class InteractiveLoginAgent:
         return snap
 
     def _verify_login(self, page) -> bool:
-        """登录成功判断: 无可见密码框 且 出现登录后特征"""
+        """登录成功判断: 无可见密码框 + 无可见登录/注册入口 + 出现登录后特征
+
+        反例检测修复误判: 登录模态框关闭(密码框消失)但页面仍显示「登录/注册」
+        按钮时, 视为未登录 — 此前因此把失败误判为 success, 探索整轮白跑。
+        """
         try:
             if page.locator("input[type='password']:visible").count() > 0:
                 return False
+        except Exception:
+            pass
+        # 反例: 仍可见登录/注册按钮 (排除 退出登录/logout)
+        try:
+            login_kw = ("登录", "注册", "sign in", "sign up", "login", "register", "立即登录")
+            for el in page.locator("button:visible, a:visible").all():
+                try:
+                    t = (el.text_content() or "").strip()
+                except Exception:
+                    continue
+                if not t or len(t) > 12:
+                    continue
+                tl = t.lower()
+                if "退出" in t or "logout" in tl or "sign out" in tl:
+                    continue
+                if any(k in t or k in tl for k in login_kw):
+                    return False
         except Exception:
             pass
         try:
@@ -247,6 +268,61 @@ class InteractiveLoginAgent:
         asked = set()
         history_ctx = seed_notes or ""
         llm_used = False
+        force_asked_n = 0  # 已向用户求助次数 (最多2次, 间隔>=3轮 — 凭证无效时可再问一次)
+        last_ask_rnd = 0
+
+        def _apply_user_credentials(page, answer: str) -> bool:
+            """从用户回复解析凭证, 直接填充登录表单并提交 (绕过LLM猜测)"""
+            import re as _re
+            u = p = ""
+            m = _re.search(r'(?:账号|用户名|user(?:name)?)\s*[:：]?\s*([^\s,，;:：]+)', answer, _re.I)
+            if m:
+                u = m.group(1)
+            m = _re.search(r'(?:密码|password|passwd)\s*[:：]?\s*([^\s,，;。]+)', answer, _re.I)
+            if m:
+                p = m.group(1)
+            if not u or not p:
+                m = _re.search(r'([A-Za-z0-9_.-]{2,20})\s*[/:]\s*(\S{3,30})', answer)
+                if m:
+                    u, p = m.group(1), m.group(2)
+            if not (u and p):
+                return False
+            ok1 = self._do_fill(page, 0, u)
+            ok2 = self._do_fill(page, 1, p)
+            # 提交按钮 (与LLM此前确认的按钮索引一致; 失败无害, 下一轮verify兜底)
+            try:
+                self._do_click(page, 1)
+            except Exception:
+                pass
+            history_ctx_local.append(f"\n[强制求助] 用户提供凭证 账号={u} 密码=***, 已直接填充并提交")
+            return ok1 or ok2
+
+        def forced_ask(page, rnd) -> bool:
+            """自动登录尝试失败 → 强制向用户求助 (设计原则: 卡点必须暴露)"""
+            nonlocal asked_user, force_asked_n, last_ask_rnd
+            force_asked_n += 1
+            last_ask_rnd = rnd
+            asked_user = True
+            if not self.ask:
+                return False
+            result = self.ask(
+                text=("自动登录没成功。请帮我确认登录方式：\n"
+                      "1) 提供正确凭证，格式「账号 xxx 密码 xxx」\n"
+                      "2) 或一句话说明登录方式（例如：需要手机验证码 / 扫码登录 / 学校SSO）"),
+                options=["跳过登录"],
+                context="登录表单已自动填充但未登录成功",
+                context_type="login_page",
+                timeout_s=self.question_timeout,
+                source="explorer",
+                meta={"purpose": "login_fallback"},
+            )
+            if result.get("timed_out") or result.get("skipped"):
+                return False
+            ans = result.get("answer", "") or ""
+            history_ctx_local.append(f"\n[强制求助] 用户回答: {ans[:200]}")
+            return _apply_user_credentials(page, ans)
+
+        history_ctx_local = [history_ctx]
 
         if self.verbose:
             print(f"  [L0-I] 交互式登录引导启动 (max_rounds={self.max_rounds})")
@@ -259,6 +335,14 @@ class InteractiveLoginAgent:
                     print(f"  [L0-I] ✅ 已验证登录成功 (round {rnd})")
                 return self._finish(True, "登录成功", rnd, asked_user, llm_used)
 
+            # 自动尝试三轮仍未成功 → 强制向用户求助 (最多2次, 间隔>=3轮)
+            if (rnd >= 3 and force_asked_n < 2 and self.ask
+                    and (last_ask_rnd == 0 or rnd - last_ask_rnd >= 3)):
+                if forced_ask(page, rnd):
+                    time.sleep(self.action_wait)
+                history_ctx = "\n".join(history_ctx_local)
+                continue
+
             snap = self._snapshot(page)
             decision = self._llm_decide(snap, history_ctx)
             if decision is None:
@@ -267,7 +351,10 @@ class InteractiveLoginAgent:
                 llm_used = True
 
             if decision is None:
-                # 无更多规则动作 → 结束
+                # 无更多规则动作 → 先向用户求助, 仍无解则结束
+                if force_asked_n < 2 and self.ask and (last_ask_rnd == 0 or rnd - last_ask_rnd >= 3):
+                    forced_ask(page, rnd)
+                history_ctx = "\n".join(history_ctx_local)
                 return self._finish(False, "无可用登录动作", rnd, asked_user, llm_used)
 
             action = decision.get("action", "")
@@ -323,6 +410,13 @@ class InteractiveLoginAgent:
             if action == "done":
                 success = bool(decision.get("success", False))
                 reason = decision.get("reason", "")
+                if not success and force_asked_n < 2 and self.ask \
+                        and (last_ask_rnd == 0 or rnd - last_ask_rnd >= 3):
+                    # 自动流程自认失败 → 强制向用户求助 (卡点暴露原则)
+                    if forced_ask(page, rnd):
+                        time.sleep(self.action_wait)
+                        history_ctx = "\n".join(history_ctx_local)
+                        continue
                 return self._finish(success, reason or ("成功" if success else "失败"),
                                     rnd, asked_user, llm_used)
 
