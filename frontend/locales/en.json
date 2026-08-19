@@ -591,5 +591,12 @@
   "explorer_desc": "Auto-discover teaching platform structure: phases, lessons, steps, APIs, and AI agent endpoints.",
   "explorer_config": "Exploration Config",
   "explorer_hint": "Leave credentials empty to auto-detect auth. Headless mode recommended for servers.",
-  "explorer_history": "Exploration History"
+  "explorer_history": "Exploration History",
+  "explorer_chat_title": "Conversational Explorer",
+  "explorer_chat_hint": "Describe the exploration in natural language — I will ask for what is missing.",
+  "explorer_chat_send": "Send",
+  "explorer_chat_starting": "Exploration started",
+  "intv_title": "⚠️ Evaluation blocked — your input needed",
+  "intv_submit": "Submit",
+  "intv_timeout": "s before default action"
 }

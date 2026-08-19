@@ -590,5 +590,12 @@
   "explorer_desc": "自动发现教学平台结构：阶段、课时、步骤、API端点和AI助手交互模式。",
   "explorer_config": "探索配置",
   "explorer_hint": "留空凭证以自动检测认证方式。服务器模式推荐使用无头浏览器。",
-  "explorer_history": "探索历史"
+  "explorer_history": "探索历史",
+  "explorer_chat_title": "对话式探索",
+  "explorer_chat_hint": "用自然语言描述探索任务，缺什么我会问你",
+  "explorer_chat_send": "发送",
+  "explorer_chat_starting": "探索已启动",
+  "intv_title": "⚠️ 评测遇到卡点 — 需要你的输入",
+  "intv_submit": "提交",
+  "intv_timeout": "秒后自动按默认处理"
 }

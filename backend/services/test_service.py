@@ -57,6 +57,10 @@ class TestService:
             os.getenv("EVAL_HEARTBEAT_STALE", str(self.DEFAULT_HEARTBEAT_STALE))
         )
 
+        # 卡点干预: 评测线程遇到卡点时阻塞询问用户
+        self._interventions: dict = {}          # session_id -> {event, question, options, timeout_s, default, answer, asked_at}
+        self._interventions_lock = threading.Lock()
+
     @property
     def is_running(self) -> bool:
         return self._running
@@ -264,6 +268,9 @@ class TestService:
                 headless=headless,
                 mode=mode,
                 target_url=target_url,
+                # 卡点干预: Schema 缺失等卡点阻塞询问用户
+                ask_user=lambda q, opts=None, t=300, d=None: self.ask_user(
+                    session_id, q, opts, t, d),
             )
             report = orch.run()
 
@@ -324,6 +331,9 @@ class TestService:
             # Agent C: Self-Healing 定位器自动恢复 (四层级联: L0原始→L1语义→L2结构→L3 AI)
             from src.self_healing import apply_self_healing
             apply_self_healing(evaluator)
+            # 卡点干预: 登录失败/Day出错时阻塞询问用户
+            evaluator._ask_cb = lambda q, opts=None, t=300, d=None: self.ask_user(
+                session_id, q, opts, t, d)
             # 注入 WebSocket 进度回调
             orig_log = evaluator._log
             def _ws_log(msg, level="info"):
@@ -379,6 +389,85 @@ class TestService:
                     }), self._main_loop)
         finally:
             self._running = False
+
+    # ═══════════════════════════════════════════════════════════
+    # 卡点干预 (自动化为主, 卡点暴露询问用户)
+    # ═══════════════════════════════════════════════════════════
+
+    def ask_user(
+        self, session_id: str, question: str, options: list | None = None,
+        timeout_s: int = 300, default: str | None = None,
+    ) -> str:
+        """阻塞询问用户 — 评测线程在卡点处调用。
+
+        1. 记录待回答状态并广播 WS 事件 eval:need_input
+        2. 阻塞等待用户 POST /api/tests/intervention/respond
+        3. 超时 → 返回 default (自动化优先, 不无限等待)
+        """
+        entry = {
+            "event": threading.Event(),
+            "question": question,
+            "options": list(options or []),
+            "timeout_s": timeout_s,
+            "default": default,
+            "answer": None,
+            "asked_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with self._interventions_lock:
+            self._interventions[session_id] = entry
+
+        # 广播: 前端弹窗询问
+        if self._main_loop:
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    ws_manager.broadcast({
+                        "type": "eval:need_input",
+                        "data": {
+                            "session_id": session_id,
+                            "question": question,
+                            "options": entry["options"],
+                            "timeout_s": timeout_s,
+                            "default": default,
+                        },
+                        "running": self._running,
+                    }),
+                    self._main_loop,
+                )
+            except Exception:
+                pass  # WS 不可用不影响询问流程 (HTTP 轮询兜底)
+
+        answered = entry["event"].wait(timeout_s)
+        with self._interventions_lock:
+            stored = self._interventions.pop(session_id, None)
+
+        answer = (stored or entry).get("answer")
+        if answered and answer not in (None, ""):
+            return str(answer)
+        return default if default is not None else "skip"
+
+    def respond_intervention(self, session_id: str, answer: str) -> bool:
+        """用户应答 (由 API 端点调用, 非阻塞)"""
+        with self._interventions_lock:
+            entry = self._interventions.get(session_id)
+        if not entry:
+            return False  # 已超时或不存在
+        entry["answer"] = answer
+        entry["event"].set()
+        return True
+
+    def pending_intervention(self) -> dict | None:
+        """当前待回答的干预问题 (前端轮询兜底)"""
+        with self._interventions_lock:
+            for sid, entry in self._interventions.items():
+                return {
+                    "session_id": sid,
+                    "question": entry["question"],
+                    "options": entry["options"],
+                    "timeout_s": entry["timeout_s"],
+                    "default": entry["default"],
+                    "asked_at": entry["asked_at"],
+                }
+        return None
 
     async def cancel_run(self) -> dict:
         """P0-15: 取消当前评测"""

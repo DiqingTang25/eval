@@ -45,6 +45,12 @@ class TestRunRequest(BaseModel):
     platform_schema_path: str = ""     # v4.0
 
 
+class InterventionRespondRequest(BaseModel):
+    """卡点干预应答 — 评测线程 ask_user() 阻塞等待此应答"""
+    session_id: str
+    answer: str
+
+
 @router.post("/run-multi-agent")
 async def trigger_multi_agent(body: MultiAgentRequest = None):
     """启动 Multi-Agent 测试编排 (Agent C)
@@ -96,6 +102,30 @@ async def trigger_browser_eval(body: BrowserEvalRequest = None):
         include_quiz=body.include_quiz,
         target_url=body.target_url,
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# 卡点干预 (自动化为主, 卡点暴露询问用户)
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/intervention/respond")
+async def intervention_respond(body: InterventionRespondRequest):
+    """回答评测线程提出的卡点问题 (登录失败/元素缺失/Schema缺失等)"""
+    ok = test_service.respond_intervention(body.session_id, body.answer)
+    return {
+        "status": "ok" if ok else "timeout",
+        "session_id": body.session_id,
+        "message": "应答已接收" if ok else "该卡点问题已超时或不存在",
+    }
+
+
+@router.get("/intervention/pending")
+async def intervention_pending():
+    """当前待回答的卡点问题 (前端轮询兜底, WS 不可用时)"""
+    pending = test_service.pending_intervention()
+    if not pending:
+        return {"pending": False}
+    return {"pending": True, **pending}
 
 
 @router.get("/status")

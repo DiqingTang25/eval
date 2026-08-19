@@ -17,7 +17,7 @@
   - 错误不崩溃, 记录后继续
 """
 
-import json, time, sys, os
+import json, time, sys, os, re
 from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
@@ -118,9 +118,57 @@ class BrowserEvaluator:
             }
         self._ss_count = 0
         self.page = None
+        self._ask_cb = None  # 卡点干预回调: (question, options, timeout_s, default) -> answer; 未注入时 ask_user 直接返回 default
 
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ═══════════════════════════════════════════════════════════
+    # 卡点干预 (自动化为主, 卡点暴露询问用户)
+    # ═══════════════════════════════════════════════════════════
+
+    def ask_user(self, question: str, options: list = None,
+                 timeout_s: int = 300, default: str = "skip") -> str:
+        """遇到卡点时暴露给用户并等待回答。
+
+        注入 _ask_cb (由 TestService 提供) 时阻塞等待用户输入;
+        未注入 (独立运行) 时直接返回 default, 保持原有自动流程。
+        """
+        if getattr(self, "_ask_cb", None):
+            try:
+                return self._ask_cb(question, options or [], timeout_s, default)
+            except Exception as e:
+                self._log(f"ask_user 回调失败: {e}", "warn")
+        return default if default is not None else "skip"
+
+    @staticmethod
+    def _parse_credentials(text: str) -> Optional[dict]:
+        """从用户回复解析凭证: 支持 账号/密码、user:pass、user pass、「账号xx密码yy」"""
+        if not text:
+            return None
+        t = (text or "").strip()
+        # 去掉选项前缀 ("提供新凭证: xxx" → "xxx") — 仅当前缀含中文 (选项标签) 时剥离,
+        # 避免误伤 "u1:pw123456" 这类紧凑凭证
+        t = re.sub(r"^[^:：]{0,12}?[一-鿿][^:：]{0,12}[:：]\s*", "", t)
+        # 账号/密码 显式格式
+        m = re.search(
+            r"(?:账号|用户名|user(?:name)?)\s*[:：]?\s*([^\s,，;:：]+).{0,12}"
+            r"(?:密码|password|passwd)\s*[:：]?\s*([^\s,，;。]+)",
+            t, re.I)
+        if m:
+            return {"username": m.group(1), "password": m.group(2)}
+        # 紧凑格式 user/pass 或 user:pass (单分隔符)
+        for sep in ("/", ":"):
+            if t.count(sep) == 1:
+                u, p = t.split(sep, 1)
+                u, p = u.strip(), p.strip()
+                if u and len(p) >= 3:
+                    return {"username": u, "password": p}
+        # 两个空白分隔串 user pass
+        parts = t.split()
+        if len(parts) == 2 and len(parts[1]) >= 3 and not re.search(r"[一-鿿]", t):
+            return {"username": parts[0], "password": parts[1]}
+        return None
 
     # ═══════════════════════════════════════════════════════════
     # 工具方法
@@ -980,8 +1028,29 @@ class BrowserEvaluator:
             self.page.on("response", on_response)
 
             try:
-                # ── 登录 ──
-                if not self.login():
+                # ── 登录 (卡点暴露: 失败时询问用户) ──
+                login_ok = self.login()
+                attempt = 0
+                while not login_ok and attempt < 3:
+                    attempt += 1
+                    ans = (self.ask_user(
+                        "登录失败 — 平台无法通过当前凭证进入。\n"
+                        "请提供新凭证 (格式: 账号/密码)，或选择一个处理方式。",
+                        ["重试登录", "提供新凭证", "终止测评"],
+                        timeout_s=300, default="终止测评",
+                    ) or "").strip()
+                    if ans == "重试登录":
+                        login_ok = self.login()
+                    elif ans in ("", "终止测评", "skip"):
+                        break
+                    else:
+                        creds = self._parse_credentials(ans)
+                        if creds:
+                            self._log(f"使用用户提供的新凭证重试登录", "step")
+                            login_ok = self.login(credentials=creds)
+                        else:
+                            self._log("未能从回复中解析出凭证", "warn")
+                if not login_ok:
                     self.results["errors"].append("登录失败, 终止测评")
                     self._save_report()
                     return self.results
@@ -1021,6 +1090,19 @@ class BrowserEvaluator:
 
                         if day_result.error:
                             self._log(f"Day {day_num} 出错: {day_result.error}", "error")
+                            # 卡点暴露: 询问用户如何处理 (超时默认跳过继续 — 自动化优先)
+                            ans = (self.ask_user(
+                                f"Phase {phase_num} Day {day_num} 测评卡住: {day_result.error}\n"
+                                f"如何处理？",
+                                ["跳过此Day继续", "终止测评"],
+                                timeout_s=120, default="跳过此Day继续",
+                            ) or "跳过此Day继续").strip()
+                            if ans == "终止测评":
+                                self.results["errors"].append(
+                                    f"Phase{phase_num} Day{day_num}: {day_result.error} (用户终止)"
+                                )
+                                self._save_report()
+                                return self.results
                             self.results["errors"].append(
                                 f"Phase{phase_num} Day{day_num}: {day_result.error}"
                             )

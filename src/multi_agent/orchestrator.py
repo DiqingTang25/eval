@@ -51,6 +51,7 @@ class MultiAgentOrchestrator:
         headless: bool = True,
         mode: str = "guided",
         target_url: str = "",
+        ask_user: Callable = None,
     ):
         self.ws_callback = ws_callback
         self.strategy = strategy
@@ -58,6 +59,7 @@ class MultiAgentOrchestrator:
         self.headless = headless
         self.mode = mode
         self.target_url = target_url
+        self.ask_user = ask_user  # 卡点干预回调: (question, options, timeout_s, default) -> answer
         self.session_id = f"multi_agent_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
     # ── 公开 API ──
@@ -78,17 +80,36 @@ class MultiAgentOrchestrator:
         )
 
         if not plan.plan_available:
-            self._emit("multi_agent:done", {
-                "error": plan.error,
-                "report_path": "",
-                "pass_rate": 0,
-                "total_steps": 0,
-                "failures": 0,
+            # 卡点暴露: Schema 缺失时询问用户 (无回调/超时 → 保持原自动终止)
+            action = "terminate"
+            if self.ask_user:
+                try:
+                    ans = (self.ask_user(
+                        f"未找到平台 Schema，无法生成测试计划 ({plan.error})。\n"
+                        f"建议先在 Explorer 页运行探索器。如何处理？",
+                        ["终止", "先运行探索器", "继续 (仅文本验证)"],
+                        timeout_s=300, default="终止",
+                    ) or "终止").strip()
+                    action = ans
+                except Exception as e:
+                    logger.warning(f"ask_user failed: {e}")
+            if action != "继续 (仅文本验证)":
+                self._emit("multi_agent:done", {
+                    "error": plan.error,
+                    "report_path": "",
+                    "pass_rate": 0,
+                    "total_steps": 0,
+                    "failures": 0,
+                })
+                return DiagnosticReport(
+                    session_id=self.session_id,
+                    strategy=self.strategy,
+                )
+            self._emit("multi_agent:diagnosis", {
+                "finding": "Schema 缺失, 用户选择继续 (仅文本验证)",
+                "severity": "medium",
+                "step": "planner",
             })
-            return DiagnosticReport(
-                session_id=self.session_id,
-                strategy=self.strategy,
-            )
 
         # DIAG: 记录 plan 详情到 /tmp
         try:

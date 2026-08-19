@@ -158,6 +158,23 @@ tbody tr:hover{background:var(--accent2)}
 .theme-switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;background:var(--surface);border-radius:50%;transition:all var(--transition);box-shadow:0 1px 3px rgba(0,0,0,.2)}
 [data-theme=dark] .theme-switch{background:var(--accent)}
 [data-theme=dark] .theme-switch::after{transform:translateX(18px)}
+
+/* Explorer chat (对话式探索 — 主交互) */
+.chat-msgs{display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto;padding:4px 2px}
+.chat-msg{max-width:82%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.chat-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.assistant{align-self:flex-start;background:var(--bg);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chat-input-row{display:flex;gap:8px;margin-top:12px}
+.chat-input-row input{flex:1}
+details.card>summary{cursor:pointer;font-weight:600;font-size:13px;padding:12px 16px;color:var(--text)}
+details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:12px}
+
+/* 卡点干预弹窗 (评测卡点暴露 — 询问用户) */
+#interventionOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+#interventionOverlay.show{display:flex}
+#interventionBox{max-width:520px;width:100%}
+#intvOptions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+#intvOptions .btn.sel{outline:2px solid var(--accent);outline-offset:1px}
 </style>
 </head>
 <body>
@@ -268,6 +285,20 @@ tbody tr:hover{background:var(--accent2)}
     <div class="card" style="margin-top:16px"><div class="card-header"><h3 data-i18n="test_history">Session History</h3></div><div id="trSessions"></div></div>
   </div>
 
+  <!-- 卡点干预弹窗 (自动化为主, 卡点暴露询问用户) -->
+  <div id="interventionOverlay">
+    <div class="card" id="interventionBox">
+      <div class="card-header"><h3 data-i18n="intv_title">⚠️ Evaluation blocked — your input needed</h3></div>
+      <div id="intvQuestion" style="font-size:13px;white-space:pre-wrap;margin-bottom:4px"></div>
+      <div id="intvOptions"></div>
+      <textarea id="intvText" rows="2" style="width:100%;margin-bottom:10px" placeholder="补充信息（例如 新账号/新密码）或直接点击选项"></textarea>
+      <div class="controls">
+        <button class="btn btn-primary" id="intvSubmitBtn" onclick="App.intvSubmit()" data-i18n="intv_submit">Submit</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3)" id="intvTimeoutHint"></div>
+    </div>
+  </div>
+
   <!-- Reports -->
   <div id="page-reports" class="page">
     <h2 data-i18n="reports_title">Evaluation Reports</h2>
@@ -300,8 +331,21 @@ tbody tr:hover{background:var(--accent2)}
       Auto-discover teaching platform structure: phases, lessons, steps, APIs, and AI agent endpoints.
     </p>
 
+    <!-- 对话式探索 (主交互: LLM 对话为主) -->
     <div class="card">
-      <div class="card-header"><h3 data-i18n="explorer_config">Exploration Config</h3></div>
+      <div class="card-header"><h3 data-i18n="explorer_chat_title">Conversational Explorer</h3>
+        <span style="font-size:11px;color:var(--text3);font-weight:normal;margin-left:8px" data-i18n="explorer_chat_hint">Describe the exploration in natural language — I'll ask for what's missing.</span>
+      </div>
+      <div id="exploreChatMsgs" class="chat-msgs"></div>
+      <div class="chat-input-row">
+        <input id="exploreChatInput" placeholder="例如: 探索 http://124.174.108.70，账号 111 密码 123456">
+        <button class="btn btn-primary" id="exploreChatSendBtn" onclick="App.exploreChatSend()" data-i18n="explorer_chat_send">发送</button>
+      </div>
+    </div>
+
+    <!-- 固定表单 (辅助: 默认折叠, 预填后对话可直接确认) -->
+    <details class="card" id="exploreManualCfg" style="margin-top:12px">
+      <summary data-i18n="explorer_config">探索配置（可选 — 固定填写为辅）</summary>
       <div class="controls" style="flex-wrap:wrap;gap:10px">
         <input id="exploreUrl" placeholder="https://teaching-platform.com" style="min-width:280px" value="">
         <input id="exploreUser" placeholder="Username" style="width:130px">
@@ -331,7 +375,7 @@ tbody tr:hover{background:var(--accent2)}
       <div style="font-size:11px;color:var(--text3);margin-top:8px">
         <span data-i18n="explorer_hint">Leave credentials empty to auto-detect auth. Headless mode recommended for servers.</span>
       </div>
-    </div>
+    </details>
 
     <!-- Progress -->
     <div id="exploreProgress" style="display:none;margin:12px 0">

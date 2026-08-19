@@ -68,7 +68,14 @@ var _dict={
   explorer_view_schema:{zh:'📄 查看Schema',en:'📄 View Schema'},
   explorer_download_schema:{zh:'💾 下载Schema',en:'💾 Download Schema'},
   explorer_schema_active:{zh:'🧬 Schema-Driven 模式已激活',en:'🧬 Schema-Driven Mode Active'},
-  schema_indicator:{zh:'🧬 Schema模式',en:'🧬 Schema Mode'}
+  schema_indicator:{zh:'🧬 Schema模式',en:'🧬 Schema Mode'},
+  explorer_chat_title:{zh:'对话式探索',en:'Conversational Explorer'},
+  explorer_chat_hint:{zh:'用自然语言描述探索任务，缺什么我会问你',en:'Describe the exploration in natural language — I will ask for what is missing.'},
+  explorer_chat_send:{zh:'发送',en:'Send'},
+  explorer_chat_starting:{zh:'探索已启动',en:'Exploration started'},
+  intv_title:{zh:'⚠️ 评测遇到卡点 — 需要你的输入',en:'⚠️ Evaluation blocked — your input needed'},
+  intv_submit:{zh:'提交',en:'Submit'},
+  intv_timeout:{zh:'秒后自动按默认处理',en:'s before default action'}
 };
 function t(k){var e=_dict[k];return e?e[_lang]||e.zh||k:k}
 function setLang(l){_lang=l;_dict=window._i18nExt||_dict}
@@ -409,7 +416,12 @@ function connectWS(){
   try{var proto=location.protocol==='https:'?'wss':'ws';_ws=new WebSocket(proto+'://'+location.host+API+'/ws');
     _ws.onopen=function(){_wsRc=0;var el=document.getElementById('wsStatusDot');if(el){el.classList.remove('offline');el.classList.add('online')};var lb=document.getElementById('wsStatusLabel');if(lb)lb.textContent=t('sys_ws_connected')};
     _ws.onclose=function(){var el=document.getElementById('wsStatusDot');if(el){el.classList.remove('online');el.classList.add('offline')};var lb=document.getElementById('wsStatusLabel');if(lb)lb.textContent=t('sys_ws_disconnected');setTimeout(connectWS,Math.min(30000,1000*Math.pow(2,_wsRc++)))};
-    _ws.onmessage=function(e){try{var m=JSON.parse(e.data);if(m.type!=='eval_event')return;var ev=m.event,data=m.data||{};if(ev==='browser_log'){var b=document.getElementById('liveEvalBody');if(b){b.innerHTML+='<div class="log-line">'+escHtml(data.msg||'')+'</div>';b.scrollTop=b.scrollHeight;var pBar=document.getElementById('progressFill');if(pBar){var w=parseFloat(pBar.style.width)||30;pBar.style.width=Math.min(95,w+Math.random()*5)+'%'}}if(ev==='browser_done'){var b2=document.getElementById('liveEvalBody');if(b2)b2.innerHTML+='<div class="log-line" style="color:var(--green)">Evaluation complete</div>';var pb2=document.getElementById('progressFill');if(pb2){pb2.style.width='100%';setTimeout(function(){pb2.style.width='0%';pb2.classList.remove('active')},2000)}setTimeout(loadDashboard,2000)}}}catch(ex){}}
+    _ws.onmessage=function(e){try{var m=JSON.parse(e.data);
+      // 卡点干预: 评测线程 ask_user → 弹窗询问
+      if(m.type==='eval:need_input'){showIntervention(m.data);return}
+      if(m.type!=='eval_event')return;
+      var ev=m.event,data=m.data||{};if(ev==='browser_log'){var b=document.getElementById('liveEvalBody');if(b){b.innerHTML+='<div class="log-line">'+escHtml(data.msg||'')+'</div>';b.scrollTop=b.scrollHeight;var pBar=document.getElementById('progressFill');if(pBar){var w=parseFloat(pBar.style.width)||30;pBar.style.width=Math.min(95,w+Math.random()*5)+'%'}}if(ev==='browser_done'){var b2=document.getElementById('liveEvalBody');if(b2)b2.innerHTML+='<div class="log-line" style="color:var(--green)">Evaluation complete</div>';var pb2=document.getElementById('progressFill');if(pb2){pb2.style.width='100%';setTimeout(function(){pb2.style.width='0%';pb2.classList.remove('active')},2000)}setTimeout(loadDashboard,2000)}}
+    }catch(ex){}}
   }catch(ex){}
 }
 
@@ -422,6 +434,8 @@ function _el(id){return document.getElementById(id)}
 function exploreInit(){
   var eu=_el('exploreUrl');if(eu&&!_exploreSessionId)eu.value=_targetUrl;
   exploreLoadHistory();
+  // 对话式探索: 进入页面即开启对话 (LLM 对话为主)
+  if(!_exploreChatStarted)setTimeout(exploreChatStart,100);
 }
 
 function exploreStart(){
@@ -567,8 +581,114 @@ function exploreResetUI(){
   var bar=_el('exploreProgressBar');if(bar)bar.style.width='0%';
 }
 
+// ═══════════════════ Explorer Chat (对话式探索 — 主交互) ═══════════════════
+var _exploreChatId='',_exploreChatStarted=false;
+
+function exploreChatBubble(role,text){
+  var msgs=_el('exploreChatMsgs');if(!msgs)return;
+  var d=document.createElement('div');
+  d.className='chat-msg '+(role==='user'?'user':'assistant');
+  d.textContent=text;
+  msgs.appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function exploreChatStart(){
+  if(_exploreChatStarted)return;_exploreChatStarted=true;
+  var body={
+    target_url:(_el('exploreUrl')?_el('exploreUrl').value.trim():'')||_targetUrl||'',
+    username:_el('exploreUser')?_el('exploreUser').value:'',
+    password:_el('explorePass')?_el('explorePass').value:'',
+    headless:_el('exploreHeadless')?_el('exploreHeadless').checked:true,
+    max_depth:parseInt((_el('exploreDepth')||{}).value)||3,
+    max_pages:parseInt((_el('explorePages')||{}).value)||50
+  };
+  post('/api/explorer/chat/start',body).then(function(r){
+    if(r&&r.chat_id){_exploreChatId=r.chat_id;exploreChatBubble('assistant',r.reply||'你好！')}
+  }).catch(function(e){_exploreChatStarted=false;toast('Chat start failed: '+e.message,'error')});
+}
+
+function exploreChatSend(){
+  var inp=_el('exploreChatInput');if(!inp)return;
+  var text=(inp.value||'').trim();if(!text)return;
+  if(!_exploreChatId){_exploreChatStarted=false;exploreChatStart();setTimeout(function(){exploreChatSend()},600);return}
+  inp.value='';
+  exploreChatBubble('user',text);
+  var btn=_el('exploreChatSendBtn');if(btn)btn.disabled=true;
+  post('/api/explorer/chat/message',{chat_id:_exploreChatId,message:text}).then(function(r){
+    if(btn)btn.disabled=false;
+    exploreChatBubble('assistant',r.reply||'(no reply)');
+    if(r.action==='started'&&r.explore_session_id){
+      _exploreSessionId=r.explore_session_id;
+      var prog=_el('exploreProgress');if(prog)prog.style.display='';
+      var res=_el('exploreResults');if(res)res.style.display='none';
+      var st=_el('exploreStatus');if(st)st.textContent=t('explorer_chat_starting')||'Exploration started...';
+      var bar=_el('exploreProgressBar');if(bar)bar.style.width='15%';
+      _exploreStartTs=Date.now();
+      if(_exploreTimer)clearInterval(_exploreTimer);
+      _exploreTimer=setInterval(function(){var e=_el('exploreElapsed');if(e)e.textContent=_fmtDur((Date.now()-_exploreStartTs)/1000)},1000);
+      if(_explorePoll)clearInterval(_explorePoll);
+      _explorePoll=setInterval(explorePollStatus,2000);
+      toast(t('explorer_chat_starting')||'Exploration started','success');
+    }
+  }).catch(function(e){
+    if(btn)btn.disabled=false;
+    exploreChatBubble('assistant','Network error: '+e.message);
+  });
+}
+
+// ═══════════════════ 卡点干预 (评测卡点暴露 — 询问用户) ═══════════════════
+var _intvSessionId='',_intvTimeoutTs=0,_intvTimeoutS=0,_intvTimer=null;
+
+function showIntervention(data){
+  if(!data||!data.question)return;
+  var ov=_el('interventionOverlay');if(!ov)return;
+  _intvSessionId=data.session_id||'';
+  _intvTimeoutS=data.timeout_s||0;
+  _intvTimeoutTs=Date.now()+_intvTimeoutS*1000;
+  _el('intvQuestion').textContent=data.question;
+  var opts=_el('intvOptions');opts.innerHTML='';
+  (data.options||[]).forEach(function(o){
+    var b=document.createElement('button');
+    b.className='btn btn-outline btn-sm intv-opt';
+    b.textContent=o;
+    b.onclick=function(){intvSubmit(o)};
+    opts.appendChild(b);
+  });
+  var tx=_el('intvText');if(tx)tx.value='';
+  ov.classList.add('show');
+  if(_intvTimer){clearInterval(_intvTimer);_intvTimer=null}
+  if(_intvTimeoutS>0){
+    _intvTimer=setInterval(function(){
+      var left=Math.max(0,Math.round((_intvTimeoutTs-Date.now())/1000));
+      var h=_el('intvTimeoutHint');if(h)h.textContent=left+' '+(t('intv_timeout')||'seconds before default action');
+    },1000);
+  }
+}
+
+function intvSubmit(option){
+  var opt=option||'';
+  var text=_el('intvText')?_el('intvText').value.trim():'';
+  var answer=text?(opt?opt+': '+text:text):opt;
+  if(!answer){toast('请选择一个选项或输入信息','error');return}
+  var ov=_el('interventionOverlay');if(ov)ov.classList.remove('show');
+  if(_intvTimer){clearInterval(_intvTimer);_intvTimer=null}
+  var sid=_intvSessionId;_intvSessionId='';
+  post('/api/tests/intervention/respond',{session_id:sid,answer:answer}).then(function(r){
+    if(r&&r.status==='ok')toast('已提交 — 评测继续');else toast('卡点已超时, 评测按默认动作继续','error');
+  }).catch(function(){toast('提交失败','error')});
+}
+
+// 轮询兜底: WS 断开时仍能发现卡点 (10s)
+setInterval(function(){
+  var ov=_el('interventionOverlay');if(ov&&ov.classList.contains('show'))return;
+  get('/api/tests/intervention/pending').then(function(r){
+    if(r&&r.pending)showIntervention({session_id:r.session_id,question:r.question,options:r.options,timeout_s:r.timeout_s});
+  }).catch(function(){});
+},10000);
+
 // ═══════════════════ Export ═══════════════════
-window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,trLoad:trLoad,trStart:trStart,trStop:trStop,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult};
+window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,trLoad:trLoad,trStart:trStart,trStop:trStop,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult,exploreChatStart:exploreChatStart,exploreChatSend:exploreChatSend,intvSubmit:intvSubmit,showIntervention:showIntervention};
 
 document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('langToggle').textContent=_lang=='zh'?'EN':'CN';
