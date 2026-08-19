@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -98,7 +99,19 @@ _LLM_PROMPT = (
 
 
 def interpret(kind: str, error: str = "", context: dict | None = None) -> dict:
-    """把卡点错误转译为自然语言求助卡。永不抛异常 — 最坏返回通用模板。"""
+    """把卡点错误转译为自然语言求助卡。永不抛异常 — 最坏返回通用模板。
+
+    同款错误走缓存 (cache_service, TTL 1h) — 重复卡点零额外 LLM 成本。
+    """
+    cache_key = f"{kind}|{hashlib.sha1(str(error)[:200].encode('utf-8')).hexdigest()[:16]}"
+    try:
+        from backend.services.cache_service import MemoryCache
+        cached = _get_cache().get(cache_key)
+        if cached and isinstance(cached, dict) and cached.get("question"):
+            return dict(cached)
+    except Exception:
+        pass
+
     tpl = _TEMPLATES.get(kind, _TEMPLATES["eval_exception"])
     card = dict(tpl)
     card["kind"] = kind
@@ -112,7 +125,24 @@ def interpret(kind: str, error: str = "", context: dict | None = None) -> dict:
             if llm.get(key):
                 card[key] = llm[key]
         card["timeout_s"] = RISK_TIMEOUTS.get(card.get("risk"), 300)
+    # 缓存结果 (TTL 1h, 重复同类错误不重复调 LLM)
+    try:
+        _get_cache().set(cache_key, dict(card))
+    except Exception:
+        pass
     return card
+
+
+_cache_instance = None
+
+
+def _get_cache():
+    """懒加载内存缓存单例 (cache_service 未接线时静默降级为不缓存)"""
+    global _cache_instance
+    if _cache_instance is None:
+        from backend.services.cache_service import MemoryCache
+        _cache_instance = MemoryCache(max_size=128, ttl_seconds=3600)
+    return _cache_instance
 
 
 def _clean_evidence(error: str, context: dict | None) -> str:

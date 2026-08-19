@@ -495,3 +495,26 @@ async def generate_calibration_set(
         "n_selected": len(selected),
         "previously_scored": len(cal_data["items"]),
     }
+
+
+# ═══════════════════════════════════════════════════════════
+# L1 规则阈值校准 (src/rule_calibrator 接入 — 历史报告统计)
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/rule-thresholds")
+async def rule_thresholds():
+    """基于历史评测报告校准 L1 规则阈值
+
+    src/rule_calibrator.RuleCalibrator (保守策略): 从 reports/ 目录
+    读取历史报告统计各规则分数分布 → 推荐阈值 + 校准建议。
+    """
+    try:
+        from dataclasses import asdict
+        from src.rule_calibrator import RuleCalibrator
+        rc = RuleCalibrator(conservative=True)
+        reports_dir = Path(__file__).resolve().parents[2] / "reports"
+        n = rc.load_from_reports(str(reports_dir))
+        report = rc.calibrate()
+        return {"available": n > 0, "loaded": n, **asdict(report)}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:200]}
