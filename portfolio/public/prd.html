@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Agent 全自动化测评系统 — 产品需求文档 (PRD) v4.0</title>
+<style>
+:root{
+  --accent:#4f46e5; --accent-soft:#eef2ff; --border:#e5e7eb;
+  --text:#111827; --muted:#6b7280; --bg:#ffffff; --code-bg:#f9fafb;
+  --p0:#dc2626; --p1:#d97706; --p2:#059669;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg);line-height:1.7;font-size:15px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:"SF Mono",Consolas,"Courier New",monospace;background:var(--code-bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:13px}
+pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;margin:14px 0}
+pre code{background:transparent;border:none;color:inherit;padding:0;font-size:13px}
+h1,h2,h3,h4{font-weight:700;line-height:1.35}
+h2{font-size:1.55em;margin:2.2em 0 .8em;padding-bottom:.35em;border-bottom:2px solid var(--border);scroll-margin-top:70px}
+h3{font-size:1.2em;margin:1.6em 0 .6em;scroll-margin-top:70px}
+h4{font-size:1.02em;margin:1.2em 0 .4em}
+p{margin:.7em 0}
+ul,ol{margin:.6em 0 .6em 1.6em}
+li{margin:.25em 0}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:13.5px}
+th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f3f4f6;font-weight:600;white-space:nowrap}
+tr:nth-child(even) td{background:#fafafa}
+blockquote{border-left:4px solid var(--accent);background:var(--accent-soft);padding:10px 16px;margin:1em 0;border-radius:0 8px 8px 0;color:#374151}
+/* 布局 */
+.layout{display:flex;max-width:1280px;margin:0 auto}
+.toc{width:270px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;padding:24px 18px 60px;border-right:1px solid var(--border);background:#fafafa}
+.toc h4{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+.toc ol{list-style:none;margin:0}
+.toc li{margin:2px 0}
+.toc a{display:block;color:#4b5563;font-size:13px;padding:4px 8px;border-radius:6px}
+.toc a:hover{background:var(--accent-soft);text-decoration:none}
+.toc a.active{background:var(--accent);color:#fff}
+.toc .lvl2{padding-left:20px}
+.content{flex:1;min-width:0;padding:32px 44px 120px}
+.topbar{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:10px 0;z-index:50}
+/* 封面 */
+.cover{border:1px solid var(--border);border-radius:16px;padding:40px 44px;margin-bottom:40px;background:linear-gradient(135deg,#eef2ff 0%,#faf5ff 50%,#fdf2f8 100%)}
+.cover .kicker{display:inline-block;background:var(--accent);color:#fff;font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;letter-spacing:.05em}
+.cover h1{font-size:2.1em;margin:16px 0 10px}
+.cover .sub{color:var(--muted);font-size:15px;max-width:760px}
+.meta{display:flex;flex-wrap:wrap;gap:24px;margin-top:22px;font-size:13px}
+.meta div{display:flex;flex-direction:column}
+.meta .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.meta .v{font-weight:600}
+/* 徽章 */
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.b-done{background:#d1fae5;color:#065f46}
+.b-p0{background:#fee2e2;color:var(--p0)}
+.b-p1{background:#fef3c7;color:var(--p1)}
+.b-p2{background:#e0f2fe;color:#0369a1}
+.b-ver{background:var(--accent-soft);color:var(--accent)}
+/* 提示框 */
+.note{border:1px solid #c7d2fe;background:#eef2ff;border-radius:10px;padding:12px 16px;margin:1em 0;font-size:14px}
+.warn{border:1px solid #fde68a;background:#fffbeb;border-radius:10px;padding:12px 16px;margin:1em 0;font-size:14px}
+/* 数据卡片 */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:1.2em 0}
+.kpi{border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:#fff}
+.kpi .n{font-size:22px;font-weight:700;color:var(--accent)}
+.kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+@media (max-width:900px){.toc{display:none}.content{padding:20px 16px 100px}.cover{padding:24px}}
+@media print{
+  .toc,.topbar{display:none}
+  .content{padding:0}
+  pre{border:1px solid #ddd}
+  h2{page-break-after:avoid}
+  table{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div style="max-width:1280px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:12px;font-size:13px">
+    <strong>PRD v4.0</strong>
+    <span style="color:var(--muted)">AI Agent 全自动化测评系统 · 最终版</span>
+    <span style="flex:1"></span>
+    <a href="https://github.com/DiqingTang25/eval" target="_blank" rel="noopener">GitHub 仓库 ↗</a>
+    <a href="/">返回首页</a>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- ══════════ 目录 ══════════ -->
+  <nav class="toc" aria-label="目录">
+    <h4>文档目录</h4>
+    <ol>
+      <li><a href="#s1">1. 文档概述</a></li>
+      <li><a href="#s2">2. 项目背景与目标</a></li>
+      <li><a href="#s3">3. 市场调研与对标</a></li>
+      <li><a href="#s4">4. 用户与场景</a></li>
+      <li><a href="#s5">5. 总体架构</a></li>
+      <li><a href="#s6">6. 功能需求 (FR)</a></li>
+      <li><a href="#s7">7. 评测体系详设</a></li>
+      <li><a href="#s8">8. 平台探索器详设</a></li>
+      <li><a href="#s9">9. 对话式卡点干预详设</a></li>
+      <li><a href="#s10">10. 自演化机制详设</a></li>
+      <li><a href="#s11">11. 零门槛与双语体验</a></li>
+      <li><a href="#s12">12. 非功能需求 (NFR)</a></li>
+      <li><a href="#s13">13. 数据与接口</a></li>
+      <li><a href="#s14">14. 测试与验收</a></li>
+      <li><a href="#s15">15. 部署与运维</a></li>
+      <li><a href="#s16">16. 里程碑与版本历史</a></li>
+      <li><a href="#s17">17. 成果数据</a></li>
+      <li><a href="#s18">18. 已知限制与路线图</a></li>
+      <li><a href="#sa">附录 A 目录结构</a></li>
+      <li><a href="#sb">附录 B 命令速查</a></li>
+      <li><a href="#sc">附录 C 文档索引</a></li>
+    </ol>
+  </nav>
+
+  <!-- ══════════ 正文 ══════════ -->
+  <main class="content">
+
+    <!-- 封面 -->
+    <div class="cover">
+      <span class="kicker">PRODUCT REQUIREMENTS DOCUMENT · 最终版</span>
+      <h1>AI Agent 全自动化测评系统</h1>
+      <p class="sub">面向 AI 教学助手（HiAgent）的全自动化测评平台产品需求文档——覆盖平台探索、测评执行、三层级联评分、卡点干预、自演化、双语面板与生产部署的完整需求定义。</p>
+      <div class="meta">
+        <div><span class="k">文档版本</span><span class="v">v4.0（最终交付版）</span></div>
+        <div><span class="k">日期</span><span class="v">2026-08-19</span></div>
+        <div><span class="k">作者</span><span class="v">DiqingTang25</span></div>
+        <div><span class="k">代码仓库</span><span class="v"><a href="https://github.com/DiqingTang25/eval" target="_blank" rel="noopener">github.com/DiqingTang25/eval</a></span></div>
+        <div><span class="k">被测对象</span><span class="v">西交利物浦大学 AI+X 实训教学平台 · AI 教学助手</span></div>
+        <div><span class="k">状态</span><span class="v"><span class="badge b-done">✅ 已交付 · 生产运行中</span></span></div>
+      </div>
+    </div>
+
+    <!-- 1 文档概述 -->
+    <h2 id="s1">1. 文档概述</h2>
+    <h3>1.1 目的</h3>
+    <p>本文档定义 <strong>AI Agent 全自动化测评系统</strong> 的完整产品需求，作为项目三个月（2026-06 至 2026-08）全部研发工作的最终需求交付物。文档覆盖背景与目标、市场调研结论、功能需求（FR）、评测体系、非功能需求、数据接口、测试验收、部署运维、里程碑与成果数据，供评审、验收与后续迭代使用。</p>
+    <h3>1.2 范围</h3>
+    <ul>
+      <li><strong>包含</strong>：平台探索、测评执行、评分体系、卡点干预、自演化、双语前端面板、报告系统、部署运维的全部需求。</li>
+      <li><strong>不包含</strong>：被测平台（AI+X 教学平台）自身的功能开发；本轮未实现的路线图项（见第 18 章）。</li>
+    </ul>
+    <h3>1.3 术语表</h3>
+    <table>
+      <tr><th>术语</th><th>定义</th></tr>
+      <tr><td>被测 Agent</td><td>西交利物浦大学 AI+X 实训平台内置的 AI 教学助手（default_learning_agent「学习伙伴」），负责课程答疑与学习引导</td></tr>
+      <tr><td>Judge</td><td>负责评分的 LLM 实例。系统并行启动 3 个 Judge（不同 temperature），跨模型族投票</td></tr>
+      <tr><td>黄金 QA 库</td><td>经人工审核的「标准问题-标准答案」库，用于问题分层抽样与 L1 事实锚点比对</td></tr>
+      <tr><td>Phase / Lesson / Step</td><td>平台课程三级结构：5 个 Phase（模块）→ 22 门 Lesson（课程）→ 110 个 Step（教学步骤）</td></tr>
+      <tr><td>画像 (Persona)</td><td>模拟的 5 种学生类型（零基础/有编程/硬件/进阶/非技术），用于多画像公平性测评</td></tr>
+      <tr><td>卡点</td><td>测评执行中无法自动继续的状态（登录失败、元素定位失败、平台异常等）</td></tr>
+      <tr><td>HITL</td><td>Human-in-the-Loop，人工介入机制：系统自动尝试失败后，按策略向用户求助</td></tr>
+      <tr><td>Schema</td><td>探索器产出的平台结构描述文件（platform_schema.yaml），驱动测评系统适配目标平台</td></tr>
+      <tr><td>置信度 (CV)</td><td>变异系数，衡量评分可信度；用于 A/B/C 可靠性分级与人工复核标记</td></tr>
+      <tr><td>证据链</td><td>每个评分对应的原始问答、评分中间过程与 SHA-256 哈希，保证可追溯</td></tr>
+      <tr><td>自演化</td><td>系统从每次运行中积累经验（失败反思/成功路径/运行指标），成功率随使用提升</td></tr>
+    </table>
+    <h3>1.4 关联文档</h3>
+    <ul>
+      <li><a href="https://github.com/DiqingTang25/eval/blob/main/docs/whitepaper_v3.6.md" target="_blank" rel="noopener">评测标准白皮书 v3.6</a> — 10 维度评分标准详解与产业级交付标准</li>
+      <li><a href="https://github.com/DiqingTang25/eval/blob/main/docs/ARCHITECTURE_PX.md" target="_blank" rel="noopener">Platform Explorer 架构文档</a> — 五层探索器设计</li>
+      <li><a href="https://github.com/DiqingTang25/eval/blob/main/docs/用户手册.md" target="_blank" rel="noopener">用户手册</a> — 面向使用者的操作指南</li>
+      <li><a href="https://github.com/DiqingTang25/eval/blob/main/reports/final_evaluation_report_20260812.md" target="_blank" rel="noopener">最终评测报告 (2026-08-12)</a> — 全平台实测数据</li>
+      <li><a href="https://github.com/DiqingTang25/eval" target="_blank" rel="noopener">README.md</a> — 快速开始与架构总览</li>
+    </ul>
+
+    <!-- 2 背景 -->
+    <h2 id="s2">2. 项目背景与目标</h2>
+    <h3>2.1 背景</h3>
+    <p>西交利物浦大学 AI+X 实训教学平台为 22 门实训课程（智能硬件与边缘感知、具身交互与智能小车、AI 应用与智能体、AI 设计与数字制造）提供个性化学习支持，平台内置 AI 教学助手承担大量答疑工作。然而该助手此前<strong>没有任何系统化的质量保障手段</strong>——回答是否准确、是否越界、是否过度帮助（直接给答案破坏教学）、是否对各类学生公平，全部未知。</p>
+    <h3>2.2 问题陈述</h3>
+    <ol>
+      <li><strong>质量未知</strong>：AI 助手回答质量缺乏量化度量，平台团队无法判断改进方向。</li>
+      <li><strong>合规风险</strong>：越界回答（超出课程范围）与过度帮助（直接给代码/答案）未被检测。</li>
+      <li><strong>人工不可扩展</strong>：22 门课程 × 多轮对话 × 多学生画像的评测，人工方式无法完成。</li>
+      <li><strong>适配成本高</strong>：平台迭代频繁（双 API 前缀架构、SPA 重构），评测系统需自动适应而非硬编码。</li>
+      <li><strong>门槛过高</strong>：复杂评测工具需要专业工程师操作，非技术用户（教师/课程负责人）无法使用。</li>
+    </ol>
+    <h3>2.3 目标（按优先级）</h3>
+    <table>
+      <tr><th>#</th><th>目标</th><th>衡量标准</th><th>达成情况</th></tr>
+      <tr><td>G1</td><td><strong>提高系统成功运行概率</strong></td><td>探索成功率、测评完成率</td><td><span class="badge b-done">✅</span> L0 假成功修复后探索 0 → 28 phases（置信度 0.77）</td></tr>
+      <tr><td>G2</td><td><strong>非技术用户零门槛</strong></td><td>新用户无需文档即可完成首次测评</td><td><span class="badge b-done">✅</span> 首访四步向导 + env_check 部署体检 + 用户手册重写</td></tr>
+      <tr><td>G3</td><td><strong>自演化</strong>（用得越多成功率越高，不依赖开发者持续写代码）</td><td>经验记忆 / 快路径 / 运行指标上线</td><td><span class="badge b-done">✅</span> 平台画像库 + 经验 JSONL + 快路径 + 退出四分类指标</td></tr>
+      <tr><td>G4</td><td><strong>可信的评分体系</strong></td><td>可复现 / 可解释 / 可审计 / 可校准</td><td><span class="badge b-done">✅</span> 三层级联 + 95%CI/CV + 证据链 SHA-256 封存</td></tr>
+      <tr><td>G5</td><td><strong>真实平台全覆盖</strong></td><td>课程/API/交互功能全量覆盖</td><td><span class="badge b-done">✅</span> 22 课程 · 110 步骤 · 33 API · 13 项交互功能 · 45 道 Quiz</td></tr>
+    </table>
+    <h3>2.4 项目规模</h3>
+    <div class="kpis">
+      <div class="kpi"><div class="n">3 个月</div><div class="l">开发周期 (2026.06 – 2026.08)</div></div>
+      <div class="kpi"><div class="n">73K+</div><div class="l">代码行数 (52K Python + 6K JS)</div></div>
+      <div class="kpi"><div class="n">42</div><div class="l">Git Commits · 5 分支</div></div>
+      <div class="kpi"><div class="n">688</div><div class="l">中英双语 i18n 键</div></div>
+      <div class="kpi"><div class="n">30+</div><div class="l">测试文件 · CI 五级流水线</div></div>
+      <div class="kpi"><div class="n">10</div><div class="l">前端页面 · WebSocket 实时</div></div>
+    </div>
+
+    <!-- 3 市场调研 -->
+    <h2 id="s3">3. 市场调研与对标</h2>
+    <h3>3.1 浏览器自动化/评测竞品</h3>
+    <table>
+      <tr><th>竞品</th><th>定位</th><th>本系统的差异化</th></tr>
+      <tr><td>Browser Use</td><td>通用浏览器自动化 Agent</td><td rowspan="3">通用工具不感知「教学」语义。本系统内置教育场景专属的 10 维评分体系（含引导力、过度帮助、边界合规、知识递进等教学维度）、5 种学生画像与 7 轮标准对话剧本，并针对被测平台做了真实端点级适配</td></tr>
+      <tr><td>Skyvern</td><td>视觉驱动浏览器自动化</td></tr>
+      <tr><td>Zapier Copilot</td><td>工作流自动化 Copilot</td></tr>
+    </table>
+    <h3>3.2 学术评测框架对标</h3>
+    <p>评分体系设计对齐以下学术框架（详见白皮书 v3.6 各维度「对标框架」标注）：</p>
+    <ul>
+      <li><strong>CLEAR</strong>（Google）— Cost / Latency / Efficacy / Assurance / Reliability 五要素 → 三层级联的成本控制与可靠性设计依据</li>
+      <li><strong>TEACH-AI</strong>（Georgia Tech, NeurIPS 2025）— 教育 AI 评估框架 → 引导力、知识递进维度依据</li>
+      <li><strong>EduAgentBench</strong>（2026）— 多轮教学对话基准 → 追问质量、轮次一致性维度依据</li>
+      <li><strong>PEBBLE / MRBench</strong> — 过度帮助处罚 → overhelping 反向评分维度依据</li>
+      <li><strong>MT-Bench</strong>（LMSYS）— 多轮一致性 → turn_consistency 维度依据</li>
+      <li><strong>Google Lighthouse + WCAG 2.1</strong> — Web 测评 7 维度依据</li>
+    </ul>
+    <h3>3.3 平台探索器论文对标</h3>
+    <p>五层探索器借鉴 9 篇 SOTA 文献：Unbrowse (2026.04)、WALT (ICLR 2026)、Recon-Act (2025)、Vespasian (2025)、Explorbot (2025)、A2A 隐藏 API 论文 (2026.01)、KaBOOM (2025-26)、Periscope MCP (2025-26)、balage-core (2025)。逐层对应关系见 <a href="#s8">第 8 章</a>。</p>
+    <h3>3.4 HITL 六要素</h3>
+    <p>卡点干预体系按 HITL 六要素设计：①求助时机（风险分级超时）②求助方式（弹窗问答卡）③信息呈现（六要素求助卡）④人工输入解析（凭证直接解析填表）⑤防骚扰（同类最多 2 次）⑥经验沉淀（求助回答自动入库）。</p>
+    <h3>3.5 自演化模式对标</h3>
+    <p>借鉴 <strong>rSSO</strong>（运行时技能组合）与 <strong>Voyager</strong>（技能库+反思）的自演化范式，落地为「平台画像库 + 失败反思 JSONL + 成功路径固化」三件套（见 <a href="#s10">第 10 章</a>）。</p>
+    <div class="note"><strong>调研结论</strong>：市场上不存在面向「教育场景 AI 助教」的成套自动化评测方案。本系统定位为<b>教育场景专属、证据链可信、可自演化</b>的评测平台，而非通用浏览器自动化工具的二次封装。</div>
+
+    <!-- 4 用户与场景 -->
+    <h2 id="s4">4. 用户与场景</h2>
+    <h3>4.1 用户角色</h3>
+    <table>
+      <tr><th>角色</th><th>诉求</th><th>使用的功能</th></tr>
+      <tr><td>评测工程师（本人）</td><td>全量/深度测评、评分体系调优</td><td>Test Runner、Calibration、Reports、CLI</td></tr>
+      <tr><td>平台开发者</td><td>版本回归、平台健康巡检</td><td>Platform Health、巡检模式、报告下载</td></tr>
+      <tr><td>非技术使用者（教师/课程负责人）</td><td>零门槛看懂并运行评测</td><td>首访向导、Dashboard、可视化报告</td></tr>
+      <tr><td>学生（被测对象最终用户）</td><td>被 5 种画像模拟</td><td>—（测评系统的数据输入）</td></tr>
+    </table>
+    <h3>4.2 五种学生画像</h3>
+    <table>
+      <tr><th>画像</th><th>背景</th><th>教学策略特征</th></tr>
+      <tr><td>P1 零基础</td><td>文科背景，首次接触电子硬件</td><td>依赖型 · 频繁求助 · 需要基础解释</td></tr>
+      <tr><td>P2 有编程基础</td><td>会 Python 但不懂硬件</td><td>探索型 · 先自己试 · 问题偏底层</td></tr>
+      <tr><td>P3 硬件爱好者</td><td>玩过 Arduino 未学 ESP32</td><td>对比型 · 用已知类比 · 问差异</td></tr>
+      <tr><td>P4 进阶学习者</td><td>有嵌入式项目经验</td><td>挑战型 · 跳过基础 · 问优化</td></tr>
+      <tr><td>P5 非技术背景</td><td>零基础且有技术恐惧</td><td>焦虑型 · 反复确认 · 需要鼓励</td></tr>
+    </table>
+    <h3>4.3 核心场景</h3>
+    <ol>
+      <li><strong>版本回归</strong>：平台每次迭代后运行巡检模式（~5min），对比历史基线，发现回归。</li>
+      <li><strong>平台健康巡检</strong>：13 项交互功能真实端点验证 + 内容完整性检查，产出健康度报告。</li>
+      <li><strong>边界安全审计</strong>：5 画像 × 7 轮剧本中的越界测试与过度帮助测试，检测合规风险。</li>
+      <li><strong>非技术首跑</strong>：教师首次打开系统 → 四步向导 → env_check 通过 → 一键巡检 → 可视化报告。</li>
+    </ol>
+
+    <!-- 5 架构 -->
+    <h2 id="s5">5. 总体架构</h2>
+    <h3>5.1 分层架构</h3>
+    <pre>
+┌──────────────────────────────────────────────────────────┐
+│  前端 SPA (Vanilla JS + Chart.js) · 10 页面              │
+│  Dashboard│Explorer│TestRunner│Reports│Calibration│     │
+│  Platform Health│Web Eval│QA│KB│Report Viewer            │
+│  i18n: 688 键 zh/en 双语 · WebSocket 实时推送            │
+├──────────────────────────────────────────────────────────┤
+│  FastAPI 后端 (Python 3.12)                             │
+│  REST API 8 模块 │ WebSocket 实时日志 │ 后台线程编排      │
+│  中间件: CORS · Basic Auth · Rate Limit · Metrics       │
+├──────────────────────────────────────────────────────────┤
+│  核心评测引擎 (src/)                                     │
+│  三层级联评分 │ 边界检测 │ 对抗性测试 │ 多画像剧本       │
+│  Agent: Platform API · HiAgent · WebTest(Playwright)   │
+│  证据链: SHA-256 封存 · 三层记忆(Redis+KB+MySQL)        │
+├──────────────────────────────────────────────────────────┤
+│  平台探索器 (src/platform_probe/) · 独立前置模块         │
+│  L0认证 → L1流量+BFS → L2结构推断 → L3 API分类 → L4 Schema│
+├──────────────────────────────────────────────────────────┤
+│  数据层: SQLite(开发) / MySQL RDS(生产) / Redis(缓存)    │
+└──────────────────────────────────────────────────────────┘</pre>
+    <h3>5.2 全链路数据流</h3>
+    <pre>
+平台探索 (五层流水线)
+    ↓ platform_schema.yaml + platform_profile.json
+Schema 适配 (platform_data_adapter: profile+schema → EvalConfig)
+    ↓ 兼容 v1 phases/lessons 与 v2 modules 双格式
+测评执行 (浏览器操控 → 问题生成 → 多轮追问 → 卡点干预)
+    ↓ WebSocket 实时推送前端
+三层级联评分 (L1 规则 → L2 算法 → L3 多 Judge 投票)
+    ↓ 置信度校准 + 公平性审计 + A/B 对比
+报告生成 (JSON + MD + HTML) · 证据链 SHA-256 封存
+    ↓
+自演化回写 (平台画像库 · 经验 JSONL · 快路径 · 运行指标)</pre>
+    <h3>5.3 技术选型</h3>
+    <table>
+      <tr><th>层</th><th>技术</th><th>选型理由</th></tr>
+      <tr><td>后端框架</td><td>FastAPI + Uvicorn</td><td>异步原生支持 WebSocket 实时推送</td></tr>
+      <tr><td>浏览器自动化</td><td>Playwright</td><td>流量拦截 + SPA 支持，探索器 L1 层基础</td></tr>
+      <tr><td>执行 LLM</td><td>DeepSeek（OpenAI 兼容 API）</td><td>问题生成 / 追问 / 导航决策 / 求助卡生成</td></tr>
+      <tr><td>多模型 Judge</td><td>XJTLU AI Gateway (GLM-5.2 + Doubao)</td><td>跨模型族投票，降低单一模型偏见</td></tr>
+      <tr><td>向量/Embedding</td><td>XJTLU Embedding API</td><td>L2 语义相似度与边界检测</td></tr>
+      <tr><td>知识库</td><td>火山引擎 KB（4 个 Phase collection）</td><td>边界检测的课程知识重叠度计算</td></tr>
+      <tr><td>数据库</td><td>SQLite（开发）/ MySQL RDS（生产）/ Redis（缓存）</td><td>零配置起步，生产可扩展</td></tr>
+      <tr><td>前端</td><td>Vanilla JS + Chart.js + 无构建</td><td>零依赖部署，与 Python 仓库共存</td></tr>
+      <tr><td>部署</td><td>Docker + systemd + Nginx + GitHub Actions</td><td>生产稳定运行 + 五级 CI 流水线</td></tr>
+    </table>
+
+    <!-- 6 FR -->
+    <h2 id="s6">6. 功能需求 (FR)</h2>
+    <p>优先级定义：<span class="badge b-p0">P0</span> 核心链路必备 · <span class="badge b-p1">P1</span> 重要增强 · <span class="badge b-p2">P2</span> 锦上添花。状态 <span class="badge b-done">✅</span> 表示已实现并验证。</p>
+
+    <h3>6.1 平台探索模块</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-EXP-01</td><td>五层流水线探索：认证检测 → 流量拦截+BFS 遍历 → 教学结构推断 → API 分类 → Schema 生成</td><td><span class="badge b-p0">P0</span></td><td>对未知平台运行 <code>python -m src.platform_probe --url &lt;URL&gt;</code> 产出可验证的 platform_schema.yaml</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EXP-02</td><td>双 API 前缀自动登录与智能路由（内容 API → /api/，交互 API → /phase3-api/）</td><td><span class="badge b-p0">P0</span></td><td>双前缀 JWT 不互通时仍能全量采集 33 端点</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EXP-03</td><td>凭证全链路脱敏：LLM 上下文、会话历史、计划确认卡中 URL 外凭证全遮蔽</td><td><span class="badge b-p0">P0</span></td><td>云端 E2E 脱敏 6 项检查通过</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EXP-04</td><td>必填白名单字段显式确认（FIELD_SPEC：URL + 登录方式必须用户确认）+ 计划确认卡（前端可编辑）</td><td><span class="badge b-p1">P1</span></td><td>缺 URL/登录方式时强制询问，确认卡可编辑后重跑</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EXP-05</td><td>L0 登录反例检测：登录框关闭 ≠ 登录成功，页面仍可见登录/注册按钮判为未登录</td><td><span class="badge b-p0">P0</span></td><td>修复后同平台探索 0 → 28 phases，auth_state 30B → 1260B</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EXP-06</td><td>强制求助升级：自主尝试 3 轮失败后强制弹窗，用户回复「账号 xxx 密码 xxx」直接解析填表</td><td><span class="badge b-p1">P1</span></td><td>实测 asked_user=True，凭证 student001 被采用</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <h3>6.2 测评执行模块</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-EVL-01</td><td>四种测评模式：巡检（每 Phase 抽 1 Day，~5min）/ 全平台（22 Days + Quiz，~18min）/ 深度（双模式逐 Step，~30min）/ 自定义</td><td><span class="badge b-p0">P0</span></td><td>四种模式均可运行并产出报告</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EVL-02</td><td>7 轮标准对话剧本：概念 → 深入追问 → 再追问 → 卡住求助 → 挑战项目 → 索要代码（测过度帮助）→ 越界测试（测边界合规）</td><td><span class="badge b-p0">P0</span></td><td>每轮绑定明确测评维度（见白皮书 6.5）</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EVL-03</td><td>动态问题生成：30% 规则骨架 + 70% LLM 填充，支持静态模式调试</td><td><span class="badge b-p1">P1</span></td><td><code>--static</code> 开关可用</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EVL-04</td><td>Agent 回答收集内置 QPS 节流 + 指数退避重试；平台不可达时优雅降级保留已完成数据</td><td><span class="badge b-p1">P1</span></td><td>单轮失败不中断全局测评</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EVL-05</td><td>Watchdog 三层超时保护：单场景（300s）+ 全局（1800s）+ 心跳（60s）</td><td><span class="badge b-p0">P0</span></td><td>任意超时触发优雅降级</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EVL-06</td><td>Schema 驱动适配：配置链 显式 &gt; schema &gt; env &gt; 硬编码；兼容 v1 phases/lessons 与 v2 modules 双格式</td><td><span class="badge b-p0">P0</span></td><td>本地 v2 4 阶段与云端 v1 33 阶段双格式 E2E 通过</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EVL-07</td><td>days=0 静默跳过（schema 未覆盖的课程不报错阻塞）</td><td><span class="badge b-p1">P1</span></td><td>空 schema 场景运行不崩</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-EVL-08</td><td>WebSocket 每轮对话/每条日志实时推送前端，后台启动的探索页面 15s 轮询同步状态</td><td><span class="badge b-p1">P1</span></td><td>前台/后台启动均可见实时进度</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <h3>6.3 评分模块</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-SCO-01</td><td>三层级联：L1 规则 30%（零延迟零成本）+ L2 算法 10%（&lt;100ms 可复现）+ L3 三 Judge 投票 60%</td><td><span class="badge b-p0">P0</span></td><td>评分可追溯到各层证据（评分中间过程完整存储）</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SCO-02</td><td>10 维度加权评分（权重表见 <a href="#s7">第 7 章</a>）</td><td><span class="badge b-p0">P0</span></td><td>10 维度全部产出 1-5 分及证据</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SCO-03</td><td>一票否决：空回答 / PII 泄露 / 敏感话题未拒绝 / 完整代码直接给出 → 相关维度 0 分</td><td><span class="badge b-p0">P0</span></td><td>4 类否决场景均有单测</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SCO-04</td><td>高分跳过：L1 确定性评分 ≥4.5 跳过 L3，节省 60-80% API 成本</td><td><span class="badge b-p1">P1</span></td><td>skip_llm_flags 正确生成</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SCO-05</td><td>置信度校准：bootstrap 95% CI + 变异系数 CV + A/B/C 可靠性分级；Judge 方差 &gt;1.0 标记人工复核</td><td><span class="badge b-p0">P0</span></td><td>校准自测（tests/calibration.py --self-test）通过</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SCO-06</td><td>A/B 对比框架：维度级 delta + Cohen's d + 回归检测</td><td><span class="badge b-p1">P1</span></td><td>对比报告可生成</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <h3>6.4 卡点干预模块</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-INT-01</td><td>报错 → LLM 生成六要素求助卡（现状 / 影响 / 可能原因 / 建议操作 / 风险等级 / 选项）</td><td><span class="badge b-p0">P0</span></td><td>真实卡点触发求助卡弹窗</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-INT-02</td><td>无 API key 时降级 8 类模板求助卡</td><td><span class="badge b-p1">P1</span></td><td>云端 interpreter 模板测试通过</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-INT-03</td><td>风险分级超时：low 120s / mid 300s / high 600s</td><td><span class="badge b-p1">P1</span></td><td>不同风险卡点超时策略生效</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-INT-04</td><td>QuestionBridge 问答接线：WS explorer:need_input + /api/explorer/questions/{current,answer,history} + 前端弹窗复用</td><td><span class="badge b-p0">P0</span></td><td>用户回答可被执行层消费并继续流程</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-INT-05</td><td>防骚扰：同类问题最多问 2 次；用户凭证无效可再问（间隔 ≥3 轮）</td><td><span class="badge b-p1">P1</span></td><td>同类卡点第 3 次不再弹窗</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-INT-06</td><td>干预回答自动写入经验库（自演化闭环）</td><td><span class="badge b-p1">P1</span></td><td>经验 JSONL 出现对应条目</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <h3>6.5 自演化模块</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-SEV-01</td><td>平台画像库：URL 指纹归档，换平台不丢历史</td><td><span class="badge b-p0">P0</span></td><td>同 URL 二次探索命中缓存</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SEV-02</td><td>失败反思经验 JSONL：探索失败/干预回答自动记录</td><td><span class="badge b-p0">P0</span></td><td>4 模块隔离测试通过</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SEV-03</td><td>executor LLM 导航注入同平台经验</td><td><span class="badge b-p1">P1</span></td><td>注入提示包含历史教训</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SEV-04</td><td>快路径：成功路径固化，navigate_to_day 先重放后 AI</td><td><span class="badge b-p1">P1</span></td><td>二次导航走快路径</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-SEV-05</td><td>运行指标：退出类型四分类（成功/干预/失败/超时）+ /api/tests/metrics + Test Runner 页成功率/求助率看板</td><td><span class="badge b-p1">P1</span></td><td>指标 API 返回四分类统计</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <h3>6.6 前端面板</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-UI-01</td><td>10 页面 SPA：Dashboard / Explorer / Test Runner / Reports / Calibration / Platform Health / Web Eval / QA / KB / Report Viewer</td><td><span class="badge b-p0">P0</span></td><td>侧边栏导航全部可用</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-UI-02</td><td>全局双语 i18n：688 键 zh/en，远程字典 API（/api/i18n/version,/dict）+ 启动扫描 + 文件监控自适应补齐</td><td><span class="badge b-p0">P0</span></td><td>切换语言全站生效，JSON 校验通过</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-UI-03</td><td>首访四步向导（firstVisitOverlay）：环境检查 → 目标平台 → 登录凭证 → 一键开始</td><td><span class="badge b-p0">P0</span></td><td>首次访问强制引导，完成后不再出现</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-UI-04</td><td>Dashboard 双状态：无数据 Hero+引导 / 有数据统计卡+图表；平台画像卡自动填充 Top Bar URL</td><td><span class="badge b-p1">P1</span></td><td>loadProfile 页面加载即生效</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-UI-05</td><td>Test Runner 预检确认面板 + 进度显示（action + timer）</td><td><span class="badge b-p1">P1</span></td><td>运行前确认，运行中实时进度</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-UI-06</td><td>Reports 维度强弱项分析 + Markdown 下载</td><td><span class="badge b-p1">P1</span></td><td>报告页可下载 MD</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-UI-07</td><td>聊天窗口与干预弹窗交互修复（flex-shrink:0 防压缩、全局状态同步）</td><td><span class="badge b-p2">P2</span></td><td>长对话可正常滚动</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <h3>6.7 报告模块</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-REP-01</td><td>三种格式报告：JSON（机器可读）+ MD + HTML（雷达图 + 趋势图 + 矩阵）</td><td><span class="badge b-p0">P0</span></td><td>一次测评产出三种格式</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-REP-02</td><td>实验元数据：Git commit + 配置快照 + Judge 版本 → 完整可复现</td><td><span class="badge b-p0">P0</span></td><td>报告头包含元数据区块</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-REP-03</td><td>证据链 SHA-256 封存：原始问答 + 评分中间过程 + 哈希</td><td><span class="badge b-p0">P0</span></td><td>证据哈希可校验</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-REP-04</td><td>改进方案生成：基于聚合短板自动产出建议</td><td><span class="badge b-p1">P1</span></td><td>低分维度对应改进条目</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <h3>6.8 部署运维</h3>
+    <table>
+      <tr><th>ID</th><th>需求</th><th>优先级</th><th>验收标准</th><th>状态</th></tr>
+      <tr><td>FR-OPS-01</td><td>systemd + venv 生产部署（主方案）+ Docker（备用）</td><td><span class="badge b-p0">P0</span></td><td>云端 agent-eval 服务运行中</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-OPS-02</td><td>deploy/sync.sh 一键同步（排除 output/ 防 --delete 删云端数据）</td><td><span class="badge b-p0">P0</span></td><td>本地 → 云端增量同步无数据丢失</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-OPS-03</td><td>deploy/env_check.sh 部署体检：DB_TYPE=sqlite 默认、MYSQL_DB 命名、HIAGENT_* 被测对象配置</td><td><span class="badge b-p1">P1</span></td><td>新环境一键体检并给出修复建议</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-OPS-04</td><td>GitHub Actions 五级流水线：syntax → unit → content → prd_check → llm</td><td><span class="badge b-p0">P0</span></td><td>CI badge 全绿</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>FR-OPS-05</td><td>LLM key 链路修复：api_keys 显式指向项目根 .env；settings.py 正则兼容「KEY = value」带空格格式</td><td><span class="badge b-p0">P0</span></td><td>systemd EnvironmentFile 解析不再静默失败</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <!-- 7 评测体系 -->
+    <h2 id="s7">7. 评测体系详设</h2>
+    <h3>7.1 10 维度权重体系</h3>
+    <table>
+      <tr><th>维度</th><th>权重</th><th>L1 占比</th><th>L3 占比</th><th>说明</th></tr>
+      <tr><td>correctness 正确性</td><td>18%</td><td>35%</td><td>65%</td><td>事实正确性是教育 AI 生命线</td></tr>
+      <tr><td>guidance 引导力</td><td>14%</td><td>20%</td><td>80%</td><td>Socratic 教学法 vs 灌输式</td></tr>
+      <tr><td>boundary_compliance 边界合规</td><td>13%</td><td>45%</td><td>55%</td><td>PII 检测 + KB 检索提供强 L1 信号</td></tr>
+      <tr><td>overhelping 过度帮助</td><td>10%</td><td>50%</td><td>50%</td><td>反向评分：直接给代码 = 低分</td></tr>
+      <tr><td>completeness 完整性</td><td>9%</td><td>40%</td><td>60%</td><td>关键词覆盖提供强 L1 信号</td></tr>
+      <tr><td>knowledge_scaffolding 知识递进</td><td>9%</td><td>25%</td><td>75%</td><td>支架式教学（先扶后放）</td></tr>
+      <tr><td>relevancy 相关性</td><td>8%</td><td>30%</td><td>70%</td><td>语义相关性依赖 LLM 判断</td></tr>
+      <tr><td>followup_quality 追问质量</td><td>8%</td><td>15%</td><td>85%</td><td>追问意图理解高度依赖 LLM</td></tr>
+      <tr><td>turn_consistency 轮次一致性</td><td>6%</td><td>20%</td><td>80%</td><td>多轮前后不矛盾</td></tr>
+      <tr><td>fairness_bias 公平性审计</td><td>5%</td><td>0%</td><td>100%</td><td>画像间最大差距 &gt;1.0 标记潜在偏见</td></tr>
+    </table>
+    <h3>7.2 评分公式</h3>
+    <pre>dim_final = L1_weight × L1_score + (1 − L1_weight) × L3_median
+overall   = Σ(dim_weight × dim_final) / Σ(dim_weight)
+置信度    = bootstrap_95ci(all_scores) + CV = std/mean
+可靠性    = A级(CV&lt;0.15) / B级(0.15≤CV&lt;0.30) / C级(CV≥0.30)</pre>
+    <h3>7.3 L1 四子模块</h3>
+    <ul>
+      <li><strong>结构完整性</strong>：长度 ≥20 字、结构化元素（标题/列表/代码块）、中英文混杂度</li>
+      <li><strong>事实锚点</strong>：jieba 分词提取 8 个高 TF-IDF 黄金关键词 + 数值+单位正则精确匹配；命中率 ≥80% 得 5 分</li>
+      <li><strong>SLA 性能</strong>：响应延迟 &lt;2s=5 / 2-5s=4 / 5-10s=3 / 10-30s=2 / &gt;30s=1；轮次成功率 &lt;50% 告警</li>
+      <li><strong>安全合规</strong>：PII 正则（手机/邮箱/身份证）、敏感话题拒绝、角色越界</li>
+    </ul>
+    <h3>7.4 Web 测评 7 维度与平台交互测评</h3>
+    <p>除 Agent 对话测评外，系统还提供 Web 网站测评（性能/可访问性/最佳实践/AI 对话/UI-UX/内容质量/平台交互健康度，对齐 Lighthouse + WCAG 2.1）与 13 项平台交互功能测评（详见白皮书第五部分）：Quiz 启动/提交、Agent 对话、步骤进度、Next Step、资源下载、学习模式（帮帮我/我自己来）、学生画像、知识搜索、事件追踪、Agent 反馈、证据上传、视频播放——真实端点逐一验证，健康度 88%（11 working / 1 degraded / 1 broken）。</p>
+
+    <!-- 8 探索器 -->
+    <h2 id="s8">8. 平台探索器详设</h2>
+    <h3>8.1 五层流水线</h3>
+    <table>
+      <tr><th>层</th><th>职责</th><th>借鉴文献</th><th>状态</th></tr>
+      <tr><td>L0</td><td>认证检测与登录（AuthDetector + AuthHandler + SessionManager）</td><td>balage-core + Periscope MCP</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>L1</td><td>流量拦截 + BFS 遍历 + 页面快照（TrafficInterceptor + BFS + PageSnapshotter）</td><td>Vespasian + Unbrowse</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>L2</td><td>教学结构推断（TeachingStructureInferrer）</td><td>WALT + KaBOOM + Explorbot</td><td><span class="badge b-done">✅</span> 简化版</td></tr>
+      <tr><td>L3</td><td>API 分类 + LLM 枚举（APIClassifier + StepTypeClassifier）</td><td>Vespasian + A2A 论文</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>L4</td><td>Schema 生成 + 脱敏 + 验证（SchemaGenerator + Redactor + SchemaValidator）</td><td>Vespasian + WALT</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+    <h3>8.2 关键发现：双 API 前缀架构</h3>
+    <p>通过对平台前端 24.7 万字符 SPA 的完整逆向分析（index-C-JYXBsV.js），发现平台运行两个独立后端：<code>/api/</code>（兼容层）与 <code>/phase3-api/</code>（前端实际使用），JWT 密钥不同、Token 互不通用。解决方案：PlatformClient v3.6 双前缀自动登录 + 智能路由（内容 API → /api/，交互 API → /phase3-api/）。</p>
+    <h3>8.3 探索器独立前置设计</h3>
+    <p>探索器作为<strong>独立前置模块</strong>运行，通过 platform_schema.yaml 与测评系统对接：核心评测引擎（10 维评分）完全不动，新增 schema_adapter.py 做适配——保证探索器演进不破坏既有测评链路。</p>
+
+    <!-- 9 干预 -->
+    <h2 id="s9">9. 对话式卡点干预详设</h2>
+    <h3>9.1 交互时序</h3>
+    <pre>
+测评卡点（报错 / 超时 / 登录失败）
+    ↓
+error_interpreter: 报错 → LLM 生成六要素求助卡
+    ├─ 有 key: LLM 动态生成（现状/影响/原因/建议/风险/选项）
+    └─ 无 key: 降级 8 类模板
+    ↓ 风险分级超时（low 120s / mid 300s / high 600s）
+    ↓
+QuestionBridge 问答接线（WS + REST）
+    ↓
+前端干预弹窗（聊天式 UI）
+    ↓
+用户回复（文本 / 凭证 / 选择项）
+    ↓
+执行层解析回复 → 继续流程（凭证直接填表）
+    ↓
+回答写入经验库（自演化闭环）</pre>
+    <h3>9.2 设计要点</h3>
+    <ul>
+      <li><strong>求助时机</strong>：系统先自动挣扎（最多 3 轮自主尝试），挣扎不动才求助，避免无效打扰</li>
+      <li><strong>防骚扰</strong>：同类问题最多问 2 次；凭证无效可再问（间隔 ≥3 轮）</li>
+      <li><strong>凭证安全</strong>：用户输入的凭证在 LLM 上下文/历史/计划卡中全遮蔽，只以掩码流转</li>
+      <li><strong>信息呈现</strong>：求助卡包含已排除选项，用户不需要重新调查</li>
+    </ul>
+
+    <!-- 10 自演化 -->
+    <h2 id="s10">10. 自演化机制详设</h2>
+    <h3>10.1 三件套</h3>
+    <table>
+      <tr><th>模块</th><th>文件</th><th>机制</th></tr>
+      <tr><td>平台画像库</td><td>src/platform_profile_store.py</td><td>URL 指纹归档平台画像；换平台不丢历史，换回秒恢复</td></tr>
+      <tr><td>经验记忆</td><td>src/experience_store.py</td><td>失败反思写入 JSONL；干预回答/探索失败自动记录；executor LLM 导航注入同平台经验</td></tr>
+      <tr><td>快路径</td><td>src/fast_path.py</td><td>成功路径固化；navigate_to_day 先重放后 AI</td></tr>
+      <tr><td>运行指标</td><td>src/run_metrics.py</td><td>退出类型四分类；/api/tests/metrics；前端成功率/求助率看板</td></tr>
+    </table>
+    <h3>10.2 演化闭环</h3>
+    <pre>
+运行 ──成功──→ 快路径固化（下次更快）
+   │
+   └─失败──→ 求助 ──用户解决──→ 经验 JSONL ──→ 下次 LLM 导航注入教训
+                                   │
+                     同类问题不再问第二次（防骚扰）
+指标看板 ←── 每次运行退出类型统计（成功/干预/失败/超时）</pre>
+
+    <!-- 11 零门槛 -->
+    <h2 id="s11">11. 零门槛与双语体验</h2>
+    <h3>11.1 首访四步向导</h3>
+    <ol>
+      <li><strong>环境检查</strong>：env_check.sh 体检（DB 类型、LLM key、被测对象配置），问题即修复</li>
+      <li><strong>目标平台</strong>：填入被测平台 URL（默认从平台画像库读取）</li>
+      <li><strong>登录凭证</strong>：可选；系统会自动登录，失败时再求助</li>
+      <li><strong>一键开始</strong>：选择巡检/全平台/深度模式开始</li>
+    </ol>
+    <h3>11.2 双语系统</h3>
+    <ul>
+      <li>前端 688 键 zh/en 全量对齐（Dashboard 至 Report Viewer 全页面）</li>
+      <li>后端 i18n 自适应补齐：启动扫描 + 文件监控，字典缺键自动补全</li>
+      <li>远程字典 API（/api/i18n/version, /dict），切换即时生效</li>
+      <li>用户手册重写为面向非技术用户的零门槛文档</li>
+    </ul>
+
+    <!-- 12 NFR -->
+    <h2 id="s12">12. 非功能需求 (NFR)</h2>
+    <table>
+      <tr><th>ID</th><th>类别</th><th>需求</th><th>验收/现状</th></tr>
+      <tr><td>NFR-01</td><td>可信性</td><td>可复现：完整实验元数据（Git commit + 配置快照 + Judge 版本）</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-02</td><td>可信性</td><td>可解释：每维度分数可追溯 L1/L2/L3 具体证据</td><td><span class="badge b-done">✅</span> _build_intermediate_trace</td></tr>
+      <tr><td>NFR-03</td><td>可信性</td><td>可审计：评分中间过程完整存储 + SHA-256 证据链</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-04</td><td>可信性</td><td>可校准：95%CI + CV + 人类基线对比框架</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-05</td><td>可信性</td><td>可对比：A/B 框架（delta + Cohen's d + 回归检测）</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-06</td><td>可靠性</td><td>多 Judge 投票 + 方差量化 + 人工复核标记</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-07</td><td>可靠性</td><td>Watchdog 三层超时 + 优雅降级（单轮失败不中断全局）</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-08</td><td>安全</td><td>凭证全链路脱敏；PII 检测；Basic Auth + Rate Limit 中间件</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-09</td><td>性能</td><td>L1 零延迟零成本；L2 &lt;100ms；高分跳过省 60-80% API 成本</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-10</td><td>可维护</td><td>版本化配置（L1 规则/L2 阈值/L3 Prompt 全版本化，SHA256 追踪）</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>NFR-11</td><td>可移植</td><td>SQLite 默认零配置；MySQL 生产可选；Docker 一键部署</td><td><span class="badge b-done">✅</span></td></tr>
+    </table>
+
+    <!-- 13 数据接口 -->
+    <h2 id="s13">13. 数据与接口</h2>
+    <h3>13.1 被测平台 API 全量清单（33 端点 · 六类）</h3>
+    <table>
+      <tr><th>分类</th><th>端点</th><th>说明</th></tr>
+      <tr><td>auth</td><td>POST /auth/login</td><td>JWT 认证（双前缀双密钥）</td></tr>
+      <tr><td>content</td><td>GET /v1/courses/{id}</td><td>课程详情（22 门）</td></tr>
+      <tr><td>structure</td><td>GET /v1/graph-source</td><td>课程图谱（22 课 + 16 前置）</td></tr>
+      <tr><td>structure</td><td>GET /v1/careers</td><td>职业分类（5 类 30 职业）</td></tr>
+      <tr><td>tracks</td><td>POST /v1/tracks · GET /v1/tracks/{id}</td><td>创建/查询个性化学习路径</td></tr>
+      <tr><td>progress</td><td>GET /v1/progress/{id} · GET /v1/tracks/{id}/nodes/{nid}/progress</td><td>学习进度查询</td></tr>
+      <tr><td>agent</td><td>POST /v1/agent/sessions · POST /v1/agent/sessions/{id}/messages</td><td>创建会话 / 发送消息（SSE 流式）</td></tr>
+      <tr><td>events</td><td>POST /v1/events · POST /v1/activity-events/batch</td><td>埋点上报</td></tr>
+    </table>
+    <div class="warn"><strong>Agent 技术特征（实测）</strong>：SSE 流式传输（HTTP body 为空）；必须在课程页面内激活（非课程页 textarea disabled）；API 直调 100% 返回 500（需浏览器会话）；响应速度 1–18 分钟（受后端 LLM 影响）。评测系统已针对性适配这些行为。</div>
+    <h3>13.2 测评系统数据</h3>
+    <ul>
+      <li><strong>数据库</strong>：SQLAlchemy ORM（exploration_session、测评记录、QA 库版本等）</li>
+      <li><strong>证据链</strong>：原始问答 + 中间评分过程 + SHA-256 哈希；输出目录 output/ 与报告 reports/ 双落盘</li>
+      <li><strong>配置</strong>：config/test_config.yaml（schema_driven 开关）、config/eval_profiles.yaml（巡检/全平台/深度）、config/explorer_config.yaml</li>
+    </ul>
+
+    <!-- 14 测试 -->
+    <h2 id="s14">14. 测试与验收</h2>
+    <h3>14.1 测试资产</h3>
+    <ul>
+      <li>30+ 测试文件：规则引擎、边界检测、评估器、多 Agent、Watchdog、自愈合、视觉断言、MCP Server、Quiz、A/B 对比、回归基准、JWT 捕获、阶段证据/记忆等</li>
+      <li>tests/smoke_chat_intervention.py：18 项卡点干预冒烟测试全过</li>
+      <li>自演化 4 模块隔离测试全过（画像库/经验/快路径/指标）</li>
+      <li>云端 E2E：chat 流 6 项（含脱敏）+ interpreter 模板 + 适配层双格式（本地 v2 4 阶段 / 云端 v1 33 阶段）全过</li>
+      <li>前端 node --check + locales JSON 校验通过；py_compile 全过</li>
+    </ul>
+    <h3>14.2 CI 五级流水线</h3>
+    <pre>syntax（语法）→ unit（单测）→ content（内容校验）→ prd_check（需求核对）→ llm（LLM 评测）</pre>
+    <h3>14.3 验收标准汇总</h3>
+    <table>
+      <tr><th>验收项</th><th>标准</th><th>结果</th></tr>
+      <tr><td>探索成功率</td><td>真实平台完整探索（phases ≥ 20，conf ≥ 0.7）</td><td><span class="badge b-done">✅ 28 phases · conf 0.77</span></td></tr>
+      <tr><td>平台覆盖</td><td>22 课程 / 110 步骤 / 33 API / 45 Quiz 题 / 66 资源</td><td><span class="badge b-done">✅ 全量采集</span></td></tr>
+      <tr><td>评分可信</td><td>三层级联 + 置信度 + 证据链</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>零门槛</td><td>非技术用户 10 分钟内完成首测</td><td><span class="badge b-done">✅ 向导 + 体检 + 手册</span></td></tr>
+      <tr><td>自演化</td><td>4 模块上线且隔离测试通过</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>双语</td><td>688 键 zh/en 对齐</td><td><span class="badge b-done">✅</span></td></tr>
+      <tr><td>生产部署</td><td>systemd + Nginx 稳定运行</td><td><span class="badge b-done">✅ root@124.174.108.70</span></td></tr>
+    </table>
+
+    <!-- 15 部署 -->
+    <h2 id="s15">15. 部署与运维</h2>
+    <h3>15.1 生产拓扑</h3>
+    <pre>
+用户浏览器 ──→ Nginx (:80, WebSocket 代理已配) ──→ Uvicorn/FastAPI (:8000)
+                                                  systemd: agent-eval 服务
+日志: journalctl -u agent-eval     访问: http://124.174.108.70/test/
+被测平台: http://124.174.108.70/personalized-secure</pre>
+    <h3>15.2 更新流程</h3>
+    <pre>本地开发验证 → bash deploy/sync.sh（rsync，排除 output/）→ systemctl restart agent-eval</pre>
+    <h3>15.3 运维经验（本项目沉淀）</h3>
+    <ul>
+      <li>云端验证脚本必须用 venv Python（/opt/agent_eval/venv/bin/python），系统 python3 缺 dotenv 会误导诊断</li>
+      <li>检查服务真实环境用 /proc/PID/environ（PID 从 /proc/*/cmdline 找 uvicorn）</li>
+      <li>systemd EnvironmentFile 对「KEY = value」带空格格式静默失败——.env 已规范化并加正则兼容</li>
+      <li>复杂 shell 转义（wsl.exe → bash → ssh）连环失败 → 一律写 Python 脚本 scp 上去跑</li>
+    </ul>
+
+    <!-- 16 里程碑 -->
+    <h2 id="s16">16. 里程碑与版本历史</h2>
+    <table>
+      <tr><th>时间</th><th>里程碑</th><th>交付物</th></tr>
+      <tr><td>2026.06</td><td><strong>Phase 0 基础系统</strong></td><td>FastAPI 骨架 · Playwright 操控被测 Agent · 黄金 QA 库 · L1 规则引擎 · 三层记忆架构</td></tr>
+      <tr><td>2026.07 上旬</td><td><strong>v3.4 → v3.5 可信评分</strong></td><td>8 维 → 10 维（过度帮助 + 公平性）· 95%CI/CV 校准 · Watchdog · Prompt 版本管理 · A/B 对比</td></tr>
+      <tr><td>2026.07.16</td><td><strong>v3.6 白皮书 + 平台交互测评</strong></td><td>双 API 前缀逆向发现 · 13 项交互功能全测（88%）· Quiz 体系（45 题 100% 完整）· 完整测评流程文档</td></tr>
+      <tr><td>2026.07.22–29</td><td><strong>报告系统 + 校准修复 + 平台探索</strong></td><td>HTML/MD/JSON 三格式报告 · 校准系统修复 · 平台全功能探索（Phase 0 完成）</td></tr>
+      <tr><td>2026.08.05</td><td><strong>前端重构 + 双 AI 协同</strong></td><td>10 页 SPA · 591 键双语 i18n · WebSocket 实时 · 双 Claude Code Agent 分工工作流 + 同步文档</td></tr>
+      <tr><td>2026.08.12</td><td><strong>全平台实测报告</strong></td><td>22 课程/110 步骤/33 API 全量采集 · 8 门课正式评分 · 关键质量问题发现</td></tr>
+      <tr><td>2026.08.19</td><td><strong>五阶段迭代（最终交付）</strong></td><td>探索器 v2 · LLM 求助卡干预 · 自演化引擎 · 零门槛向导 · 688 键 i18n · L0 假成功修复 · 云端部署</td></tr>
+    </table>
+    <h3>版本历史</h3>
+    <table>
+      <tr><th>版本</th><th>关键改进</th></tr>
+      <tr><td>v3.0</td><td>基础系统：数据采集 + L1 规则 + 浏览器操控</td></tr>
+      <tr><td>v3.4</td><td>8 维 → 10 维；过度帮助检测（L1 代码完整性扫描 + 导师占比）</td></tr>
+      <tr><td>v3.5</td><td>置信度校准 · Watchdog · Prompt 版本管理 · A/B 对比 · 评分中间过程存储</td></tr>
+      <tr><td>v3.6</td><td>双 API 前缀 · 平台交互测评 13 项 · Quiz 体系 · 五层探索器 · 卡点干预 · 自演化 · 零门槛</td></tr>
+    </table>
+
+    <!-- 17 成果 -->
+    <h2 id="s17">17. 成果数据（最终评测报告摘要）</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="n">4.8</div><div class="l">Agent 综合得分（1-10，8 门课 LLM Judge）</div></div>
+      <div class="kpi"><div class="n">8.2</div><div class="l">智能硬件模块（优秀）</div></div>
+      <div class="kpi"><div class="n">4.6</div><div class="l">具身交互模块（中等）</div></div>
+      <div class="kpi"><div class="n">1.5</div><div class="l">AI 应用模块（严重问题）</div></div>
+      <div class="kpi"><div class="n">88%</div><div class="l">平台交互健康度</div></div>
+      <div class="kpi"><div class="n">100%</div><div class="l">Quiz 结构完整率（45 题）</div></div>
+    </div>
+    <h3>关键发现（反馈给平台团队）</h3>
+    <ol>
+      <li><strong>Agent 质量严重不均</strong>：硬件类课程回答质量最高（硬件清单/接线指导/GitHub 资源），AI 类课程最差（空响应、UI 文本泄漏），制造类课程完全无有效响应</li>
+      <li><strong>上下文强依赖</strong>：Agent 必须在课程页面内激活，API 直调 100% 返回 500——评测系统必须走浏览器真实会话</li>
+      <li><strong>响应速度方差大</strong>：1–18 分钟——评分需容忍长尾延迟（Watchdog 分级超时设计依据）</li>
+      <li><strong>第五职业分类预留</strong>：「软件/产品」无对应课程，为平台未来扩展预留</li>
+    </ol>
+
+    <!-- 18 路线图 -->
+    <h2 id="s18">18. 已知限制与路线图</h2>
+    <h3>18.1 本轮未完成项（4 项）</h3>
+    <table>
+      <tr><th>#</th><th>事项</th><th>说明</th><th>优先级</th></tr>
+      <tr><td>1</td><td>完整评测端到端实测</td><td>触发真实卡点弹窗的 browser eval 未跑（云端一次即可验证）</td><td><span class="badge b-p0">P0</span></td></tr>
+      <tr><td>2</td><td>Schema 修复循环</td><td>LLM 修 YAML（maxRepairs=2）未做，仅做了 days=0 静默跳过</td><td><span class="badge b-p1">P1</span></td></tr>
+      <tr><td>3</td><td>探索侧经验注入</td><td>planner/explorer L2/L3 经验注入未做，仅做了 executor 导航注入</td><td><span class="badge b-p1">P1</span></td></tr>
+      <tr><td>4</td><td>多平台切换 UI</td><td>platforms 列表已建库，只有「用上次的平台」</td><td><span class="badge b-p2">P2</span></td></tr>
+    </table>
+    <h3>18.2 v4.0 路线图（白皮书 7.2 节）</h3>
+    <table>
+      <tr><th>优先级</th><th>改进项</th><th>说明</th></tr>
+      <tr><td><span class="badge b-p0">P0</span></td><td>L3 Judge DSPy 优化</td><td>收集 200-500 条专家标注，GEPA 优化 Judge 提示词</td></tr>
+      <tr><td><span class="badge b-p0">P0</span></td><td>告警/Oncall 机制</td><td>评分异常自动钉钉/邮件通知</td></tr>
+      <tr><td><span class="badge b-p1">P1</span></td><td>guidance 维度拆分</td><td>diagnostic_questioning / scaffolding / misconception_repair</td></tr>
+      <tr><td><span class="badge b-p1">P1</span></td><td>Self-Harness 自校准</td><td>可观测性基础设施 + 自动回滚</td></tr>
+      <tr><td><span class="badge b-p2">P2</span></td><td>元认知支持维度</td><td>检测 Agent 是否帮助学生「思考自己的思考」</td></tr>
+      <tr><td><span class="badge b-p2">P2</span></td><td>适应性/个性化维度</td><td>检测 Agent 是否根据学生水平调整教学策略</td></tr>
+      <tr><td><span class="badge b-p2">P2</span></td><td>跨模型自动迁移</td><td>Judge 模型切换时自动重新校准</td></tr>
+    </table>
+
+    <!-- 附录A -->
+    <h2 id="sa">附录 A · 项目目录结构</h2>
+    <pre>agent_eval/
+├── backend/            # FastAPI 后端
+│   ├── main.py         # 入口 + SPA fallback + 健康检查
+│   ├── api/            # REST API 8 模块（含 explorer/settings/i18n）
+│   ├── services/       # 业务层（dashboard_service / explorer_service / error_interpreter）
+│   ├── models/         # SQLAlchemy ORM
+│   ├── middleware/     # CORS / Auth / RateLimit / Metrics
+│   └── ws/             # WebSocket 管理
+├── frontend/           # 无构建 SPA：index.html + js/（10 页面）+ locales/（688 键）
+├── src/                # 核心评测引擎（50+ 模块）
+│   ├── platform_probe/ # 五层探索器 L0-L4
+│   ├── evaluator.py    # 多维度评分
+│   ├── boundary_detector.py / adversarial.py / anomaly_detector.py
+│   ├── evidence_*.py   # 证据链 + SHA-256 + 三层记忆
+│   ├── experience_store.py / fast_path.py / run_metrics.py / platform_profile_store.py
+│   └── platform_data_adapter.py  # profile+schema → EvalConfig
+├── config/             # test_config / eval_profiles / explorer_config (YAML)
+├── tests/              # 30+ 测试文件
+├── deploy/             # systemd / Nginx / Docker / sync.sh / env_check.sh
+├── docs/               # 白皮书 v3.6 / 用户手册 / 架构文档 / 同步文档
+├── reports/            # 最终评测报告等
+└── output/             # 探索结果 / 平台画像 / 证据数据（不入 git）</pre>
+
+    <!-- 附录B -->
+    <h2 id="sb">附录 B · 命令速查</h2>
+    <pre># 平台验证
+python src/platform_content_validator.py --quick      # 内容基线（110 步骤 / 66 资源）
+python src/platform_interaction_evaluator.py --quick  # 13 项交互功能
+python src/quiz_evaluator.py                          # Quiz 专项（45 题）
+
+# 平台探索
+python -m src.platform_probe --url &lt;URL&gt; --headed      # 五层探索，产出 schema
+
+# Agent 测评
+python -m src.persona_tester --mode smoke|standard|deep|custom
+
+# 测试
+pytest tests/ -v                                     # 全量
+python tests/calibration.py --self-test              # 校准自测
+python tests/regression_benchmark.py --check         # 回归基准
+
+# 启动
+python main.py dashboard                             # Web 面板 → :8000
+uvicorn backend.main:app --reload                    # 纯 API
+
+# 部署
+sudo bash deploy/deploy-systemd.sh                   # 从零部署
+bash deploy/sync.sh                                  # 日常更新（本地→云端）
+bash deploy/env_check.sh                             # 部署体检</pre>
+
+    <!-- 附录C -->
+    <h2 id="sc">附录 C · 文档索引</h2>
+    <table>
+      <tr><th>文档</th><th>路径</th><th>用途</th></tr>
+      <tr><td>白皮书 v3.6</td><td>docs/whitepaper_v3.6.md</td><td>10 维度评分标准 + 产业级交付标准</td></tr>
+      <tr><td>用户手册</td><td>docs/用户手册.md</td><td>零门槛操作指南</td></tr>
+      <tr><td>探索器架构</td><td>docs/ARCHITECTURE_PX.md</td><td>五层流水线设计 + 文献对标</td></tr>
+      <tr><td>最终评测报告</td><td>reports/final_evaluation_report_20260812.md</td><td>22 课程实测数据</td></tr>
+      <tr><td>评测协议 v1.0</td><td>docs/evaluation_protocol_v1.0.md</td><td>评测流程协议</td></tr>
+      <tr><td>双 AI 协同同步文档</td><td>docs/SYNC_*.md（7 轮）</td><td>Agent A/B 分工与接口规范</td></tr>
+      <tr><td>本 PRD</td><td>portfolio/public/prd.html</td><td>最终需求交付物（本文档）</td></tr>
+    </table>
+
+    <div class="note" style="margin-top:48px">
+      <strong>文档结束</strong> · AI Agent 全自动化测评系统 PRD v4.0 · 2026-08-19 ·
+      <a href="https://github.com/DiqingTang25/eval" target="_blank" rel="noopener">github.com/DiqingTang25/eval</a> ·
+      <a href="/">返回作品集首页</a>
+    </div>
+  </main>
+</div>
+
+<script>
+// 目录滚动高亮
+(function () {
+  var links = document.querySelectorAll('.toc a');
+  var map = {};
+  links.forEach(function (a) {
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) map[id] = el;
+  });
+  function onScroll() {
+    var y = window.scrollY + 90;
+    var current = null;
+    Object.keys(map).forEach(function (id) {
+      if (map[id].offsetTop <= y) current = id;
+    });
+    links.forEach(function (a) {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

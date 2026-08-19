@@ -1,0 +1,34 @@
+---
+title: "五层平台探索器：让测评系统自动理解任何教学平台"
+publishedAt: "2026-08-12"
+summary: "认证检测 → 流量捕获 → 结构推断 → API 分类 → Schema 生成——借鉴 WALT / Unbrowse / Vespasian 的自动化平台逆向。"
+---
+
+传统测评系统要针对每个被测平台写死适配代码。我们的解法是一个**独立前置的探索器**：自动逆向目标平台，产出一份 `platform_schema.yaml`，测评系统读 schema 即可工作——换平台不用改代码。
+
+## 五层流水线
+
+| 层 | 职责 | 借鉴论文 |
+|----|------|---------|
+| L0 | 认证检测与登录 | balage-core + Periscope MCP |
+| L1 | 流量拦截 + BFS 遍历 | Vespasian + Unbrowse |
+| L2 | 教学结构推断 | WALT + KaBOOM |
+| L3 | API 分类 + LLM 枚举 | Vespasian + A2A 论文 |
+| L4 | Schema 生成 + 脱敏 + 验证 | Vespasian + WALT |
+
+## 实战中的两次硬仗
+
+**双 API 前缀**：逆向平台 24.7 万字符的前端 JS 后发现，平台跑着两个后端——`/api/`（兼容层）与 `/phase3-api/`（前端实际使用），JWT 密钥互不通用。内容类 API 走 `/api/`，交互类（Quiz/Agent/Profile）走 `/phase3-api/`，客户端自动双前缀路由。
+
+**L0 登录假成功**：第一版「密码框消失 + 成功特征词」的判据会把「登录模态框被关闭」误判为登录成功，后续测评以未登录态白跑（0 phases）。修复方案：
+
+1. **反例检测**：页面仍可见登录/注册按钮 = 未登录（排除「退出登录」按钮）
+2. **强制求助**：自主尝试 3 轮失败后强制弹窗询问用户凭证，用户回复「账号 xxx 密码 xxx」直接解析填表
+
+修复后同一平台探索 **0 → 28 phases，置信度 0.77**，认证状态体积从 30B 增长到 1260B——登录深度完全不同。
+
+## 凭证安全
+
+URL 之外的凭证（账号/密码/token）在 LLM 上下文、会话历史、计划确认卡中**全遮蔽**，只以掩码形式流转。
+
+完整架构见 [ARCHITECTURE_PX.md](https://github.com/DiqingTang25/eval/blob/main/docs/ARCHITECTURE_PX.md)。

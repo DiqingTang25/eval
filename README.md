@@ -8,6 +8,16 @@
 
 ---
 
+## 🎨 作品集 & 最终 PRD
+
+| 交付物 | 位置 | 说明 |
+|--------|------|------|
+| **作品集网站** | [`portfolio/`](portfolio/) | 基于 Magic UI 的中英双语项目作品集（Next.js），可一键部署 Vercel |
+| **最终 PRD** | [`portfolio/public/prd.html`](portfolio/public/prd.html) | 完整产品需求文档 v4.0（背景/调研/架构/全部 FR/NFR/测试/部署/里程碑/成果数据/路线图） |
+| 部署指南 | [`portfolio/README.md`](portfolio/README.md) | Vercel 导入步骤（Root Directory 填 `portfolio`） |
+
+---
+
 ## 🏗️ 架构
 
 ```
