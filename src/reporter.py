@@ -473,3 +473,65 @@ class Reporter:
             print(f"  ⚠️ HTML生成失败: {e}")
 
         return json_file
+
+    def generate_multi_agent_report(self, report_data: dict, session_id: str = "") -> str:
+        """Multi-Agent 平台实测报告 — 复用本报告器的自渲染管线
+
+        与 generate_report 同一约定: reports/report_*.{json,md,html} 三格式,
+        HTML 走 src/html_reporter.HTMLReporter.render_multi_agent (数据自适应)。
+
+        :param report_data: DiagnosticReport 序列化 dict
+               (pass_rate/total_steps/failures/critical_failures/
+                evidence_summary/verification_details/diagnosis/strategy)
+        :param session_id: 评测会话 id (落盘与数据库关联用)
+        :returns: JSON 报告文件路径
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        os.makedirs("reports", exist_ok=True)
+
+        report_data = dict(report_data or {})
+        report_data.setdefault("session_id", session_id)
+        report_data.setdefault("generated_at", datetime.now().isoformat())
+
+        json_file = f"reports/report_{timestamp}.json"
+        with open(json_file, "w", encoding="utf-8") as f:
+            json.dump(report_data, f, ensure_ascii=False, indent=2, default=str)
+
+        # ── Markdown ──
+        total = int(report_data.get("total_steps") or 0)
+        failures = int(report_data.get("failures") or 0)
+        critical = int(report_data.get("critical_failures") or 0)
+        pass_rate = float(report_data.get("pass_rate") or 0)
+        channels = (report_data.get("evidence_summary") or {}).get("channels") or {}
+        findings = (report_data.get("diagnosis") or {}).get("findings") or []
+        md_file = f"reports/report_{timestamp}.md"
+        with open(md_file, "w", encoding="utf-8") as f:
+            f.write(f"# Multi-Agent 评测报告\n\n")
+            f.write(f"- 会话: {session_id}\n")
+            f.write(f"- 策略: {report_data.get('strategy', '')}\n")
+            f.write(f"- 通过率: {pass_rate:.0%}\n")
+            f.write(f"- 验证步骤: {total} | 失败: {failures} | 致命失败: {critical}\n\n")
+            f.write(f"## 三通道验证\n\n")
+            f.write(f"- 文本: {channels.get('text', '0/0')} | 视觉: {channels.get('visual', '0/0')}"
+                    f" | API: {channels.get('api', '0/0')}\n\n")
+            if findings:
+                f.write(f"## 关键发现\n\n")
+                for fnd in findings[:20]:
+                    if isinstance(fnd, dict):
+                        f.write(f"- [{fnd.get('severity', '')}] {str(fnd.get('step', ''))[:80]}: "
+                                f"{str(fnd.get('reason', ''))[:150]}\n")
+        self._last_report = {"json_path": json_file, "markdown_path": md_file, "html_path": ""}
+
+        # ── HTML (富渲染, 数据自适应) ──
+        try:
+            from src.html_reporter import HTMLReporter
+            html = HTMLReporter.render_multi_agent(report_data)
+            html_file = f"reports/report_{timestamp}.html"
+            with open(html_file, "w", encoding="utf-8") as f:
+                f.write(html)
+            self._last_report["html_path"] = html_file
+            print(f"  📄 HTML: {html_file}")
+        except Exception as e:
+            print(f"  ⚠️ HTML生成失败: {e}")
+
+        return json_file

@@ -568,31 +568,20 @@ class TestService:
                 if report_path and Path(report_path).exists():
                     import json as _json
                     data = _json.loads(Path(report_path).read_text(encoding="utf-8"))
-                    diag = data.get("diagnosis") or {}
-                    findings = diag.get("findings") or []
-                    lines = [
-                        f"# Multi-Agent 评测报告",
-                        f"",
-                        f"- 会话: {session_id}",
-                        f"- 策略: {data.get('strategy', '')}",
-                        f"- 通过率: {data.get('pass_rate', 0):.0%}",
-                        f"- 验证步骤: {data.get('total_steps', 0)} | 失败: {data.get('failures', 0)}",
-                        f"- 致命失败: {data.get('critical_failures', 0)}",
-                        f"",
-                        f"## 关键发现",
-                    ]
-                    for f in findings[:10]:
-                        lines.append(f"- [{f.get('severity', '')}] {str(f.get('step', ''))[:80]}: "
-                                     f"{str(f.get('reason', ''))[:150]}")
-                    markdown = "\n".join(lines)
-                    # 富 HTML 报告 (与旧版测评报告同一渲染体系, 数据自适应)
+                    # 统一走 src/reporter.py 自渲染管线 (JSON+MD+HTML 三格式)
                     try:
-                        from src.html_reporter import HTMLReporter
-                        html = HTMLReporter.render_multi_agent(data)
-                        html_path = Path(report_path).with_suffix(".html")
-                        html_path.write_text(html, encoding="utf-8")
+                        from src.reporter import Reporter
+                        rep = Reporter()
+                        json_path = rep.generate_multi_agent_report(data, session_id)
+                        report_path = json_path  # DB 记录自渲染管线的报告路径
+                        md_path = rep._last_report.get("markdown_path", "")
+                        html_path = rep._last_report.get("html_path", "")
+                        if md_path and Path(md_path).exists():
+                            markdown = Path(md_path).read_text(encoding="utf-8")
+                        if html_path and Path(html_path).exists():
+                            html = Path(html_path).read_text(encoding="utf-8")
                     except Exception:
-                        html = ""
+                        pass
             except Exception:
                 pass
 
