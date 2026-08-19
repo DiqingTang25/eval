@@ -13,10 +13,14 @@ import os
 from dataclasses import dataclass, field
 
 # 确保 .env 已加载 (无论从哪个入口运行 explorer)
+# 显式指向项目根目录 — systemd 服务 WorkingDirectory=/ 时按 cwd 找会失败
 try:
+    from pathlib import Path
     from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
+    _ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
+    if _ENV_FILE.exists():
+        load_dotenv(_ENV_FILE)
+except Exception:
     pass
 
 

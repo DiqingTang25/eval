@@ -146,14 +146,14 @@ async def update_llm_key(body: LLMKeyUpdate) -> dict:
     else:
         content = ""
 
-    # 更新或追加
+    # 更新或追加 (兼容旧版 "KEY = value" 带空格格式 — 正则容忍两侧空白)
     escaped_key = body.api_key.replace("'", "'\\''")
     new_line = f'{env_key_name}={escaped_key}'
 
-    if env_key_name in content:
-        # 替换已存在行
+    if re.search(rf'^\s*{env_key_name}\s*=', content, flags=re.MULTILINE):
+        # 替换已存在行 (含旧带空格格式)
         content = re.sub(
-            rf'^{env_key_name}=.*$',
+            rf'^\s*{env_key_name}\s*=.*$',
             new_line,
             content,
             flags=re.MULTILINE,
@@ -169,9 +169,9 @@ async def update_llm_key(body: LLMKeyUpdate) -> dict:
         base_url_env = KNOWN_PROVIDERS[body.provider].get("env_base_url", "")
         if base_url_env and body.base_url:
             base_line = f'{base_url_env}={body.base_url}'
-            if base_url_env in content:
+            if re.search(rf'^\s*{base_url_env}\s*=', content, flags=re.MULTILINE):
                 content = re.sub(
-                    rf'^{base_url_env}=.*$',
+                    rf'^\s*{base_url_env}\s*=.*$',
                     base_line,
                     content,
                     flags=re.MULTILINE,
