@@ -43,6 +43,7 @@ rsync -rlptz --delete \
   --exclude '.DS_Store' \
   --exclude 'Thumbs.db' \
   --exclude 'data/' \
+  --exclude 'output/' \
   --exclude 'reports/' \
   --exclude 'page_explore_*.html' \
   --exclude 'page_screenshot_*.png' \
