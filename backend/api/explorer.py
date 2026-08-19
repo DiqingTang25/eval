@@ -1,12 +1,23 @@
-"""Platform Explorer API 路由"""
+"""Platform Explorer API 路由 — 对话式探索器 + 表单路径 (合并 v4.0 与 chat 端点)"""
 
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.services.explorer_service import ExplorerService
-
+logger = logging.getLogger(__name__)
 router = APIRouter()
-explorer_service = ExplorerService()
+
+# Lazy import — 在首次API调用时才加载服务, 避免启动时导入链问题
+_explorer_service = None
+
+
+def _get_service():
+    global _explorer_service
+    if _explorer_service is None:
+        from backend.services.explorer_service import ExplorerService
+        _explorer_service = ExplorerService()
+    return _explorer_service
+
 
 # 对话服务 (懒加载, 注入同一个 ExplorerService 单例避免运行状态脱节)
 _chat_service = None
@@ -16,7 +27,7 @@ def _get_chat_service():
     global _chat_service
     if _chat_service is None:
         from backend.services.explorer_chat import ExplorerChatService
-        _chat_service = ExplorerChatService(explorer_service=explorer_service)
+        _chat_service = ExplorerChatService(explorer_service=_get_service())
     return _chat_service
 
 
@@ -28,6 +39,9 @@ class ExploreRequest(BaseModel):
     max_depth: int = 3
     max_pages: int = 50
     api_threshold: float = 0.50
+    auth_state_path: str = ""  # 预认证: 已保存的 Playwright storage_state JSON 路径
+    llm_api_key: str = ""      # LLM API Key (用于端点枚举)
+    vlm_api_key: str = ""      # VLM API Key (用于视觉理解)
 
 
 class ChatStartRequest(BaseModel):
@@ -55,6 +69,90 @@ class ExploreResponse(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════
+# 环境检查
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/health")
+async def explorer_health():
+    """检查探索器环境是否就绪 (Playwright, DB, 依赖等)"""
+    import asyncio
+    issues = []
+
+    # 1. YAML
+    try:
+        import yaml; yaml_ok = True
+    except Exception:
+        yaml_ok = False; issues.append("pyyaml not installed")
+
+    # 2. 输出目录
+    from pathlib import Path
+    out = Path(__file__).parent.parent.parent / "output" / "platform_probe"
+    try:
+        out.mkdir(parents=True, exist_ok=True); dir_ok = True
+    except Exception as e:
+        dir_ok = False; issues.append(f"Output dir: {e}")
+
+    # 3. Playwright — 检测 chromium 二进制是否存在 (避免 event loop 冲突)
+    try:
+        from playwright.sync_api import sync_playwright
+        def _check():
+            with sync_playwright() as p:
+                b = p.chromium.launch(headless=True); b.close()
+            return True
+        pw_ok = await asyncio.to_thread(_check)
+    except Exception as e:
+        pw_ok = False; issues.append(f"Playwright: {str(e)[:120]}")
+
+    # 4. 数据库
+    try:
+        from backend.dependencies import get_sync_db
+        from sqlalchemy import text
+        db = get_sync_db()
+        db.execute(text("SELECT 1"))
+        db.close(); db_ok = True
+    except Exception as e:
+        db_ok = False; issues.append(f"DB: {str(e)[:120]}")
+
+    return {
+        "ready": pw_ok and yaml_ok and dir_ok and db_ok,
+        "checks": {"playwright": pw_ok, "yaml": yaml_ok, "output_dir": dir_ok, "database": db_ok},
+        "issues": issues,
+        "fix_hints": ["pip install playwright && python -m playwright install chromium"] if not pw_ok else [],
+    }
+
+
+# ═══════════════════════════════════════════════════════════
+# 平台Profile (全链路桥梁)
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/profile/latest")
+async def get_latest_profile():
+    """
+    获取最近一次成功探索的平台Profile。
+    Health Check / Test Runner / Frontend 通过此端点自动获取平台信息。
+    """
+    from pathlib import Path
+    profile_path = Path(__file__).parent.parent.parent / "output" / "platform_probe" / "platform_profile.json"
+
+    if not profile_path.exists():
+        return {"available": False, "message": "No exploration profile yet. Run an exploration first."}
+
+    try:
+        import json
+        profile = json.loads(profile_path.read_text(encoding="utf-8"))
+        # 验证schema文件还存在
+        schema_path = profile.get("schema_path", "")
+        if schema_path and Path(schema_path).exists():
+            profile["schema_valid"] = True
+        else:
+            profile["schema_valid"] = False
+        profile["available"] = True
+        return profile
+    except Exception as e:
+        return {"available": False, "message": f"Failed to read profile: {e}"}
+
+
+# ═══════════════════════════════════════════════════════════
 # 探索控制
 # ═══════════════════════════════════════════════════════════
 
@@ -73,7 +171,7 @@ async def start_explore(body: ExploreRequest) -> dict:
     if not body.target_url.startswith(("http://", "https://")):
         body.target_url = "https://" + body.target_url
 
-    return await explorer_service.start_explore(
+    return await _get_service().start_explore(
         target_url=body.target_url,
         username=body.username,
         password=body.password,
@@ -86,14 +184,14 @@ async def start_explore(body: ExploreRequest) -> dict:
 
 @router.get("/status")
 async def explore_status() -> dict:
-    """当前探索状态"""
-    return await explorer_service.get_status()
+    """当前探索状态 (前端每2秒轮询)"""
+    return await _get_service().get_status()
 
 
 @router.post("/cancel")
 async def cancel_explore() -> dict:
     """取消正在运行的探索"""
-    return await explorer_service.cancel_explore()
+    return await _get_service().cancel_explore()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -103,13 +201,13 @@ async def cancel_explore() -> dict:
 @router.get("/sessions")
 async def list_sessions(page: int = 1, page_size: int = 20) -> dict:
     """探索历史列表"""
-    return await explorer_service.get_sessions(page=page, page_size=page_size)
+    return await _get_service().get_sessions(page=page, page_size=page_size)
 
 
 @router.get("/sessions/{session_id}")
 async def get_session(session_id: str) -> dict:
     """单个探索会话详情"""
-    session = await explorer_service.get_session(session_id)
+    session = await _get_service().get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
     return session
@@ -125,7 +223,7 @@ async def get_latest_schema() -> dict:
     获取最近一次成功探索的 schema 路径
     前端/TestRunner 可据此自动选择 schema 驱动模式
     """
-    result = await explorer_service.get_latest_ready_schema()
+    result = await _get_service().get_latest_ready_schema()
     if not result:
         return {
             "available": False,
@@ -146,7 +244,7 @@ async def get_schema_content(session_id: str):
     from pathlib import Path
     from fastapi.responses import PlainTextResponse
 
-    session = await explorer_service.get_session(session_id)
+    session = await _get_service().get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
 

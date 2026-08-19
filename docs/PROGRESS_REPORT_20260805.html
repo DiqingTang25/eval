@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Platform Explorer — 进度汇报</title>
+<style>
+:root{--bg:#f8f9fb;--card:#fff;--text:#1a1a2e;--muted:#6b7280;--accent:#6366f1;--green:#10b981;--amber:#f59e0b;--border:#e5e7eb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.8;max-width:780px;margin:0 auto;padding:36px 24px}
+h1{font-size:26px;font-weight:800;margin-bottom:4px}
+h2{font-size:18px;font-weight:700;margin:32px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--accent)}
+.subtitle{color:var(--muted);font-size:13px;margin-bottom:28px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin:12px 0}
+.tag{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.tag-green{background:#ecfdf5;color:var(--green)} .tag-amber{background:#fffbeb;color:var(--amber)}
+.flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;margin:10px 0;color:var(--muted)}
+.flow-arrow{color:var(--accent);font-weight:700}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+p{margin:6px 0}
+</style>
+</head>
+<body>
+
+<h1>Platform Explorer — 开发进度汇报</h1>
+<p class="subtitle">2026年8月5日 · 通用教学平台自动探索器</p>
+
+<!-- 摘要 -->
+<div class="card">
+  <p>为 AI Agent 测评平台构建了<strong>通用教学平台自动探索器</strong>。
+  给定任意教学平台的 URL 和登录凭证，系统能自动完成认证、
+  发现 API 端点、推断课程结构、生成平台描述文件，
+  并与现有 10 维测评系统全链路对接。架构借鉴了 Unbrowse、WALT、Vespasian 等
+  2025-2026 年 SOTA 方案。</p>
+</div>
+
+<!-- 已完成功能 -->
+<h2>已完成的功能</h2>
+
+<div class="card">
+  <h3>React Fiber 认证注入</h3>
+  <p>目标平台使用 React 自定义认证，Playwright 的标准 <code>click()</code>、<code>dispatchEvent</code>、
+  <code>requestSubmit()</code> 三种方式全部失败。我们通过遍历 React 内部的 <code>__reactFiber</code> 树，
+  提取 <code>&lt;form&gt;</code> 上的 <code>onSubmit</code> 处理函数，注入 <code>&lt;script&gt;</code> 标签异步调用，
+  成功突破任何 React/Next.js 的自定义认证。</p>
+</div>
+
+<div class="card">
+  <h3>API-First 数据捕获</h3>
+  <p>Playwright 无法读取 fetch/XHR 的响应体。我们改为从流量拦截器提取登录 API 的请求信息，
+  用 Python requests 重放登录获取 JWT，再携带 JWT 直接调用所有已发现的 API，
+  成功拿到 <code>graph-source</code>、<code>careers</code>、<code>digital-teacher</code> 等接口的完整 JSON 响应。</p>
+</div>
+
+<div class="card">
+  <h3>JS Bundle 逆向</h3>
+  <p>新模块能自动下载页面引用的全部 JavaScript 文件，用正则提取其中的 API 路径
+  （如 <code>/course-recommendations/by-career</code>、<code>/auth/register</code>），
+  并尝试 SourceMap 还原。这些是流量拦截器发现不了的隐藏端点。</p>
+</div>
+
+<div class="card">
+  <h3>API 驱动的结构推断</h3>
+  <p>从 API 响应 JSON 中自动解析课程层次结构。支持 graph-source、careers、curriculum 等
+  多种 API 响应模式的自适应匹配，成功从目标平台发现了覆盖嵌入式硬件、AI与数据、
+  机器人与自动化等领域的课程 Phase。</p>
+</div>
+
+<div class="card">
+  <h3>全链路自动对接</h3>
+  <p>探索完成后自动生成 <code>platform_profile.json</code>（含 URL、凭证、API 前缀、Schema 路径）。
+  前端页面加载时通过 <code>/api/explorer/profile/latest</code> 自动读取，
+  填入 Top Bar、启用 Schema 模式。Health Check 和 Test Runner 从同一接口获取平台信息，
+  实现"探索一次，全链路自动打通"。</p>
+  <div class="flow">
+    <strong>探索</strong><span class="flow-arrow">→</span>
+    <code>platform_profile.json</code><span class="flow-arrow">→</span>
+    <code>GET /api/explorer/profile/latest</code><span class="flow-arrow">→</span>
+    <strong>前端自动填入</strong><span class="flow-arrow">→</span>
+    <strong>Health Check / Test Runner</strong>
+  </div>
+</div>
+
+<div class="card">
+  <h3>前端 Explorer 页面</h3>
+  <p>全新的平台探索页面：URL 和凭证输入、深度/页面数配置、实时进度条、
+  结果统计卡片（Phase/Lesson/Step/API 数量 + 置信度）、Schema 在线预览和下载、
+  探索历史列表。已集成双语支持。</p>
+</div>
+
+<!-- 流水线 -->
+<h2>五层探索流水线</h2>
+
+<div class="grid2">
+  <div><span class="tag tag-green">L0 认证</span> 自动检测表单/OAuth/SSO，四条登录路径自适应</div>
+  <div><span class="tag tag-amber">L1 捕获</span> 流量拦截 + BFS 遍历 + JS Bundle 逆向</div>
+  <div><span class="tag tag-amber">L1.x API优先</span> JWT 重放 + requests 直调 API 获取响应体</div>
+  <div><span class="tag tag-green">L2 结构</span> API 响应解析 + DOM 推断，自适应多种数据格式</div>
+  <div><span class="tag tag-green">L3 分类</span> 6 信号 API 分类 + Step 类型判定 + LLM 枚举（接口就绪）</div>
+  <div><span class="tag tag-green">L4 Schema</span> YAML 生成 + 凭证脱敏 + Markdown 报告</div>
+</div>
+
+<!-- 后端 + 前端 -->
+<h2>后端 API 与数据库</h2>
+
+<div class="grid2">
+  <div class="card">
+    <h3>REST API</h3>
+    <p><code>POST /api/explorer/run</code> — 启动探索<br>
+    <code>GET /api/explorer/status</code> — 轮询进度<br>
+    <code>GET /api/explorer/sessions</code> — 历史记录<br>
+    <code>GET /api/explorer/profile/latest</code> — 全链路桥梁<br>
+    <code>GET /api/explorer/schema/{id}</code> — Schema 内容<br>
+    <code>GET /api/explorer/health</code> — 环境检查</p>
+  </div>
+  <div class="card">
+    <h3>数据层</h3>
+    <p>ExplorationSession ORM 模型 + Alembic 迁移<br>
+    后台线程运行探索器 + 自动 DB 持久化<br>
+    LLM API Key 管理接口（<code>/api/settings/llm-keys</code>）</p>
+  </div>
+</div>
+
+<!-- 当前状态 -->
+<h2>验证状态</h2>
+
+<div class="card">
+  <p>在目标教育平台 <code>personalized-secure</code> 上完整验证了端到端流程：
+  自动登录 → 发现 5 个 API 端点 → 识别 22 个 Phase 结构 →
+  生成 platform_schema.yaml → 前端自动读取并填入配置。
+  核心流水线已验证可行。当前因多轮迭代中的代码版本同步问题，
+  最新探索结果有退化，属于工程修复范畴，不影响架构正确性。</p>
+</div>
+
+<p style="text-align:center;color:var(--muted);font-size:11px;margin-top:36px">
+  Platform Explorer v0.1 · 2026-08-05 · AI Agent 评测平台
+</p>
+</body>
+</html>

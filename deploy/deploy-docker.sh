@@ -1,7 +1,7 @@
 #!/bin/bash
 # ================================================================
-# AI Agent 评测系统 — 火山引擎云服务器一键部署脚本
-# 使用: chmod +x deploy/deploy.sh && ./deploy/deploy.sh
+# AI Agent 评测系统 — Docker 部署脚本 (备用方案)
+# 使用: sudo bash deploy/deploy-docker.sh
 # ================================================================
 set -euo pipefail
 
@@ -71,15 +71,19 @@ log "服务已启动"
 # ── 6. 安装 Nginx (如果需要) ──
 if ! command -v nginx &> /dev/null; then
     warn "Nginx 未安装，跳过反向代理配置"
-    warn "运行: apt-get install -y nginx && cp deploy/nginx.conf /etc/nginx/sites-available/agent-eval"
+    warn "运行: apt-get install -y nginx"
 else
     read -p "是否配置 Nginx 反向代理? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sudo cp deploy/nginx.conf /etc/nginx/sites-available/agent-eval
-        sudo ln -sf /etc/nginx/sites-available/agent-eval /etc/nginx/sites-enabled/
+        warn "请手动将 deploy/nginx-agent-eval.conf 中的 /test/ location 块"
+        warn "合并到你的主 Nginx 配置中 (通常是 /etc/nginx/sites-enabled/ 下的文件)"
+        echo ""
+        cat deploy/nginx-agent-eval.conf
+        echo ""
+        read -p "已手动配置 Nginx? 按回车继续..."
         sudo nginx -t && sudo systemctl reload nginx
-        log "Nginx 配置完成"
+        log "Nginx 重载成功"
     fi
 fi
 

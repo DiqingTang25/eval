@@ -58,6 +58,13 @@ class PlannerAgent:
         schema_lessons = structure.get("lessons", [])
         schema_steps = structure.get("steps", [])
 
+        # DIAG: 记录 Schema 来源
+        import traceback as _tb
+        logger.info(f"[Planner] Schema: {adapter.schema_path} | "
+                    f"phases={len(schema_phases)} lessons={len(schema_lessons)} "
+                    f"steps={len(schema_steps)} | filter={phases_filter} | "
+                    f"cwd={__import__('os').getcwd()}")
+
         if not schema_phases:
             return TestPlan(
                 plan_available=False,
@@ -199,7 +206,13 @@ class PlannerAgent:
                     sf = subdir / "platform_schema.yaml"
                     if sf.exists():
                         try:
-                            self._adapter = SchemaAdapter(str(sf))
+                            adapter = SchemaAdapter(str(sf))
+                            # 跳过空 schema (phases=0 → 探索未完成)
+                            phases = adapter.raw.get("structure", {}).get("phases", [])
+                            if len(phases) == 0:
+                                logger.info(f"跳过空 schema: {sf} (phases=0)")
+                                continue
+                            self._adapter = adapter
                             return self._adapter
                         except Exception:
                             continue

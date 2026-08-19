@@ -146,6 +146,7 @@ class SchemaGenerator:
         api_catalog: APICatalog,
         step_catalog: StepCatalog,
         confidence: dict,
+        teaching_structure: TeachingStructure = None,
     ) -> PlatformSchema:
         """生成完整的平台 Schema"""
 
@@ -196,30 +197,7 @@ class SchemaGenerator:
             target_url=target_url,
             platform=platform_info,
             auth=auth_info,
-            structure={
-                "hierarchy": ["phase", "lesson", "step"],  # Phase 1 默认层次
-                "phases": [],
-                "lessons": [],
-                "steps": [
-                    {
-                        "id": s.id,
-                        "title": s.title,
-                        "type": s.type.value,
-                        "type_confidence": s.type_confidence,
-                        "order_index": s.order_index,
-                        "interaction_elements": [
-                            {
-                                "role": e.role,
-                                "selector": e.selector,
-                                "semantic": e.semantic,
-                                "stable_hash": e.stable_hash,
-                            }
-                            for e in s.interaction_elements[:10]
-                        ],
-                    }
-                    for s in step_catalog.steps
-                ],
-            },
+            structure=self._build_structure(teaching_structure, step_catalog),
             apis=apis,
             agent=agent_info,
             navigation={"patterns": nav_patterns},
@@ -229,22 +207,40 @@ class SchemaGenerator:
         return schema
 
     def _detect_spa(self, capture: CaptureResult) -> bool:
-        """检测是否为 SPA"""
-        # 启发式: 如果大部分页面路由没有 .html 扩展名 → SPA
+        """检测是否为 SPA — URL模式 + 框架hint双重判断"""
+        # 框架hint: Next.js/React/Vue/Angular → 肯定是SPA
+        spa_frameworks = {"next", "react", "vue", "angular"}
+        for page in capture.pages:
+            for hint in page.framework_hints:
+                if hint.lower() in spa_frameworks:
+                    return True
+        # URL模式: 大部分页面路由没有 .html 扩展名 → SPA
+        if not capture.pages:
+            return False
         spa_count = 0
         for page in capture.pages:
-            path = page.url.split("?")[0]
+            path = page.url.split("?")[0].split("#")[0]
             if not any(path.endswith(ext) for ext in [".html", ".htm", ".php"]):
                 spa_count += 1
-        return spa_count > max(len(capture.pages) * 0.5, 1)
+        return spa_count > max(len(capture.pages) * 0.3, 0)
 
     def _infer_agent_interaction(self, api_catalog: APICatalog) -> dict:
-        """推断 Agent 交互模式"""
+        """推断 Agent 交互模式 — 多策略匹配"""
         agent_eps = api_catalog.by_category.get("agent", [])
+        # 扩展匹配: chat, agent, digital-teacher, assistant, tutor, coach, context
+        chat_patterns = ["chat", "agent", "digital-teacher", "assistant",
+                        "tutor", "coach", "context", "conversation", "message"]
         chat_eps = [ep for ep in api_catalog.endpoints
-                    if "chat" in ep.path.lower() or "agent" in ep.path.lower()]
+                    if any(p in ep.path.lower() for p in chat_patterns)]
 
-        all_agent_eps = agent_eps + chat_eps
+        # 去重 + 按置信度排序
+        seen = set()
+        all_agent_eps = []
+        for ep in agent_eps + chat_eps:
+            if ep.path not in seen:
+                seen.add(ep.path)
+                all_agent_eps.append(ep)
+        all_agent_eps.sort(key=lambda e: e.confidence, reverse=True)
 
         if not all_agent_eps:
             return {
@@ -254,8 +250,14 @@ class SchemaGenerator:
                 "context_fields": [],
             }
 
-        # 取置信度最高的
-        best = max(all_agent_eps, key=lambda e: e.confidence)
+        # 找最可能的chat端点 (POST优先, 其次GET)
+        best = None
+        for ep in all_agent_eps:
+            if ep.method == "POST":
+                best = ep
+                break
+        if not best:
+            best = all_agent_eps[0]
 
         return {
             "chat_endpoint": best.path,
@@ -324,6 +326,35 @@ class SchemaGenerator:
         for d in depths.values():
             dist[d] = dist.get(d, 0) + 1
         return dist
+
+    def _build_structure(self, ts: TeachingStructure | None,
+                         step_catalog: StepCatalog) -> dict:
+        """构建结构部分 — 优先使用L2推断, 回退到Step分类"""
+        if ts is not None and ts.confidence >= 0.5:
+            return {
+                "hierarchy": ts.hierarchy or ["phase", "lesson", "step"],
+                "phases": [{"id": p.id, "name": p.name, "order": p.order,
+                            "lesson_count": p.lesson_count}
+                           for p in ts.phases],
+                "lessons": [{"id": l.id, "name": l.name, "phase_id": l.phase_id,
+                             "order": l.order, "step_count": l.step_count,
+                             "topics": l.topics}
+                            for l in ts.lessons],
+                "steps": [{"id": s.id, "title": s.title, "lesson_id": s.lesson_id,
+                           "type": s.type.value, "type_confidence": s.type_confidence,
+                           "order_index": s.order_index}
+                          for s in ts.steps],
+            }
+        # Fallback: L3 Step分类结果
+        return {
+            "hierarchy": ["phase", "lesson", "step"],
+            "phases": [],
+            "lessons": [],
+            "steps": [{"id": s.id, "title": s.title, "type": s.type.value,
+                       "type_confidence": s.type_confidence,
+                       "order_index": s.order_index}
+                      for s in step_catalog.steps],
+        }
 
     def _format_apis(self, api_catalog: APICatalog) -> dict[str, list[dict]]:
         """格式化 API 端点列表"""
@@ -416,12 +447,13 @@ def run_l4_schema(
     api_catalog: APICatalog,
     step_catalog: StepCatalog,
     output_dir: Path,
+    teaching_structure: TeachingStructure = None,
     verbose: bool = True,
+    auth_confidence: float = 0.0,
+    fuzz_findings: list[dict] = None,
 ) -> tuple[PlatformSchema, ExplorationReport, str]:
     """
     L4 完整流程: 生成 → 脱敏 → 验证 → 报告
-
-    :returns: (schema, report, yaml_path)
     """
     if verbose:
         print(f"\n{'='*60}")
@@ -431,22 +463,26 @@ def run_l4_schema(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 1: 计算整体置信度
-    structure_conf = 0.5  # Phase 1: L2未完整实现, 给默认值
+    # Step 1: 计算整体置信度 (使用L2真实数据)
+    if teaching_structure is not None and teaching_structure.confidence > 0:
+        structure_conf = teaching_structure.confidence
+    else:
+        structure_conf = 0.5
+
     step_type_conf = sum(s.type_confidence for s in step_catalog.steps)
-    step_type_conf = step_type_conf / max(len(step_catalog.steps), 1)
+    step_type_conf = step_type_conf / max(len(step_catalog.steps), 1) if step_catalog.steps else 0.4
 
     api_conf = sum(ep.confidence for ep in api_catalog.endpoints)
-    api_conf = api_conf / max(len(api_catalog.endpoints), 1)
+    api_conf = api_conf / max(len(api_catalog.endpoints), 1) if api_catalog.endpoints else 0.0
 
     confidence = compute_overall_confidence(
-        auth_conf=0.95,   # Phase 1 认证检测较可靠
+        auth_conf=auth_confidence if auth_confidence > 0 else 0.95,
         structure_conf=structure_conf,
         step_type_conf=step_type_conf,
         api_conf=api_conf,
     )
 
-    # Step 2: 生成 Schema
+    # Step 2: 生成 Schema (传入L2结构)
     generator = SchemaGenerator(verbose=verbose)
     schema = generator.generate(
         target_url=target_url,
@@ -455,7 +491,12 @@ def run_l4_schema(
         api_catalog=api_catalog,
         step_catalog=step_catalog,
         confidence=confidence,
+        teaching_structure=teaching_structure,
     )
+
+    # Step 2.5: 附加 fuzz 发现到 schema
+    if fuzz_findings:
+        schema.fuzz_findings = fuzz_findings
 
     # Step 3: 脱敏
     # 将 schema 转换为 dict, 脱敏, 再写回
@@ -475,6 +516,14 @@ def run_l4_schema(
     is_valid, warnings = validator.validate(schema)
 
     # Step 6: 生成探索报告
+    confidence_report = ConfidenceReport(
+        overall=confidence.get("overall", 0.0),
+        structure=confidence.get("structure", 0.0),
+        step_types=confidence.get("step_types", 0.0),
+        apis=confidence.get("apis", 0.0),
+        auth=confidence.get("auth", 0.0),
+        fields_needing_human_review=confidence.get("fields_needing_human_review", []),
+    )
     report = ExplorationReport(
         target_url=target_url,
         timestamp=datetime.now(timezone.utc).isoformat(),
@@ -484,13 +533,27 @@ def run_l4_schema(
         steps_found=len(schema.structure.get("steps", [])),
         api_endpoints_found=api_catalog.total_found,
         hidden_endpoints_found=api_catalog.llm_inferred_count,
+        confidence=confidence_report,
         warnings=warnings,
         recommendations=_generate_recommendations(schema, warnings),
+        fuzz_findings=fuzz_findings or [],
     )
 
     # 写入报告
     report_path = output_dir / "exploration_report.md"
     report_path.write_text(_format_report_md(report, schema), encoding="utf-8")
+
+    # Step 7: 生成 OpenAPI 3.0 (Vespasian 对标)
+    openapi_path = output_dir / "openapi_schema.json"
+    try:
+        openapi_json = _generate_openapi3(target_url, api_catalog, auth_schema)
+        openapi_path.write_text(json.dumps(openapi_json, ensure_ascii=False, indent=2),
+                               encoding="utf-8")
+        if verbose:
+            print(f"  📄 OpenAPI 3.0: {openapi_path}")
+    except Exception as e:
+        if verbose:
+            print(f"  ⚠️ OpenAPI生成跳过: {e}")
 
     if verbose:
         print(f"\n  📄 Schema: {yaml_path}")
@@ -506,7 +569,7 @@ def run_l4_schema(
 
 def _schema_to_dict(schema: PlatformSchema) -> dict:
     """将 PlatformSchema 转换为可序列化的 dict"""
-    return {
+    result = {
         "schema_version": schema.schema_version,
         "generated_by": schema.generated_by,
         "exploration_timestamp": schema.exploration_timestamp,
@@ -519,6 +582,16 @@ def _schema_to_dict(schema: PlatformSchema) -> dict:
         "navigation": schema.navigation,
         "confidence_scores": schema.confidence_scores,
     }
+    # 附加 fuzz 发现 (如果有)
+    high_count = len([f for f in (schema.fuzz_findings or []) if f.get("risk") == "high"])
+    med_count = len([f for f in (schema.fuzz_findings or []) if f.get("risk") == "medium"])
+    result["security"] = {
+        "fuzz_findings": schema.fuzz_findings if schema.fuzz_findings else [],
+        "high_risk_count": high_count,
+        "medium_risk_count": med_count,
+        "fuzzer_ran": bool(schema.fuzz_findings),
+    }
+    return result
 
 
 def _generate_recommendations(schema: PlatformSchema, warnings: list[str]) -> list[str]:
@@ -539,6 +612,39 @@ def _generate_recommendations(schema: PlatformSchema, warnings: list[str]) -> li
 
 def _format_report_md(report: ExplorationReport, schema: PlatformSchema) -> str:
     """生成 Markdown 格式的探索报告"""
+    # ── Fuzz findings section ──
+    fuzz_section = ""
+    if report.fuzz_findings:
+        high_risk = [f for f in report.fuzz_findings if f.get("risk") == "high"]
+        medium_risk = [f for f in report.fuzz_findings if f.get("risk") == "medium"]
+        fuzz_section = f"""
+## 安全Fuzz发现
+| 风险 | 数量 |
+|------|------|
+| 🔴 高风险 (IDOR/绕过) | {len(high_risk)} |
+| 🟡 中风险 (响应差异) | {len(medium_risk)} |
+
+"""
+        if high_risk:
+            fuzz_section += "### 🔴 高风险发现\n\n"
+            for f in high_risk:
+                fuzz_section += (
+                    f"- **{f.get('endpoint', '?')}** — {f.get('detail', '')}\n"
+                    f"  - Fuzz: {f.get('fuzz_type', '')}={f.get('fuzz_value', '')} "
+                    f"→ 状态码 {f.get('fuzz_status', '?')} "
+                    f"(原始: {f.get('baseline_status', '?')})\n"
+                )
+            fuzz_section += "\n"
+        if medium_risk:
+            fuzz_section += "### 🟡 中风险发现\n\n"
+            for f in medium_risk[:10]:  # 最多展示10个
+                fuzz_section += (
+                    f"- **{f.get('endpoint', '?')}** — {f.get('detail', '')}\n"
+                )
+            if len(medium_risk) > 10:
+                fuzz_section += f"\n*... 还有 {len(medium_risk) - 10} 个中风险发现*\n"
+            fuzz_section += "\n"
+
     return f"""# 平台探索报告
 
 ## 基本信息
@@ -571,10 +677,167 @@ def _format_report_md(report: ExplorationReport, schema: PlatformSchema) -> str:
 
 {f"## 警告" if report.warnings else ""}
 {chr(10).join(f'- {w}' for w in report.warnings) if report.warnings else ""}
-
+{fuzz_section}
 ## 建议
 {chr(10).join(f'{i+1}. {r}' for i, r in enumerate(report.recommendations)) if report.recommendations else "无"}
 
 ---
 *由 Platform Explorer (PX) v0.1 自动生成*
 """
+
+
+# ═══════════════════════════════════════════════════════════════
+# OpenAPI 3.0 生成器 (Vespasian 对标)
+# ═══════════════════════════════════════════════════════════════
+
+def _generate_openapi3(target_url: str, api_catalog: APICatalog,
+                       auth_schema: AuthSchema) -> dict:
+    """
+    从 APICatalog 生成标准 OpenAPI 3.0 规范
+
+    借鉴 Vespasian Generator: HAR → OpenAPI 3.0
+    输出: openapi_schema.json
+    """
+    from urllib.parse import urlparse
+    parsed = urlparse(target_url)
+
+    # 基础结构
+    openapi = {
+        "openapi": "3.0.3",
+        "info": {
+            "title": f"Platform API — {parsed.netloc}",
+            "description": (
+                f"Auto-discovered API specification for {target_url}\n"
+                f"Generated by Platform Explorer (PX) v0.1\n"
+                f"Method: Vespasian-style traffic analysis + LLM enumeration"
+            ),
+            "version": "1.0.0",
+            "contact": {},
+        },
+        "servers": [{
+            "url": f"{parsed.scheme}://{parsed.netloc}",
+            "description": "Auto-detected server",
+        }],
+        "paths": {},
+        "components": {
+            "schemas": {},
+            "securitySchemes": {},
+        },
+        "tags": [],
+        "security": [],
+    }
+
+    # 认证方案
+    if auth_schema.type.value != "none":
+        scheme = {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": f"Auto-detected: {auth_schema.type.value} → {auth_schema.token_key}",
+        }
+        openapi["components"]["securitySchemes"]["bearerAuth"] = scheme
+        openapi["security"].append({"bearerAuth": []})
+
+    # 按类别添加Tag
+    seen_tags = set()
+    for ep in api_catalog.endpoints:
+        cat = ep.category.value
+        if cat not in seen_tags:
+            seen_tags.add(cat)
+            openapi["tags"].append({
+                "name": cat,
+                "description": f"Auto-classified {cat} endpoints",
+            })
+
+    # 添加路径
+    for ep in api_catalog.endpoints:
+        # 提取路径 (去掉query string和base URL)
+        path = ep.path
+        if path.startswith("http"):
+            path = urlparse(path).path
+        if not path:
+            path = "/"
+
+        # 参数化路径
+        import re
+        param_path = re.sub(r'/\d+', '/{id}', path)
+        param_path = re.sub(
+            r'/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}',
+            '/{uuid}', param_path)
+
+        method = ep.method.lower()
+        if method not in ("get", "post", "put", "delete", "patch"):
+            continue
+
+        if param_path not in openapi["paths"]:
+            openapi["paths"][param_path] = {}
+
+        # 参数
+        parameters = []
+        if ep.parameters:
+            for param_name, param_type in ep.parameters.get("path", {}).items():
+                parameters.append({
+                    "name": param_name,
+                    "in": "path",
+                    "required": True,
+                    "schema": {"type": param_type},
+                })
+            for param_name, param_type in ep.parameters.get("query", {}).items():
+                parameters.append({
+                    "name": param_name,
+                    "in": "query",
+                    "required": False,
+                    "schema": {"type": param_type},
+                })
+
+        # 请求体
+        request_body = None
+        if ep.parameters and ep.parameters.get("body"):
+            props = {}
+            for k, v in ep.parameters["body"].items():
+                props[k] = {"type": v}
+            request_body = {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": props,
+                        },
+                    },
+                },
+            }
+
+        # 响应
+        responses = {
+            str(ep.status or 200): {
+                "description": f"Auto-discovered ({ep.inferred_from})",
+            },
+        }
+        if ep.response_schema:
+            responses[str(ep.status or 200)]["content"] = {
+                "application/json": {"schema": ep.response_schema},
+            }
+
+        operation = {
+            "tags": [ep.category.value],
+            "summary": f"{ep.method} {param_path}",
+            "description": (
+                f"Discovered via: {ep.inferred_from}. "
+                f"Confidence: {ep.confidence:.0%}. "
+                f"{'⚠️ LLM-inferred hidden endpoint' if ep.is_hidden else ''}"
+            ),
+            "operationId": f"{method}_{ep.category.value}_{hash(param_path) % 10000}",
+            "parameters": parameters if parameters else [],
+            "responses": responses,
+            "x-confidence": round(ep.confidence, 2),
+            "x-inferred-from": ep.inferred_from,
+            "x-hidden": ep.is_hidden,
+        }
+
+        if request_body:
+            operation["requestBody"] = request_body
+
+        openapi["paths"][param_path][method] = operation
+
+    return openapi
+

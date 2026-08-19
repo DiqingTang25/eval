@@ -73,6 +73,27 @@ def _is_same_origin(url: str, base_url: str) -> bool:
         return False
 
 
+def _safe_sample(data, max_len: int = 5000):
+    """安全截断响应样本用于JSON序列化 — 仅序列化时使用, 不修改原数据"""
+    if data is None:
+        return None
+    if isinstance(data, str):
+        return data[:max_len]
+    if isinstance(data, (dict, list)):
+        s = json.dumps(data, ensure_ascii=False, default=str)
+        if len(s) > max_len:
+            # 只存keys + preview用于调试, 完整数据在 RouteNode.response_sample
+            keys_or_len = list(data.keys())[:20] if isinstance(data, dict) else "list[{}]".format(len(data))
+            return {
+                "__truncated__": True,
+                "__size__": len(s),
+                "keys": keys_or_len,
+                "preview": s[:500]
+            }
+        return data
+    return str(data)[:max_len]
+
+
 def _is_page_url(url: str) -> bool:
     """判断URL是否可能是页面 (而非API或资源)"""
     parsed = urlparse(url)
@@ -223,84 +244,303 @@ def _extract_interactive_elements(page: Page) -> list[dict]:
 # ═══════════════════════════════════════════════════════════════
 
 class TrafficInterceptor:
-    """网络流量拦截器 (借鉴 Vespasian Capture 模块)"""
+    """
+    流量拦截器 — 双模式捕获
+
+    Mode 1 (route): page.route() + route.fetch() — 完整捕获响应体 (P0修复)
+    Mode 2 (response): page.on("response") — 轻量级URL记录 (fallback)
+
+    同时捕获 WebSocket 连接和消息。
+    """
 
     def __init__(self, verbose: bool = True):
         self.routes: list[RouteNode] = []
         self.verbose = verbose
+        self._page = None
+        self._ws_messages: list[dict] = []  # WebSocket消息
 
-    def install(self, page: Page) -> None:
-        """安装路由拦截器"""
-        page.on("request", self._on_request)
-        page.on("response", self._on_response)
+    def install(self, page: Page, capture_bodies: bool = False) -> None:
+        """
+        安装拦截器
 
-    def _on_request(self, request: Request):
-        """记录请求 (暂存, 等response再完整记录)"""
-        # 只标记, 实际记录在 response 阶段
-        pass
+        :param capture_bodies: True → page.route() 捕获完整响应体
+                              False → page.on("response") 轻量模式
+        """
+        self._page = page
 
-    def _on_response(self, response: Response):
-        """记录响应"""
-        request = response.request
-        url = request.url
-        resource_type = request.resource_type
+        if capture_bodies:
+            self._install_route_mode(page)
+        else:
+            self._install_response_mode(page)
 
-        # 跳过静态资源
-        if resource_type in ("stylesheet", "font", "image", "media", "manifest"):
-            return
-        if _is_static_resource(url):
-            return
+        # WebSocket 拦截 (始终启用)
+        self._install_ws_intercept(page)
 
-        # 尝试获取响应体
-        response_sample = None
-        content_type = ""
-        try:
-            content_type = response.headers.get("content-type", "")
-            if "json" in content_type or "xml" in content_type or "text" in content_type:
-                body = response.body()
-                if len(body) < 50000:  # 跳过超大响应
-                    try:
-                        if "json" in content_type:
-                            response_sample = json.loads(body)
-                        else:
-                            response_sample = body.decode("utf-8", errors="replace")[:2000]
-                    except Exception:
-                        response_sample = str(body[:1000])
-        except Exception:
-            pass
+    def _install_route_mode(self, page: Page):
+        """P0修复: page.route() 捕获完整响应体 + 请求体
 
-        # 获取请求payload
-        request_payload = None
-        try:
-            if request.post_data:
-                post_data = request.post_data
+        使用多模式匹配覆盖常见API路径结构, 对匹配的请求:
+        1. route.fetch() → 获取完整响应
+        2. 解析JSON响应体 → response_sample
+        3. 提取请求体 → request_payload
+        4. route.fulfill() → 将响应返回浏览器
+        """
+        if self.verbose:
+            print("  📡 拦截模式: route (完整响应体捕获)")
+
+        def handle_route(route):
+            try:
+                request = route.request
+                url = request.url
+                rt = request.resource_type
+
+                # 快速跳过: 静态资源
+                if rt in ("stylesheet", "font", "image", "media", "manifest"):
+                    return route.continue_()
+                if _is_static_resource(url) or url.startswith("data:"):
+                    return route.continue_()
+
+                # ── API判断 (比之前更全面) ──
+                url_lower = url.lower()
+                is_api = (
+                    # 明确的API路径模式
+                    any(kw in url_lower for kw in [
+                        "/api/", "/v1/", "/v2/", "/v3/",
+                        "/graphql", "/auth/", "/rpc/",
+                        "/graph-source", "/careers", "/digital-teacher",
+                        "/context", "/events",
+                    ]) or
+                    # JSON Accept header
+                    "json" in (request.headers.get("accept", "") or "") or
+                    # 写操作 (POST/PUT/PATCH/DELETE大概率是API)
+                    request.method in ("POST", "PUT", "PATCH", "DELETE") or
+                    # XHR/fetch 资源类型 (几乎都是API)
+                    rt in ("xhr", "fetch")
+                )
+
+                if not is_api:
+                    return route.continue_()
+
+                # ── 提取请求体 (在fetch之前, 因为fetch可能改变状态) ──
+                request_payload = None
                 try:
-                    request_payload = json.loads(post_data)
+                    pd = request.post_data
+                    if pd:
+                        try:
+                            request_payload = json.loads(pd)
+                        except Exception:
+                            request_payload = pd[:1000]
                 except Exception:
-                    request_payload = post_data[:1000]
+                    pass
+
+                # ── Fetch完整响应 ──
+                try:
+                    response = route.fetch()
+                except Exception as fetch_err:
+                    # fetch失败 → 继续原请求 (不阻塞页面)
+                    if self.verbose:
+                        print(f"    ⚠️ route.fetch失败 {url[:80]}: {fetch_err}")
+                    return route.continue_()
+
+                # ── 解析响应体 (多策略: text → JSON, bytes → JSON, body → text) ──
+                body = response.body()
+                content_type = response.headers.get("content-type", "")
+                response_sample = None
+                response_size = len(body)
+                try:
+                    if "json" in content_type and 0 < response_size < 100000:
+                        # 优先: response.text() 自动处理编码 (BOM/UTF-8/UTF-16等)
+                        text = response.text()
+                        if text and text.strip():
+                            try:
+                                response_sample = json.loads(text)
+                            except json.JSONDecodeError:
+                                # 回退: bytes直接解析
+                                try:
+                                    response_sample = json.loads(body)
+                                except json.JSONDecodeError:
+                                    # 最后: 保存文本前500字符
+                                    response_sample = text[:500]
+                    elif 0 < response_size < 5000:
+                        try:
+                            response_sample = response.text()[:2000]
+                        except Exception:
+                            response_sample = body.decode("utf-8", errors="replace")[:2000]
+                except Exception as e:
+                    if self.verbose:
+                        print(f"    ⚠ body parse err {url[:60]}: {e}")
+                    if 0 < response_size < 2000:
+                        try:
+                            response_sample = body.decode("utf-8", errors="replace")
+                        except Exception:
+                            pass
+
+                parent_url = ""
+                try:
+                    if self._page:
+                        parent_url = self._page.url
+                except Exception:
+                    pass
+
+                self.routes.append(RouteNode(
+                    url=url, method=request.method,
+                    status=response.status,
+                    content_type=content_type,
+                    request_headers=dict(request.headers),
+                    request_payload=request_payload,
+                    response_headers=dict(response.headers),
+                    response_sample=response_sample,
+                    response_size=response_size,
+                    duration_ms=0,
+                    parent_url=parent_url,
+                    initiator_type=rt or "",
+                ))
+
+                # 将捕获的响应返回给浏览器
+                return route.fulfill(response=response)
+
+            except Exception:
+                # 最后防线: 任何未预期的错误都不应阻塞页面
+                try:
+                    return route.continue_()
+                except Exception:
+                    pass
+
+        # ── 注册路由模式 (从具体到通用) ──
+        # 这些是常见的API URL模式, Playwright在浏览器层过滤
+        page.route("**/*api*/**", handle_route)
+        page.route("**/*v1*/**", handle_route)
+        page.route("**/*v2*/**", handle_route)
+        page.route("**/*v3*/**", handle_route)
+        page.route("**/graphql**", handle_route)
+        page.route("**/auth/**", handle_route)
+        # 兜底: 捕获所有XHR/fetch请求 (这些几乎都是API)
+        page.route("**/*", lambda route: (
+            handle_route(route) if route.request.resource_type in ("xhr", "fetch")
+            else route.continue_()
+        ))
+
+    def _install_response_mode(self, page: Page):
+        """轻量URL记录 + 响应体捕获 (P0修复: response.body() 被动捕获)"""
+        if self.verbose:
+            print("  📡 拦截模式: response (被动捕获响应体)")
+
+        def on_response(response):
+            try:
+                request = response.request
+                url = request.url
+                rt = request.resource_type
+                if rt in ("stylesheet", "font", "image", "media", "manifest", "script", "document"):
+                    return
+                if _is_static_resource(url) or url.startswith("data:"):
+                    return
+
+                request_payload = None
+                try:
+                    pd = request.post_data
+                    if pd:
+                        try:
+                            request_payload = json.loads(pd)
+                        except Exception:
+                            request_payload = pd[:1000]
+                except Exception:
+                    pass
+
+                # ── P0修复: 捕获响应体 ──
+                content_type = response.headers.get("content-type", "")
+                response_sample = None
+                response_size = 0
+                try:
+                    # 对JSON响应尝试读取body
+                    if "json" in content_type:
+                        body = response.body()
+                        response_size = len(body)
+                        if response_size < 50000:
+                            try:
+                                response_sample = json.loads(body)
+                            except Exception:
+                                if response_size < 2000:
+                                    response_sample = body.decode("utf-8", errors="replace")
+                    elif response.status in (200, 201) and request.method in ("POST", "PUT", "PATCH"):
+                        # 非JSON但可能是API响应 → 小响应体捕获
+                        try:
+                            body = response.body()
+                            if len(body) < 2000:
+                                response_sample = body.decode("utf-8", errors="replace")
+                                response_size = len(body)
+                        except Exception:
+                            pass
+                except Exception:
+                    # response.body() 可能因响应未完成/已消费而失败
+                    pass
+
+                parent_url = ""
+                try:
+                    if self._page:
+                        parent_url = self._page.url
+                except Exception:
+                    pass
+
+                self.routes.append(RouteNode(
+                    url=url, method=request.method, status=response.status,
+                    content_type=content_type,
+                    request_headers={}, request_payload=request_payload,
+                    response_headers={}, response_sample=response_sample,
+                    response_size=response_size, duration_ms=0,
+                    parent_url=parent_url, initiator_type=rt or "",
+                ))
+            except Exception:
+                pass
+
+        page.on("response", on_response)
+
+    def _install_ws_intercept(self, page: Page):
+        """WebSocket 拦截 — 记录连接和消息"""
+        def on_ws(ws):
+            ws_url = ws.url
+            if self.verbose:
+                print(f"  🔌 WS连接: {ws_url[:100]}")
+
+            self._ws_messages.append({
+                "type": "connect", "url": ws_url, "data": None})
+
+            def on_frame_sent(frame):
+                payload = frame if isinstance(frame, str) else str(frame)[:2000]
+                self._ws_messages.append({
+                    "type": "send", "url": ws_url, "data": payload})
+
+            def on_frame_received(frame):
+                payload = frame if isinstance(frame, str) else str(frame)[:2000]
+                self._ws_messages.append({
+                    "type": "recv", "url": ws_url, "data": payload})
+
+            def on_close():
+                self._ws_messages.append({
+                    "type": "close", "url": ws_url, "data": None})
+
+            ws.on("framesent", on_frame_sent)
+            ws.on("framereceived", on_frame_received)
+            ws.on("close", on_close)
+
+        try:
+            page.on("websocket", on_ws)
         except Exception:
-            pass
+            # 老版本Playwright可能不支持
+            if self.verbose:
+                print("  ⚠️ WebSocket拦截不支持 (需Playwright ≥1.48)")
 
-        route = RouteNode(
-            url=url,
-            method=request.method,
-            status=response.status,
-            content_type=content_type,
-            request_headers=dict(request.headers),
-            request_payload=request_payload,
-            response_headers=dict(response.headers),
-            response_sample=response_sample,
-            response_size=int(response.headers.get("content-length", 0)),
-            duration_ms=0,  # Playwright 不直接提供, 需要手动计时
-            parent_url=page.url if hasattr(response, 'frame') else "",
-            initiator_type=resource_type or "",
-        )
+    @property
+    def ws_endpoints(self) -> list[str]:
+        """所有WebSocket连接URL"""
+        return list(set(m["url"] for m in self._ws_messages if m["type"] == "connect"))
 
-        self.routes.append(route)
+    @property
+    def ws_count(self) -> int:
+        return len(self.ws_endpoints)
 
 
 class NavigationExplorer:
-    """导航结构探索器 (BFS 遍历)"""
+    """导航结构探索器 — 支持传统链接 + SPA交互式探索"""
 
     def __init__(self, base_url: str, verbose: bool = True):
         self.base_url = base_url.rstrip("/")
@@ -310,80 +550,262 @@ class NavigationExplorer:
 
     def explore(self, page: Page, start_url: str = "",
                 max_depth: int = MAX_CRAWL_DEPTH,
-                max_pages: int = MAX_PAGES) -> list[str]:
-        """
-        BFS 遍历: 首页 → 导航链接 → 子页 → 更深层
-        :returns: 所有已访问的URL列表
-        """
+                max_pages: int = MAX_PAGES,
+                snapshotter=None) -> list[str]:
+        """BFS + 交互式探索 (P0增强: SPA交互始终执行, 即时截图)"""
         start_url = start_url or self.base_url
         start_url = start_url.rstrip("/")
 
+        # Phase 1: 传统 BFS (链接跟踪)
+        link_pages = self._bfs_links(page, start_url, max_depth, max_pages)
+        snap_base = len(link_pages)  # SPA snapshots start after BFS pages
+
+        # Phase 2: SPA 交互式探索 (始终执行, 即时截图供L2 DOM fallback)
+        if self.verbose:
+            print(f"  🔍 传统链接发现 {len(link_pages)} 个页面, 交互探索SPA...")
+        spa_pages = self._explore_spa_fast(page, start_url, max_depth=2,
+                                           snapshotter=snapshotter,
+                                           snapshot_index=snap_base)
+        all_pages = list(dict.fromkeys(link_pages + spa_pages))
+
+        if self.verbose:
+            print(f"  ✅ 探索完成: {len(all_pages)} 个页面")
+
+        return all_pages
+
+    def _bfs_links(self, page, start_url, max_depth, max_pages):
+        """传统 BFS — 跟踪 <a href> 链接"""
         queue: list[tuple[str, int, str]] = [(start_url, 0, "")]
-        # (url, depth, parent_url)
+        visited: set[str] = set()
 
-        while queue and len(self.visited) < max_pages:
+        while queue and len(visited) < max_pages:
             url, depth, parent = queue.pop(0)
-
-            if url in self.visited:
-                continue
-            if depth > max_depth:
+            if url in visited or depth > max_depth:
                 continue
             if not _is_same_origin(url, self.base_url):
                 continue
-
-            self.visited.add(url)
+            visited.add(url)
             if parent:
                 self.url_graph.setdefault(parent, []).append(url)
-
             if self.verbose:
-                print(f"  🌐 [Depth {depth}] {url[:100]}")
+                print(f"  🌐 [D{depth}] {url[:100]}")
 
             try:
-                page.goto(url, wait_until="networkidle", timeout=30000)
-                time.sleep(1)
+                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                time.sleep(2)
             except Exception as e:
                 if self.verbose:
-                    print(f"    ⚠ 导航失败: {e}")
+                    print(f"    ⚠ 跳过: {str(e)[:80]}")
                 continue
 
-            # 收集本页面的所有链接
-            child_links = self._collect_links(page, url)
-            for link in child_links:
-                if link not in self.visited:
+            for link in self._collect_links(page, url):
+                if link not in visited:
                     queue.append((link, depth + 1, url))
 
-        if self.verbose:
-            print(f"  ✅ BFS 完成: 访问 {len(self.visited)} 个页面, "
-                  f"深度 {max_depth}")
+        return list(visited)
 
-        return list(self.visited)
+    def _explore_spa_fast(self, page: Page, start_url: str, max_depth: int = 2,
+                          snapshotter=None, snapshot_index: int = 0) -> list[str]:
+        """快速SPA探索 — 多层卡片点击: Career → Phase/Module → Lesson/Course
+
+        每层点击触发API调用, 配合 route 拦截器捕获响应体。
+        SPA页面即时截图 → L2 DOM fallback 可提取 Step 列表。
+        """
+        discovered: list[str] = []
+        clicked: set[str] = set()
+        snap_idx = snapshot_index
+
+        # 等待SPA渲染
+        time.sleep(3)
+
+        # ── 第一层: Career/Subject 卡片 ──
+        level1_selectors = [
+            "button.ci-shell-career-card", "[class*='career-card']",
+            "[class*='course-card']", "[class*='subject-card']",
+            "[class*='category-card']", "[class*='track-card']",
+        ]
+        discovered, snap_idx = self._click_cards(
+            page, level1_selectors, clicked, discovered,
+            max_per_level=8, snapshotter=snapshotter, snapshot_index=snap_idx)
+        if self.verbose:
+            print(f"  🖱️ 第一层: {len([d for d in discovered if '|' in d])} 个SPA页面")
+
+        # ── 第二层: Phase/Module 卡片 (在Career页面内) ──
+        if max_depth >= 1:
+            time.sleep(2)
+            level2_selectors = [
+                "[class*='phase-card']", "[class*='module-card']",
+                "[class*='phase-item']", "[class*='module-item']",
+                "[class*='ant-card']", "[class*='el-card']",
+                "[role='tab']", "[class*='nav-item']",
+            ]
+            discovered, snap_idx = self._click_cards(
+                page, level2_selectors, clicked, discovered,
+                max_per_level=6, snapshotter=snapshotter, snapshot_index=snap_idx)
+
+        # ── 第三层: Lesson/Step 卡片 (在Phase页面内) ──
+        if max_depth >= 2:
+            time.sleep(2)
+            level3_selectors = [
+                "[class*='lesson-card']", "[class*='step-card']",
+                "[class*='lesson-item']", "[class*='step-item']",
+                "[class*='list-item']", "a[class*='lesson']",
+            ]
+            discovered, snap_idx = self._click_cards(
+                page, level3_selectors, clicked, discovered,
+                max_per_level=6, snapshotter=snapshotter, snapshot_index=snap_idx)
+
+        return discovered
+
+    def _click_cards(self, page, selectors, clicked, discovered,
+                     max_per_level=8, snapshotter=None, snapshot_index=0) -> tuple:
+        """点击匹配选择器的可见卡片, 记录URL/标题变化。有snapshotter时即时截图。
+
+        :returns: (discovered, snapshot_index) — SPA页面即时截图供L2 DOM fallback
+        """
+        snap_idx = snapshot_index
+        for card_sel in selectors:
+            if len([d for d in discovered if '|' in d]) >= max_per_level:
+                break
+            try:
+                cards = page.locator(card_sel).all()
+                for card in cards:
+                    if len([d for d in discovered if '|' in d]) >= max_per_level:
+                        break
+                    try:
+                        if not card.is_visible():
+                            continue
+                        text = card.inner_text().strip()[:60]
+                        if not text or text in clicked:
+                            continue
+                        clicked.add(text)
+
+                        old_url = page.url
+                        old_title = page.title()
+                        card.evaluate("el => el.click()")
+                        time.sleep(1.5)
+
+                        new_url = page.url
+                        new_title = page.title()
+                        if new_url != old_url or new_title != old_title:
+                            state_key = f"{new_url}|{new_title}"
+                            if state_key not in discovered:
+                                discovered.append(state_key)
+                                # ── 即时截图: SPA内容只在当前页面状态可见 ──
+                                if snapshotter:
+                                    try:
+                                        snap = snapshotter.snapshot(
+                                            page, new_url, snap_idx)
+                                        snap_idx += 1
+                                        if self.verbose:
+                                            elements = len(snap.interactive_elements)
+                                            print(f"    📸 SPA快照: \"{text[:30]}\" → {new_title[:40]}"
+                                                  f" ({elements} elements)")
+                                    except Exception:
+                                        pass
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+        return discovered, snap_idx
+
+    def _explore_spa_full(self, page, start_url, max_pages):
+        """SPA 交互式探索 (完整版, 保留供后续使用) — 点击导航元素发现新内容"""
+        discovered: list[str] = [start_url]
+        clicked: set[str] = set()
+
+        # 收集所有可交互的导航元素
+        nav_selectors = [
+            "nav a", "[class*='menu'] a", "[class*='sidebar'] a",
+            "[class*='nav'] a", "[class*='tab']", "[class*='ant-menu-item']",
+            "[class*='el-menu-item']", "[role='tab']", "[role='menuitem']",
+            "[class*='card']", "[class*='tile']", "[class*='course']",
+            "[class*='lesson']", "[class*='phase']", "[class*='module']",
+            "button[class*='nav']", "button[class*='menu']",
+        ]
+
+        for depth in range(3):  # 最多3轮交互
+            if len(discovered) >= max_pages:
+                break
+
+            new_found = 0
+            for sel in nav_selectors:
+                try:
+                    elements = page.locator(sel).all()
+                    for el in elements[:20]:
+                        try:
+                            if not el.is_visible():
+                                continue
+                            text = el.inner_text().strip()[:50]
+                            if not text or len(text) < 1:
+                                continue
+
+                            # 生成唯一标识避免重复点击
+                            import hashlib
+                            el_hash = hashlib.md5(
+                                f"{text}{el.get_attribute('class') or ''}".encode()
+                            ).hexdigest()[:8]
+                            if el_hash in clicked:
+                                continue
+                            clicked.add(el_hash)
+
+                            # 记录当前页面状态
+                            current_url = page.url
+                            current_title = page.title()
+
+                            # 安全点击
+                            try:
+                                el.evaluate("el => el.click()")
+                                time.sleep(2)
+                            except Exception:
+                                continue
+
+                            # 检查是否有变化
+                            new_url = page.url
+                            new_title = page.title()
+                            if new_url != current_url or new_title != current_title:
+                                state_key = f"{new_url}|{new_title}"
+                                if state_key not in discovered:
+                                    discovered.append(state_key)
+                                    new_found += 1
+                                    if self.verbose:
+                                        print(f"  🖱️ [SPA] 点击 \"{text[:40]}\" → {new_title[:50]}")
+
+                                    # 递归: 在新页面状态下继续探索
+                                    if len(discovered) < max_pages:
+                                        sub_links = self._collect_links(page, new_url)
+                                        for link in sub_links:
+                                            if link not in discovered:
+                                                discovered.append(link)
+
+                        except Exception:
+                            continue
+                except Exception:
+                    continue
+
+            if new_found == 0:
+                break  # 没有新发现, 停止
+
+        return discovered
 
     def _collect_links(self, page: Page, current_url: str) -> list[str]:
-        """收集页面上的所有同源链接"""
+        """收集页面上所有同源链接 (含 <a href> 和 router-link)"""
         links = []
         try:
-            anchors = page.locator("a[href]").all()
-            for a in anchors:
+            for a in page.locator("a[href]").all():
                 try:
                     href = a.get_attribute("href")
                     if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
                         continue
-
-                    full_url = urljoin(current_url, href)
-                    # 去掉 fragment
-                    full_url = full_url.split("#")[0]
-
+                    full_url = urljoin(current_url, href).split("#")[0]
                     if (_is_same_origin(full_url, self.base_url) and
                         full_url not in self.visited and
-                        not _is_static_resource(full_url) and
-                        _is_page_url(full_url)):
+                        not _is_static_resource(full_url)):
                         links.append(full_url)
                 except Exception:
                     continue
         except Exception:
             pass
-
-        # 去重并限制数量
         return list(dict.fromkeys(links))[:30]
 
 
@@ -456,10 +878,13 @@ def run_l1_capture(
     max_pages: int = MAX_PAGES,
     har_path: str = "",
     verbose: bool = True,
+    capture_bodies: bool = True,
 ) -> CaptureResult:
     """
     L1 完整流程: 安装拦截器 → BFS遍历 → 逐页快照
 
+    :param capture_bodies: True → page.route() 完整响应体 + 请求体 (P0默认)
+                           False → page.on("response") 被动捕获 (低侵入fallback)
     :returns: CaptureResult
     """
     interceptor = TrafficInterceptor(verbose=verbose)
@@ -467,29 +892,52 @@ def run_l1_capture(
     snapshotter = PageSnapshotter(output_dir / "screenshots", verbose=verbose)
 
     # Step 1: 安装流量拦截
-    interceptor.install(page)
+    # P0修复: 默认使用 route 模式捕获完整响应体
+    # 如遇SPA兼容性问题可改为 capture_bodies=False (response模式也捕获body)
+    interceptor.install(page, capture_bodies=capture_bodies)
 
-    # Step 2: 导航到首页并启动BFS
+    # Step 2: 导航到首页并启动BFS (轻量模式)
     if verbose:
         print(f"\n{'='*60}")
         print(f"L1: 流量与结构捕获 — {base_url}")
         print(f"{'='*60}")
 
-    # 先访问首页
-    page.goto(base_url, wait_until="networkidle", timeout=30000)
+    # 设置默认超时 (避免SPA无限等待)
+    page.set_default_navigation_timeout(15000)
+    page.set_default_timeout(15000)
+
+    # L0已经登录, 页面已在目标位置 — 不重复导航
+    current_domain = urlparse(page.url).netloc
+    target_domain = urlparse(base_url).netloc
+    if current_domain != target_domain:
+        try:
+            page.goto(base_url, wait_until="domcontentloaded", timeout=20000)
+        except Exception:
+            pass
     time.sleep(2)
 
-    # BFS 遍历
-    visited_urls = explorer.explore(page, start_url=base_url,
-                                    max_depth=max_depth, max_pages=max_pages)
+    # BFS 遍历 + 交互探索
+    visited_urls = []
+    try:
+        # P0: SPA即时截图 — snapshotter传入explore, 课程内页DOM被L2 fallback使用
+        visited_urls = explorer.explore(page, start_url=base_url,
+                                        max_depth=max_depth,
+                                        max_pages=max_pages,
+                                        snapshotter=snapshotter)
+    except Exception as e:
+        if verbose:
+            print(f"  ⚠️ BFS中止: {str(e)[:100]}")
+        visited_urls = [page.url]
 
-    # Step 3: 对每个页面做快照 (这里已经访问过了, 但如果BFS只访问了一次,
-    #          我们需要重新访问来做快照)
+    # Step 3: 对每个页面做快照
     pages: list[PageSnapshot] = []
     for i, url in enumerate(visited_urls):
         try:
             if page.url != url:
-                page.goto(url, wait_until="networkidle", timeout=20000)
+                try:
+                    page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                except Exception:
+                    pass
                 time.sleep(1)
             snapshot = snapshotter.snapshot(page, url, i)
             pages.append(snapshot)
@@ -520,7 +968,10 @@ def run_l1_capture(
                 "status": r.status,
                 "content_type": r.content_type,
                 "response_size": r.response_size,
+                "response_sample": _safe_sample(r.response_sample),
+                "request_payload": _safe_sample(r.request_payload),
                 "parent_url": r.parent_url,
+                "initiator_type": r.initiator_type,
             }
             for r in routes
         ],

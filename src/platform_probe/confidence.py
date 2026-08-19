@@ -251,7 +251,8 @@ def classify_api_category(
     scores: dict[str, float] = {}
 
     # Agent 对话
-    agent_patterns = ["/chat", "/agent", "/conversation", "/message", "/ask", "/reply"]
+    agent_patterns = ["/chat", "/agent", "/conversation", "/message", "/ask", "/reply",
+                      "/digital-teacher", "/ai-tutor", "/assistant", "/coach", "/tutor"]
     if any(p in path_lower for p in agent_patterns):
         scores["agent"] = 0.85
     elif method.upper() == "POST" and request_payload:
@@ -308,41 +309,81 @@ def classify_api_category(
 # DOM 元素 → StepType 映射规则
 STEP_TYPE_INDICATORS = {
     "video": {
-        "elements": ["video", "iframe[src*='youtube']", "iframe[src*='bilibili']",
-                      "iframe[src*='vimeo']", "[class*='player']", "[class*='video']"],
-        "keywords": ["视频", "播放", "video", "watch", "观看"],
+        "elements": ["video", "player", "youtube", "bilibili", "vimeo", "watch",
+                     "lecture", "播放器",
+                     "iframe[src*='youtube']", "iframe[src*='bilibili']",
+                     "iframe[src*='vimeo']", "[class*='player']", "[class*='video']"],
+        "keywords": ["视频", "播放", "video", "watch", "观看", "player", "lecture",
+                     "youtube", "bilibili"],
         "weight": 0.90,
     },
     "coding": {
-        "elements": [".monaco-editor", ".CodeMirror", ".ace_editor",
+        "elements": ["monaco", "codemirror", "ace_editor", "code-editor",
+                     "ide", "editor", "code", "terminal", "console", "run",
+                     "python", "javascript", "java", "debug",
+                     ".monaco-editor", ".CodeMirror", ".ace_editor",
                      "[class*='code-editor']", "[class*='ide']", "textarea[class*='code']"],
-        "keywords": ["代码", "编程", "code", "editor", "运行", "run"],
+        "keywords": ["代码", "编程", "code", "editor", "运行", "run", "compile",
+                     "debug", "console", "terminal", "python", "javascript"],
         "weight": 0.90,
     },
     "quiz": {
-        "elements": ["input[type='radio']", "input[type='checkbox']",
+        "elements": ["radio", "checkbox", "quiz", "question", "choice",
+                     "answer", "select", "option", "multiple-choice",
+                     "input[type='radio']", "input[type='checkbox']",
                      "[class*='quiz']", "[class*='question']", "[class*='choice']",
                      "select[class*='answer']"],
-        "keywords": ["题目", "选择", "quiz", "question", "正确", "answer"],
+        "keywords": ["题目", "选择", "quiz", "question", "正确", "answer", "test",
+                     "考试", "测评"],
         "weight": 0.85,
     },
     "chat": {
-        "elements": ["[class*='chat']", "[class*='message']", "[class*='conversation']",
+        "elements": ["chat", "message", "conversation", "agent", "assistant",
+                     "dialog", "bot", "coach", "tutor", "ai",
+                     "[class*='chat']", "[class*='message']", "[class*='conversation']",
                      "[class*='agent']", "[class*='assistant']", "[class*='dialog']"],
-        "keywords": ["对话", "聊天", "chat", "agent", "助手", "AI"],
+        "keywords": ["对话", "聊天", "chat", "agent", "助手", "AI", "message",
+                     "conversation", "assistant", "coach"],
         "weight": 0.85,
     },
     "upload": {
-        "elements": ["input[type='file']", "[class*='upload']", "[class*='dropzone']"],
-        "keywords": ["上传", "提交", "upload", "submit file", "附件"],
+        "elements": ["upload", "file", "dropzone", "drop",
+                     "input[type='file']", "[class*='upload']", "[class*='dropzone']"],
+        "keywords": ["上传", "提交", "upload", "submit", "file", "附件", "作业"],
         "weight": 0.80,
     },
     "reading": {
-        "elements": ["article", "[class*='content']", "[class*='markdown']",
+        "elements": ["article", "content", "markdown", "document", "text", "reading",
+                     "paragraph", "section", "material",
+                     "article", "[class*='content']", "[class*='markdown']",
                      "[class*='article']", "[class*='document']"],
-        "keywords": ["阅读", "文档", "材料", "read", "document", "说明"],
+        "keywords": ["阅读", "文档", "材料", "read", "document", "说明", "text",
+                     "content", "article"],
         "weight": 0.70,  # reading 是默认类型, 权重最低
     },
+}
+
+
+# ── URL 模式 → StepType 强映射 ──
+URL_PATTERN_INDICATORS = {
+    "video": {"patterns": ["/video", "/watch", "/player", "/lecture"],
+              "weight": 0.85},
+    "coding": {"patterns": ["/code", "/ide", "/editor", "/practice", "/exercise",
+                            "/lab", "/programming"],
+               "weight": 0.85},
+    "quiz": {"patterns": ["/quiz", "/exam", "/test", "/question", "/answer",
+                          "/assessment", "/evaluate"],
+             "weight": 0.85},
+    "chat": {"patterns": ["/chat", "/agent", "/assistant", "/tutor", "/coach",
+                          "/conversation", "/message", "/ask"],
+             "weight": 0.85},
+    "upload": {"patterns": ["/upload", "/submit", "/assignment", "/file",
+                            "/homework"],
+               "weight": 0.80},
+    "reading": {"patterns": ["/lesson", "/course", "/module", "/content",
+                             "/material", "/read", "/document", "/article",
+                             "/phase", "/step", "/chapter", "/topic"],
+                "weight": 0.75},
 }
 
 
@@ -350,28 +391,36 @@ def classify_step_type(
     dom_elements: list[str],
     text_content: str,
     page_title: str = "",
+    page_url: str = "",
 ) -> tuple[str, float]:
     """
-    基于 DOM 元素和文本内容推断 Step 类型
+    基于 DOM元素 + 文本 + URL模式 多信号推断 Step 类型
     :returns: (step_type, confidence)
     """
     dom_lower = " ".join(dom_elements).lower()
     text_lower = (text_content + " " + page_title).lower()
     combined = dom_lower + " " + text_lower
+    url_lower = page_url.lower()
 
     scores: dict[str, float] = {}
+    signal_counts: dict[str, int] = {}  # 每个类型有多少信号命中
 
     for step_type, indicators in STEP_TYPE_INDICATORS.items():
         element_score = 0.0
         keyword_score = 0.0
+        url_score = 0.0
+        signals_hit = 0
 
-        # 检查 DOM 元素
+        # 信号1: DOM 元素匹配 (权重 0.50)
+        # 规范化匹配: 忽略引号差异 (input[type='radio'] vs input[type=radio])
+        dom_normalized = dom_lower.replace("'", "").replace('"', "")
         for elem_pattern in indicators["elements"]:
-            if elem_pattern.lower() in dom_lower:
+            pattern_normalized = elem_pattern.lower().replace("'", "").replace('"', "")
+            if pattern_normalized in dom_normalized:
                 element_score = max(element_score, 1.0)
                 break
 
-        # 检查关键词
+        # 信号2: 关键词匹配 (权重 0.30)
         keyword_hits = 0
         for kw in indicators["keywords"]:
             if kw.lower() in combined:
@@ -379,25 +428,60 @@ def classify_step_type(
         if indicators["keywords"]:
             keyword_score = keyword_hits / len(indicators["keywords"])
 
-        # 综合: DOM 元素权重 > 关键词权重
+        # 信号3: URL 模式匹配 (权重 0.20)
+        url_info = URL_PATTERN_INDICATORS.get(step_type, {})
+        if url_info and url_lower:
+            for pat in url_info.get("patterns", []):
+                if pat.lower() in url_lower:
+                    url_score = url_info.get("weight", 0.7)
+                    break
+
+        # 计数命中的信号
+        if element_score >= 1.0:
+            signals_hit += 1
+        if keyword_score > 0.15:
+            signals_hit += 1
+        if url_score > 0:
+            signals_hit += 1
+
+        signal_counts[step_type] = signals_hit
+
+        # 综合评分
         if element_score > 0:
-            scores[step_type] = 0.7 * element_score + 0.3 * keyword_score
+            # DOM元素是强信号
+            scores[step_type] = 0.50 * element_score + 0.25 * keyword_score + 0.25 * url_score
+        elif url_score > 0:
+            # URL模式是中等信号
+            scores[step_type] = 0.40 * url_score + 0.30 * keyword_score + 0.30 * 0.1
         else:
-            scores[step_type] = 0.3 * keyword_score
+            # 仅关键词
+            scores[step_type] = 0.30 * keyword_score + 0.10 * 0.1
 
     if not scores:
         return ("unknown", 0.2)
 
     best_type = max(scores, key=scores.get)
     best_score = scores[best_type]
+    signals_for_best = signal_counts.get(best_type, 0)
+
+    # ── 多信号共识：提升置信度 ──
+    if signals_for_best >= 3:
+        best_score = min(1.0, best_score * 1.15)  # 3信号全中 +15%
+    elif signals_for_best >= 2:
+        best_score = min(1.0, best_score * 1.08)  # 2信号 +8%
 
     # 如果最高分太低, 默认 reading
     if best_score < 0.3:
         return ("reading", 0.4)
 
-    # 对 reading 类型降低置信度 (因为很多非reading页面也会有文本)
-    if best_type == "reading" and best_score < 0.5:
-        return ("reading", best_score * 0.7)
+    # 对 reading 类型, 当有其他更强候选时降权
+    if best_type == "reading":
+        runner_up = sorted(
+            [(t, s) for t, s in scores.items() if t != "reading"],
+            key=lambda x: x[1], reverse=True)
+        if runner_up and runner_up[0][1] > best_score * 0.8:
+            # 仅reading信号略强, 降低置信度
+            best_score *= 0.7
 
     return (best_type, min(best_score, 1.0))
 

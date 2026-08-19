@@ -1,0 +1,23 @@
+[Unit]
+Description=Agent Eval Platform (uvicorn backend.main:app)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/agent_eval
+EnvironmentFile=-/opt/agent_eval/.env
+ExecStart=/opt/agent_eval/venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --ws wsproto
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/agent_eval.log
+StandardError=append:/var/log/agent_eval.log
+
+# 🔒 安全提示:
+#   API Key 等敏感信息请放在 /opt/agent_eval/.env 中通过 EnvironmentFile 注入
+#   不要在 Service 段内联 Environment= 写密钥 (此模板已清理)
+#   .env 文件权限应设为 600 (chmod 600 /opt/agent_eval/.env)
+
+[Install]
+WantedBy=multi-user.target

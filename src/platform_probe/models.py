@@ -88,7 +88,7 @@ class AuthSchema:
 @dataclass
 class SessionState:
     """会话状态"""
-    storage_state_path: str              # Playwright storage_state JSON 路径
+    storage_state_path: str = ""         # Playwright storage_state JSON 路径
     jwt_token: Optional[str] = None
     jwt_expiry: Optional[str] = None
     cookies_count: int = 0
@@ -299,6 +299,8 @@ class ExplorationReport:
     confidence: ConfidenceReport = field(default_factory=ConfidenceReport)
     warnings: list[str] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)
+    fuzz_findings: list[dict] = field(default_factory=list)
+    # [{endpoint, risk, detail, fuzz_type, fuzz_value, ...}, ...]
 
 
 @dataclass
@@ -315,3 +317,4 @@ class PlatformSchema:
     agent: dict = field(default_factory=dict)
     navigation: dict = field(default_factory=dict)
     confidence_scores: dict = field(default_factory=dict)
+    fuzz_findings: list[dict] = field(default_factory=list)

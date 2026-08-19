@@ -1,140 +1,126 @@
-# 火山引擎云服务器部署指南
+# 部署指南
 
-## 前置条件（需要在火山引擎控制台操作）
+## 当前部署方案: systemd + venv（主方案 ✅ 生产使用中）
 
-### 1. ECS 云服务器
-- 规格建议: 2核4G 以上（Playwright Chromium 需要内存）
-- 操作系统: Ubuntu 22.04 / 24.04
-- 安全组入方向开放: 80, 443, 22
-- 绑定公网 IP
+云端 `YOUR_SERVER_IP` 使用 systemd 托管 FastAPI 进程，直接运行在宿主机 venv 中。
 
-### 2. MySQL RDS 实例
-- 版本: MySQL 8.0
-- 规格: 1核1G 起步即可
-- 创建数据库: `agent_eval`
-- 创建账号: `agent_eval` / 设置密码
-- **IP 白名单**: 添加 ECS 的内网 IP
+### 架构
 
-### 3. 知识库（已配置，确认即可）
-- 服务ID: `kb-service-c5872d5b6644c426`
-- 确认 Access Key / Secret Key 可用
-- 确认课程资料已上传到知识库
-
----
-
-## 服务器上操作步骤
-
-### Step 1: 安装基础环境
-```bash
-# 更新系统
-sudo apt update && sudo apt upgrade -y
-
-# 安装 Docker
-curl -fsSL https://get.docker.com | sudo bash
-sudo usermod -aG docker $USER
-# 重新登录使 docker 权限生效
-
-# 安装 Nginx
-sudo apt install -y nginx
+```
+Nginx (:80)
+  ├─ /                      → 被测教学平台 (Next.js :3402)
+  ├─ /personalized-secure/  → 被测平台
+  ├─ /phase3-api/           → 被测平台 API
+  ├─ /test/                 → Agent Eval 测评系统 (uvicorn :8000)
+  │   └─ 剥离 /test/ 前缀 → proxy_pass http://127.0.0.1:8000/
+  └─ ...
+                    │
+            uvicorn :8000 (systemd: agent-eval.service)
+              ├─ /health
+              ├─ /api/*
+              ├─ /ws
+              └─ / SPA fallback
+                    │
+            CI timer (systemd: agent-eval-ci.timer)
+              └─ 每 30 分钟 → ci_quick_check.py → data/ci_status.json
 ```
 
-### Step 2: 克隆代码
+### 快速部署
+
 ```bash
-git clone <你的仓库地址> /opt/agent_eval
+# 1. 克隆代码
+git clone <仓库地址> /opt/agent_eval
 cd /opt/agent_eval
-```
 
-### Step 3: 配置环境变量
-```bash
-# 从生产模板创建 .env
+# 2. 配置环境变量
 cp deploy/.env.production .env
+vim .env  # 填入 OPENAI_API_KEY 等必要值
 
-# 编辑 .env，填入实际值:
-#   - MYSQL_HOST: RDS 内网地址
-#   - MYSQL_PASSWORD: RDS 密码
-#   - VOLC_ACCESS_KEY / VOLC_SECRET_KEY: 火山引擎 AK/SK
-#   - OPENAI_API_KEY: DeepSeek API Key
-#   - ADMIN_PASSWORD: 设置强密码
-#   - SECRET_KEY: 随机字符串 (openssl rand -hex 32)
+# 3. 一键部署
+sudo bash deploy/deploy-systemd.sh
 ```
 
-### Step 4: 构建 & 启动
-```bash
-# 构建 Docker 镜像
-docker build -t agent_eval:latest .
-
-# 运行数据库迁移
-docker run --rm --env-file .env agent_eval:latest \
-  python -m alembic -c backend/alembic/alembic.ini upgrade head
-
-# 启动服务
-docker-compose -f deploy/docker-compose.prod.yml up -d
-
-# 检查健康
-curl http://localhost:8000/health
-```
-
-### Step 5: 配置 Nginx + SSL
-```bash
-# 复制 nginx 配置
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/agent-eval
-
-# 修改 YOUR_DOMAIN_OR_IP 为实际域名/IP
-sudo vim /etc/nginx/sites-available/agent-eval
-
-# 启用
-sudo ln -sf /etc/nginx/sites-available/agent-eval /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-
-# SSL 证书（二选一）
-# A) Let's Encrypt 免费证书:
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
-
-# B) 火山引擎证书管理: 下载证书后放到 /etc/ssl/certs/ 和 /etc/ssl/private/
-
-# 重载 nginx
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-### Step 6: 验证部署
-```bash
-# 健康检查
-curl https://your-domain/health
-
-# 首页
-curl https://your-domain/
-
-# API 摘要
-curl https://your-domain/api/dashboard/summary
-```
-
----
-
-## 可选: 数据迁移（本地SQLite → RDS MySQL）
+### 日常运维
 
 ```bash
-# 预览本地数据
-python scripts/migrate_db.py --dry-run
+# 代码更新 + 重启
+bash deploy/sync.sh
 
-# 完整迁移
-python scripts/migrate_db.py --full
-```
+# 查看服务状态
+systemctl status agent-eval
 
----
-
-## 日常运维
-
-```bash
 # 查看日志
-docker logs -f agent_eval_app
+journalctl -u agent-eval -f          # systemd 日志
+tail -f /var/log/agent_eval.log      # 文件日志
 
-# 重启服务
-docker-compose -f deploy/docker-compose.prod.yml restart
+# 查看 CI 巡检结果
+systemctl status agent-eval-ci.timer
+cat data/ci_status.json
 
-# 更新代码
-cd /opt/agent_eval
-git pull
-docker build -t agent_eval:latest .
-docker-compose -f deploy/docker-compose.prod.yml up -d
+# 手动重启
+systemctl restart agent-eval
+
+# 仅更新前端（无需重启后端）
+scp frontend/index.html root@YOUR_SERVER_IP:/opt/agent_eval/frontend/
 ```
+
+### 部署文件清单
+
+| 文件 | 用途 | 部署位置 |
+|------|------|---------|
+| `agent-eval.service` | systemd unit 模板 | `/etc/systemd/system/` |
+| `agent-eval-ci.timer` | 30分钟CI定时器 | `/etc/systemd/system/` |
+| `agent-eval-ci.service` | CI巡检执行服务 | `/etc/systemd/system/` |
+| `deploy-systemd.sh` | 一键部署脚本 | 在 `/opt/agent_eval/` 执行 |
+| `sync.sh` | 本地→云端 rsync 同步 | 在本地 WSL 执行 |
+| `nginx-agent-eval.conf` | Nginx /test/ location 参考 | 合并到主 Nginx 配置 |
+
+---
+
+## 备用部署方案: Docker（开发/备用）
+
+适用于不想在宿主机安装 Python/Playwright 的场景，或需要隔离环境的场景。
+
+### Docker 快速启动
+
+```bash
+docker build -t agent_eval .
+docker run -d --name agent_eval_app -p 8000:8000 --env-file .env agent_eval
+```
+
+### Docker 生产部署
+
+参阅 `deploy-docker.sh` 和 `docker-compose.prod.yml`。
+注意：Docker 方案默认使用 MySQL RDS，如用 SQLite 需确保数据卷持久化。
+
+---
+
+## 方案对比
+
+| 维度 | systemd (主) | Docker (备用) |
+|------|-------------|--------------|
+| Python | 3.10.12 (系统venv) | 3.12-slim (容器) |
+| 数据库 | SQLite | MySQL RDS |
+| 部署速度 | rsync + restart (~3s) | docker build + up (~120s) |
+| 内存占用 | ~260MB | ~500MB+ (含Chromium) |
+| 日志 | journald + /var/log/ | docker logs |
+| Playwright | 宿主机安装 | 容器内安装 |
+| 前端热更新 | scp 单文件即可 | 需重建镜像 |
+| 生产状态 | ✅ 运行中 (YOUR_SERVER_IP) | 未使用 |
+
+---
+
+## 历史归档
+
+旧版 Docker 方案文件已归档到 `deploy/archive/`：
+- `nginx-docker-https.conf` — Docker 时代 Nginx 模板（含 SSL + 根路径，与当前 /test/ 前缀不同）
+- `docker-compose-dev.yml` — 开发环境 Docker Compose
+
+## 云端实际配置参考
+
+以下是 2026-08-12 云端实际运行状态的关键参数：
+
+- **systemd unit** (`/etc/systemd/system/agent-eval.service`): uvicorn --ws wsproto, RestartSec=3, 日志双写 (journald + /var/log/agent_eval.log)
+- **Nginx**: 共享主配置 `/etc/nginx/sites-enabled/aix`, 含被测平台 + 测评系统的所有路由
+- **CI timer**: 每30分钟, 7项检查 → `data/ci_status.json`
+- **Python**: 3.10.12, Playwright 1.61.0, FastAPI 0.139.0

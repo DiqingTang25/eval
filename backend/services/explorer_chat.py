@@ -8,8 +8,16 @@ Explorer Chat Service — LLM 对话驱动的平台探索 (对话为主, 固定�
   4. 无 LLM key 时降级为确定性正则解析, 对话交互保持可用
 
 状态机: collecting → confirm → running → done
+
+边界与防护 (2026-08-19 agent1-chat 审查加固):
+  - 会话 4 小时空闲过期 (last_active_ts 驱动), GC 在 start_chat/handle_message/get_history 均触发
+  - 每条用户消息刷新 last_active_ts; 过期会话回复 action="expired" 并移除
+  - 60 条消息上限 (保留最近 60 条)
+  - 每会话 asyncio.Lock 串行化消息处理, 防止并发消息在 await 点交错 (双启动/状态错乱)
+  - LLM 调用失败/无 key → 自动降级确定性正则解析
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -21,7 +29,9 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-CHAT_TTL_SECONDS = 4 * 3600  # 会话 4 小时过期
+CHAT_TTL_SECONDS = 4 * 3600  # 会话 4 小时空闲过期
+MAX_MESSAGES = 60            # 消息上限
+LLM_TIMEOUT_SECONDS = 25     # LLM 调用超时
 
 _SYSTEM_PROMPT = (
     "你是平台探索助手, 帮助用户用自然语言配置并启动教学平台的自动探索。\n"
@@ -73,6 +83,8 @@ class ExplorerChatService:
             "messages": [],           # [{role, content, ts}]
             "explore_session_id": "",
             "created_ts": time.time(),
+            "last_active_ts": time.time(),   # 空闲过期基准 (每条消息刷新)
+            "lock": asyncio.Lock(),          # 每会话串行化处理 (并发消息防交错)
         }
 
     @staticmethod
@@ -82,20 +94,25 @@ class ExplorerChatService:
             "content": content,
             "ts": datetime.now(timezone.utc).isoformat(),
         })
-        # 防膨胀: 保留最近 60 条
-        if len(chat["messages"]) > 60:
-            chat["messages"] = chat["messages"][-60:]
+        # 防膨胀: 保留最近 MAX_MESSAGES 条
+        if len(chat["messages"]) > MAX_MESSAGES:
+            chat["messages"] = chat["messages"][-MAX_MESSAGES:]
 
     def _gc(self):
-        """清理过期会话"""
+        """清理空闲过期会话 (调用方需持有 self._lock)"""
         now = time.time()
         stale = [cid for cid, c in self._chats.items()
-                 if now - c["created_ts"] > CHAT_TTL_SECONDS]
+                 if now - c.get("last_active_ts", c["created_ts"]) > CHAT_TTL_SECONDS]
         for cid in stale:
             self._chats.pop(cid, None)
+        return len(stale)
+
+    def _is_expired(self, chat: dict) -> bool:
+        now = time.time()
+        return now - chat.get("last_active_ts", chat["created_ts"]) > CHAT_TTL_SECONDS
 
     def _call_llm(self, chat: dict) -> dict | None:
-        """调用文本 LLM 解析意图 → 参数 dict; 失败返回 None (降级确定性解析)"""
+        """调用文本 LLM 解析意图 → 参数 dict; 失败/无key 返回 None (降级确定性解析)"""
         try:
             from src.platform_probe.api_keys import get_api_keys
             provider = get_api_keys().get_text_llm()
@@ -122,7 +139,7 @@ class ExplorerChatService:
                     "Authorization": f"Bearer {provider.api_key}",
                 },
             )
-            with urllib.request.urlopen(req, timeout=25) as resp:
+            with urllib.request.urlopen(req, timeout=LLM_TIMEOUT_SECONDS) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
             content = body["choices"][0]["message"]["content"]
             return self._parse_llm_json(content)
@@ -219,6 +236,18 @@ class ExplorerChatService:
         out.update(extra)
         return out
 
+    @staticmethod
+    def _plan_text(chat: dict) -> str:
+        p = chat["params"]
+        return (
+            f"探索计划已就绪:\n"
+            f"  • 目标: {p['target_url']}\n"
+            f"  • 凭证: {p['username'] or '(免登录)'}\n"
+            f"  • 无头浏览器: {'是' if p['headless'] else '否'}\n"
+            f"  • 深度: {p['max_depth']} / 页数: {p['max_pages']}\n"
+            f"回复「开始」启动探索；需要调整请直接告诉我。"
+        )
+
     # ── 对外接口 ──────────────────────────────────────────────
 
     def start_chat(self, defaults: dict | None = None) -> dict:
@@ -228,10 +257,17 @@ class ExplorerChatService:
             chat = self._new_state(defaults or {})
             self._chats[chat["chat_id"]] = chat
 
-        if chat["params"]["target_url"]:
+        p = chat["params"]
+        has_creds = bool(p["username"] and p["password"])
+        if p["target_url"] and has_creds:
+            # 表单全量预填 → 直接展示计划, 等「开始」
+            chat["status"] = "confirm"
+            greeting = f"你好！已从表单预填探索参数:\n{self._plan_text(chat)}"
+            missing = []
+        elif p["target_url"]:
             greeting = (
                 f"你好！我负责帮你探索教学平台。\n"
-                f"已从表单预填目标平台: {chat['params']['target_url']}\n"
+                f"已从表单预填目标平台: {p['target_url']}\n"
                 f"请告诉我登录凭证 (格式: 账号 xxx 密码 xxx)，或直接说「无需登录」。\n"
                 f"确认参数后我会展示探索计划，你说「开始」我就启动。"
             )
@@ -246,104 +282,104 @@ class ExplorerChatService:
         return self._reply(chat, greeting, missing_fields=missing, action="none")
 
     async def handle_message(self, chat_id: str, message: str) -> dict:
-        """处理一条用户消息 — 状态机核心"""
+        """处理一条用户消息 — 状态机核心 (每会话串行化)"""
         with self._lock:
+            self._gc()
             chat = self._chats.get(chat_id)
         if not chat:
             return {"reply": "会话不存在或已过期，请重新开始对话。", "status": "expired",
-                    "chat_id": chat_id, "action": "none"}
+                    "chat_id": chat_id, "action": "expired"}
+        if self._is_expired(chat):
+            with self._lock:
+                self._chats.pop(chat_id, None)
+            return {"reply": "会话已过期（超过 4 小时无交流），请重新开始对话。",
+                    "status": "expired", "chat_id": chat_id, "action": "expired"}
 
-        self._push(chat, "user", message)
+        async with chat["lock"]:
+            chat["last_active_ts"] = time.time()
+            self._push(chat, "user", message)
 
-        # 运行中: 只有 取消/进度 有意义
-        if chat["status"] == "running":
-            parsed = self._extract_deterministic(message)
-            if parsed["intent"] == "cancel":
-                return await self._do_cancel(chat)
-            if parsed["intent"] in ("status", "info"):
-                st = await self._get_explorer_service().get_status()
-                if st.get("running"):
-                    return self._reply(
-                        chat,
-                        f"探索进行中: {st.get('progress', '')}",
-                        action="status",
-                    )
-                return self._reply(chat, "探索已结束，可查看下方结果。", action="status")
-            return self._reply(
-                chat,
-                "探索正在后台运行。你可以问我进度，或者说「取消」。",
-                action="status",
-            )
+            # 运行中: 只有 取消/进度 有意义
+            if chat["status"] == "running":
+                parsed = self._extract_deterministic(message)
+                if parsed["intent"] == "cancel":
+                    return await self._do_cancel(chat)
+                if parsed["intent"] in ("status", "info"):
+                    st = await self._get_explorer_service().get_status()
+                    if st.get("running"):
+                        return self._reply(
+                            chat,
+                            f"探索进行中: {st.get('progress', '')}",
+                            action="status",
+                        )
+                    return self._reply(chat, "探索已结束，可查看下方结果。", action="status")
+                return self._reply(
+                    chat,
+                    "探索正在后台运行。你可以问我进度，或者说「取消」。",
+                    action="status",
+                )
 
-        # 意图解析 (LLM 优先, 正则兜底)
-        parsed = self._call_llm(chat) or self._extract_deterministic(message)
+            # 意图解析 (LLM 优先, 正则兜底)
+            parsed = self._call_llm(chat) or self._extract_deterministic(message)
 
-        if parsed.get("intent") == "cancel":
-            chat["status"] = "collecting"
-            return self._reply(chat, "好，已取消。需要调整探索参数吗？", action="cancelled")
+            if parsed.get("intent") == "cancel":
+                chat["status"] = "collecting"
+                return self._reply(chat, "好，已取消。需要调整探索参数吗？", action="cancelled")
 
-        if parsed.get("intent") == "status":
-            st_text = "当前还没有运行中的探索。"
-            return self._reply(chat, st_text, action="status")
+            if parsed.get("intent") == "status":
+                st_text = "当前还没有运行中的探索。"
+                return self._reply(chat, st_text, action="status")
 
-        # 参数合并
-        p = chat["params"]
-        if parsed.get("use_last_profile"):
-            prof = self._latest_profile()
-            if prof:
-                p["target_url"] = prof.get("target_url") or prof.get("url") or p["target_url"]
-                creds = prof.get("credentials") or {}
-                p["username"] = creds.get("username", p["username"])
-                p["password"] = creds.get("password", p["password"])
-                if p["username"] and p["password"]:
-                    chat["no_login"] = False
-                self._push(chat, "assistant",
-                           f"已载入上次探索的平台: {p['target_url'] or '(未记录)'}")
-        if parsed.get("target_url"):
-            p["target_url"] = parsed["target_url"]
-        if parsed.get("username"):
-            p["username"] = parsed["username"]
-        if parsed.get("password"):
-            p["password"] = parsed["password"]
-        if parsed.get("max_depth"):
-            p["max_depth"] = int(parsed["max_depth"])
-        if parsed.get("max_pages"):
-            p["max_pages"] = int(parsed["max_pages"])
-        if parsed.get("no_login"):
-            chat["no_login"] = True
-        if p["username"] and p["password"]:
-            chat["no_login"] = False
+            # 参数合并
+            p = chat["params"]
+            if parsed.get("use_last_profile"):
+                prof = self._latest_profile()
+                if prof:
+                    p["target_url"] = prof.get("target_url") or prof.get("url") or p["target_url"]
+                    creds = prof.get("credentials") or {}
+                    p["username"] = creds.get("username", p["username"])
+                    p["password"] = creds.get("password", p["password"])
+                    if p["username"] and p["password"]:
+                        chat["no_login"] = False
+                    self._push(chat, "assistant",
+                               f"已载入上次探索的平台: {p['target_url'] or '(未记录)'}")
+            if parsed.get("target_url"):
+                p["target_url"] = parsed["target_url"]
+            if parsed.get("username"):
+                p["username"] = parsed["username"]
+            if parsed.get("password"):
+                p["password"] = parsed["password"]
+            if parsed.get("max_depth"):
+                p["max_depth"] = int(parsed["max_depth"])
+            if parsed.get("max_pages"):
+                p["max_pages"] = int(parsed["max_pages"])
+            if parsed.get("no_login"):
+                chat["no_login"] = True
+            if p["username"] and p["password"]:
+                chat["no_login"] = False
 
-        # 缺口检查
-        if not p["target_url"]:
-            return self._reply(
-                chat,
-                "请先告诉我目标平台 URL，例如「探索 https://teaching.example.com」。\n"
-                "也可以说「用上次的平台」。",
-                missing_fields=["target_url"], action="none",
-            )
+            # 缺口检查
+            if not p["target_url"]:
+                return self._reply(
+                    chat,
+                    "请先告诉我目标平台 URL，例如「探索 https://teaching.example.com」。\n"
+                    "也可以说「用上次的平台」。",
+                    missing_fields=["target_url"], action="none",
+                )
 
-        if not chat["no_login"] and not (p["username"] and p["password"]):
-            return self._reply(
-                chat,
-                "这个平台需要登录吗？如果需要，请提供「账号 xxx 密码 xxx」；\n"
-                "如果无需登录，请回复「无需登录」。",
-                missing_fields=["credentials"], action="none",
-            )
+            if not chat["no_login"] and not (p["username"] and p["password"]):
+                return self._reply(
+                    chat,
+                    "这个平台需要登录吗？如果需要，请提供「账号 xxx 密码 xxx」；\n"
+                    "如果无需登录，请回复「无需登录」。",
+                    missing_fields=["credentials"], action="none",
+                )
 
-        # 参数齐备 → 展示计划待确认 (用户已明说开始时直接启动)
-        plan = (
-            f"探索计划已就绪:\n"
-            f"  • 目标: {p['target_url']}\n"
-            f"  • 凭证: {p['username'] or '(免登录)'}\n"
-            f"  • 无头浏览器: {'是' if p['headless'] else '否'}\n"
-            f"  • 深度: {p['max_depth']} / 页数: {p['max_pages']}\n"
-            f"回复「开始」启动探索；需要调整请直接告诉我。"
-        )
-        if parsed.get("intent") == "confirm":
-            return await self._do_start(chat)
-        chat["status"] = "confirm"
-        return self._reply(chat, plan, action="none", params=dict(p))
+            # 参数齐备 → 展示计划待确认 (用户已明说开始时直接启动)
+            if parsed.get("intent") == "confirm":
+                return await self._do_start(chat)
+            chat["status"] = "confirm"
+            return self._reply(chat, self._plan_text(chat), action="none", params=dict(p))
 
     async def _do_start(self, chat: dict) -> dict:
         """确认后启动探索 (复用现有流水线)"""
@@ -382,6 +418,7 @@ class ExplorerChatService:
 
     def get_history(self, chat_id: str) -> dict:
         with self._lock:
+            self._gc()
             chat = self._chats.get(chat_id)
         if not chat:
             return {"chat_id": chat_id, "messages": [], "expired": True}

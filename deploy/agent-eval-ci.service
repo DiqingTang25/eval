@@ -1,0 +1,15 @@
+[Unit]
+Description=Agent C — CI Quick Check
+After=agent-eval.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/agent_eval
+EnvironmentFile=-/opt/agent_eval/.env
+ExecStart=/opt/agent_eval/venv/bin/python /opt/agent_eval/scripts/ci_quick_check.py
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -40,17 +40,34 @@ KNOWN_PROVIDERS = {
     },
     "xjtlu_glm": {
         "name": "XJTLU GLM-5.2",
-        "env_key": "XJTLU_GLM_JUDGE_KEY",
+        "env_key": "XJTLU_JUDGE_GLM52_API_KEY",
         "env_base_url": "XJTLU_BASE_URL",
         "default_base_url": "",
         "models": ["glm-5.2"],
     },
     "xjtlu_doubao": {
-        "name": "XJTLU Doubao",
-        "env_key": "XJTLU_DOUBAO_JUDGE_KEY",
+        "name": "XJTLU Doubao Seed 2.1",
+        "env_key": "XJTLU_JUDGE_DOUBAO_API_KEY",
         "env_base_url": "XJTLU_BASE_URL",
         "default_base_url": "",
         "models": ["doubao-seed-2.1"],
+        "has_vision": True,
+    },
+    "xjtlu_qwen3vl": {
+        "name": "Qwen3-VL-8B-Instruct",
+        "env_key": "XJTLU_QWEN3VL_API_KEY",
+        "env_base_url": "XJTLU_BASE_URL",
+        "default_base_url": "",
+        "models": ["qwen3-vl-8b"],
+        "has_vision": True,  # 🔥 专用视觉语言模型
+    },
+    "xjtlu_gpt4o": {
+        "name": "GPT-4o (XJTLU Gateway)",
+        "env_key": "XJTLU_GPT4O_API_KEY",
+        "env_base_url": "XJTLU_BASE_URL",
+        "default_base_url": "",
+        "models": ["gpt-4o"],
+        "has_vision": True,  # 🔥 最强多模态
     },
     "anthropic": {
         "name": "Anthropic Claude",
@@ -95,6 +112,7 @@ async def get_llm_keys() -> dict:
             "base_url": base_url,
             "models": info["models"],
             "env_key_name": info["env_key"],
+            "has_vision": info.get("has_vision", False),
         }
 
     return {
@@ -211,13 +229,13 @@ async def delete_llm_key(provider: str) -> dict:
 
 @router.get("/platform-defaults")
 async def get_platform_defaults() -> dict:
-    """获取默认平台配置"""
+    """获取默认平台配置 (凭证已脱敏)"""
     return {
         "default_url": os.getenv("PLATFORM_URL", "http://124.174.108.70"),
         "default_username": os.getenv("PLATFORM_USERNAME", "student001"),
-        "default_password": os.getenv("PLATFORM_PASSWORD", "123456"),
-        "admin_username": os.getenv("ADMIN_USERNAME", "admin"),
-        "admin_password": os.getenv("ADMIN_PASSWORD", "admin123"),
+        "default_password": "***",  # 脱敏 — 不从API返回真实密码
+        "admin_username": "***",    # 脱敏
+        "admin_password": "***",    # 脱敏
         "db_type": os.getenv("DB_TYPE", "sqlite"),
     }
 

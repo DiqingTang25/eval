@@ -123,6 +123,23 @@ async def startup_health_refresh():
         startup_scan()
     except Exception as e:
         logger.warning("i18n startup scan skipped: %s", e)
+    # ── 清理残留的 running 会话 (服务重启导致的遗留) ──
+    try:
+        from backend.dependencies import get_sync_db
+        from backend.models import ExplorationSession
+        from datetime import datetime, timezone
+        db = get_sync_db()
+        stale = db.query(ExplorationSession).filter_by(status="running").all()
+        for s in stale:
+            s.status = "interrupted"
+            s.error = (s.error or "") + "\n[auto] Service restart interrupted this session."
+            s.finished_at = datetime.now(timezone.utc)
+        if stale:
+            db.commit()
+            logger.warning("Cleaned up %d stale running session(s)", len(stale))
+        db.close()
+    except Exception as e:
+        logger.warning("Session cleanup skipped: %s", e)
 
 @app.on_event("shutdown")
 async def shutdown_health_refresh():

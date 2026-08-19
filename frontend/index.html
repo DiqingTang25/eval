@@ -146,6 +146,11 @@ tbody tr:hover{background:var(--accent2)}
 .score-bar-fill{height:100%;border-radius:3px;transition:width 1s var(--transition)}
 .score-bar-fill.high{background:linear-gradient(90deg,var(--green),#34d399)}.score-bar-fill.mid{background:linear-gradient(90deg,var(--amber),#fbbf24)}.score-bar-fill.low{background:linear-gradient(90deg,var(--red),#f87171)}
 
+/* Eval progress */
+.tr-progress{margin-bottom:16px}
+.tr-action{font-size:23px;font-weight:700;letter-spacing:-.3px;margin-bottom:2px}
+.tr-timer{font-size:12px;color:var(--text3)}
+
 /* Calibration */
 .cal-dim-row{display:flex;align-items:center;margin:6px 0;gap:10px;padding:4px 0}
 .cal-dim-name{width:110px;font-size:12px;color:var(--text);flex-shrink:0}
@@ -183,11 +188,11 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
   <div class="sidebar-brand"><div class="dot"></div>Eval <span style="font-weight:400;color:var(--text3)">Platform</span></div>
   <nav class="sidebar-nav">
     <a class="active" data-page="dashboard" onclick="App.showPage('dashboard')"><span class="nav-dot"></span><span data-i18n="nav_home">Overview</span></a>
-    <a data-page="platform-health" onclick="App.showPage('platform-health')"><span class="nav-dot"></span><span data-i18n="nav_platform_health">Platform Health</span></a>
+    <a data-page="explorer" onclick="App.showPage('explorer')"><span class="nav-dot"></span><span data-i18n="nav_explorer">Explorer</span></a>
     <a data-page="test-runner" onclick="App.showPage('test-runner')"><span class="nav-dot"></span><span data-i18n="nav_test">Test Runner</span></a>
     <a data-page="reports" onclick="App.showPage('reports')"><span class="nav-dot"></span><span data-i18n="nav_reports">Reports</span></a>
     <a data-page="calibration" onclick="App.showPage('calibration')"><span class="nav-dot"></span><span data-i18n="nav_calibration">Calibration</span></a>
-    <a data-page="explorer" onclick="App.showPage('explorer')"><span class="nav-dot"></span><span data-i18n="nav_explorer">Explorer</span></a>
+    <a data-page="platform-health" onclick="App.showPage('platform-health')"><span class="nav-dot"></span><span data-i18n="nav_platform_health">Platform Health</span></a>
   </nav>
   <div class="sidebar-footer">
     <span class="status-dot online" id="wsStatusDot"></span>
@@ -201,9 +206,10 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
 <main class="main">
   <div class="topbar">
     <div class="topbar-left">
-      <div class="target-url">
-        <span class="url-label">Target</span>
-        <input id="targetUrl" value="http://124.174.108.70" placeholder="Platform URL" onchange="App.setTargetUrl(this.value)">
+      <div class="target-url" style="gap:8px">
+        <span class="url-label">Platform</span>
+        <input id="targetUrl" value="" placeholder="Platform URL" onchange="App.setTargetUrl(this.value)">
+        <span id="schemaDot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;cursor:pointer" onclick="App.showPage('explorer')" title="Not explored"></span>
       </div>
     </div>
     <div class="topbar-right">
@@ -214,38 +220,57 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
   <!-- Dashboard -->
   <div id="page-dashboard" class="page active">
     <h2 data-i18n="home_title">Evaluation Overview</h2>
-    <div class="stat-grid" id="statGrid">
-      <div class="stat-card"><div class="stat-label">Total Tests</div><div class="stat-value" id="statVal0">--</div></div>
-      <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-value" id="statVal1">--</div></div>
-      <div class="stat-card"><div class="stat-label">Approved QA</div><div class="stat-value" id="statVal2">--</div></div>
-      <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" id="statVal3">--</div></div>
+    <!-- Hero: when no evaluation data -->
+    <div id="dashboardHero" style="display:none;text-align:center;padding:36px 0 20px">
+      <div style="font-size:22px;font-weight:700;margin-bottom:6px" data-i18n="home_hero_title">AI Agent Evaluation Platform</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px" data-i18n="home_hero_desc">Automated quality evaluation for teaching platform AI agents</div>
     </div>
-
-    <div class="card">
-      <div class="card-header"><h3>Evaluation Controls</h3>
-        <span id="schemaIndicator" style="display:none;font-size:11px;color:var(--accent);font-weight:600">🧬 Schema-Driven Mode</span>
+    <!-- Stat cards: when data exists -->
+    <div class="stat-grid" id="statGrid" style="display:none">
+      <div class="stat-card"><div class="stat-label" data-i18n="card_total_tests">Total Tests</div><div class="stat-value" id="statVal0">--</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="card_avg_score">Avg Score</div><div class="stat-value" id="statVal1">--</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="card_qa_approved">Approved QA</div><div class="stat-value" id="statVal2">--</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="card_qa_pending">Pending</div><div class="stat-value" id="statVal3">--</div></div>
+    </div>
+    <!-- Platform profile: when explored -->
+    <div class="card" id="platformCard" style="display:none;padding:12px 20px">
+      <div class="flex-between">
+        <div class="flex" style="gap:20px;font-size:12px">
+          <span><span style="color:var(--text3)" data-i18n="health_platform_url">Platform</span> <b id="pfUrl"></b></span>
+          <span><span style="color:var(--text3)">Phases</span> <b id="pfPhases"></b></span>
+          <span><span style="color:var(--text3)">APIs</span> <b id="pfAPIs"></b></span>
+        </div>
+        <span style="font-size:10px;color:var(--text3)" id="pfTime"></span>
       </div>
-      <div class="controls">
-        <select id="evalProfile" style="min-width:180px" onchange="App.onProfileChange()">
-          <option value="full" selected>Full Platform &middot; ~18min</option>
-          <option value="patrol">Patrol &middot; ~5min</option>
-          <option value="deep">Deep Scan &middot; ~30min</option>
-          <option value="custom">Custom</option>
-        </select>
-        <span id="customOpts" style="display:none;gap:6px">
-          <input id="numQuestions" type="number" value="3" min="1" max="20" style="width:60px">
-          <span style="font-size:12px;color:var(--text3)">questions</span>
-          <input id="maxTurns" type="number" value="3" min="1" max="10" style="width:60px">
-          <span style="font-size:12px;color:var(--text3)">turns</span>
-        </span>
-        <button class="btn btn-primary" onclick="App.startEval()"><span data-i18n="test_start_btn">Start Evaluation</span></button>
-        <button class="btn btn-outline btn-sm" onclick="App.loadDashboard()">Refresh</button>
-      </div>
-      <div class="progress-wrap"><div class="progress-bar" id="progressFill"></div></div>
-      <div id="evalStatus" style="display:none;font-size:12px;color:var(--text2);margin-bottom:8px"></div>
-      <div id="liveEvalPanel" style="display:none">
-        <div class="card-header"><h3 data-i18n="live_title">Live Evaluation</h3><button class="btn btn-ghost btn-sm" onclick="document.getElementById('liveEvalBody').innerHTML=''">Clear</button></div>
-        <div class="log-console" id="liveEvalBody"><div class="empty-state">Start an evaluation to see the live process</div></div>
+    </div>
+    <!-- Workflow: always shown -->
+    <div class="card" id="workflowGuide" style="padding:20px 24px">
+      <div class="card-header" style="margin-bottom:16px"><h3 data-i18n="wf_heading">Getting Started</h3></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:18px 16px;position:relative;transition:all var(--transition);cursor:pointer" onclick="App.showPage('explorer')" onmouseenter="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--shadow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;flex-shrink:0">1</span>
+            <span style="font-size:13px;font-weight:700" data-i18n="wf_step1_title">Explore Platform</span>
+          </div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0 0 12px 0" data-i18n="wf_step1_desc">Auto-discover teaching phases, lessons, and API endpoints.</p>
+          <span style="font-size:12px;color:var(--accent);font-weight:600" data-i18n="wf_step1_link">Go to Explorer</span>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:18px 16px;position:relative;transition:all var(--transition);cursor:pointer" onclick="App.showPage('test-runner')" onmouseenter="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--shadow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;flex-shrink:0">2</span>
+            <span style="font-size:13px;font-weight:700" data-i18n="wf_step2_title">Run Evaluation</span>
+          </div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0 0 12px 0" data-i18n="wf_step2_desc">Evaluate AI agent quality across 10 dimensions.</p>
+          <span style="font-size:12px;color:var(--accent);font-weight:600" data-i18n="wf_step2_link">Go to Test Runner</span>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:18px 16px;position:relative;transition:all var(--transition);cursor:pointer" onclick="App.showPage('reports')" onmouseenter="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--shadow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;flex-shrink:0">3</span>
+            <span style="font-size:13px;font-weight:700" data-i18n="wf_step3_title">Review Reports</span>
+          </div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0 0 12px 0" data-i18n="wf_step3_desc">Explore trends, radar charts, and calibrate scores.</p>
+          <span style="font-size:12px;color:var(--accent);font-weight:600" data-i18n="wf_step3_link">Go to Reports</span>
+        </div>
       </div>
     </div>
 
@@ -260,27 +285,38 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
   <div id="page-platform-health" class="page">
     <h2 data-i18n="health_title">Platform Health Monitoring</h2>
     <div class="controls">
-      <button class="btn btn-outline btn-sm" id="phRefreshBtn">Refresh Check</button>
-      <button class="btn btn-outline btn-sm" id="phFullRefreshBtn">Full Health Check</button>
+      <button class="btn btn-outline btn-sm" id="phRefreshBtn" data-i18n="health_refresh_btn">Refresh Check</button>
+      <button class="btn btn-outline btn-sm" id="phFullRefreshBtn" data-i18n="health_full_check">Full Health Check</button>
     </div>
     <div id="phStatus" style="margin-bottom:16px"></div>
     <div class="two-col">
-      <div class="card"><h3>Interaction Metrics</h3><div id="phInteraction"></div></div>
-      <div class="card"><h3>Technical Performance</h3><div id="phTechMetrics"></div></div>
+      <div class="card"><div class="card-header"><h3 data-i18n="health_target">Target Platform</h3><span style="font-size:11px;color:var(--text3);cursor:help" data-i18n="health_target_help" title="Check if the teaching platform you are evaluating is online and responding">What is this?</span></div><div id="phTarget"></div></div>
+      <div class="card"><div class="card-header"><h3 data-i18n="health_system">Evaluation System</h3><span style="font-size:11px;color:var(--text3);cursor:help" data-i18n="health_system_help" title="Status of the evaluation platform itself — API, database, WebSocket">What is this?</span></div><div id="phSystem"></div></div>
     </div>
   </div>
 
   <!-- Test Runner -->
   <div id="page-test-runner" class="page">
     <h2 data-i18n="test_title">Test Runner</h2>
+    <div id="trSchemaHint" style="margin-bottom:12px;padding:8px 14px;border-radius:8px;font-size:12px;background:var(--amber2);border:1px solid var(--amber);color:var(--amber);display:none">
+      <span data-i18n="tr_no_schema">No schema yet — using default config.</span>
+      <a style="cursor:pointer;font-weight:600;text-decoration:underline;margin-left:4px" onclick="App.showPage('explorer')" data-i18n="tr_explore_first">Explore platform first →</a>
+    </div>
     <div class="controls">
-      <select id="trAgent" style="min-width:160px"><option>Teaching Platform</option></select>
-      <select id="trProfile"><option value="full">Full Platform ~18min</option><option value="patrol">Patrol ~5min</option><option value="deep">Deep ~30min</option></select>
-      <input id="trScenarios" type="number" value="3" min="1" max="20" style="width:60px" title="Scenarios">
+      <select id="trMode"><option value="browser">🖥 Browser Eval</option><option value="multi_agent">🤖 Multi-Agent</option></select>
       <button class="btn btn-primary" id="trStartBtn"><span data-i18n="test_start_btn">Start Test</span></button>
       <button class="btn btn-outline btn-sm" id="trStopBtn" style="display:none">Stop</button>
     </div>
+    <div id="trProgress" class="tr-progress" style="display:none">
+      <div class="tr-action" id="trCurrentAction"></div>
+      <div class="tr-timer"><span id="trTimer">00:00</span></div>
+    </div>
+    <!-- Multi-Agent 进度面板 (Agent C) -->
+    <div id="maPanel" class="card" style="display:none;margin-bottom:16px;font-size:13px;max-height:360px;overflow-y:auto">
+      <div style="font-size:11px;color:var(--text3)">Multi-Agent pipeline waiting for events...</div>
+    </div>
     <div id="trStatus" style="margin-bottom:16px;font-size:13px"></div>
+    <div class="card" id="trPreflight" style="display:none"><div class="card-header"><h3 data-i18n="tr_preflight_title">Pre-Flight Check</h3></div></div>
     <div class="card"><div class="card-header"><h3 data-i18n="test_event_log">Live Event Log</h3></div><div class="log-console" id="trEventLog"><span class="text-muted">Waiting for test to start...</span></div></div>
     <div class="card" style="margin-top:16px"><div class="card-header"><h3 data-i18n="test_history">Session History</h3></div><div id="trSessions"></div></div>
   </div>
@@ -338,42 +374,34 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
       </div>
       <div id="exploreChatMsgs" class="chat-msgs"></div>
       <div class="chat-input-row">
-        <input id="exploreChatInput" placeholder="例如: 探索 http://124.174.108.70，账号 111 密码 123456">
-        <button class="btn btn-primary" id="exploreChatSendBtn" onclick="App.exploreChatSend()" data-i18n="explorer_chat_send">发送</button>
+        <input id="exploreChatInput" placeholder="例如: 探索 http://124.174.108.70，账号 111 密码 123456" onkeydown="if(event.key==='Enter')App.exploreChatSend()">
+        <button class="btn btn-primary" id="exploreChatSendBtn" onclick="App.exploreChatSend()" data-i18n="explorer_chat_send">Send</button>
       </div>
     </div>
 
-    <!-- 固定表单 (辅助: 默认折叠, 预填后对话可直接确认) -->
+    <!-- 固定表单 (辅助: 默认折叠, 表单值自动作为对话预填参数) -->
     <details class="card" id="exploreManualCfg" style="margin-top:12px">
-      <summary data-i18n="explorer_config">探索配置（可选 — 固定填写为辅）</summary>
-      <div class="controls" style="flex-wrap:wrap;gap:10px">
+      <summary data-i18n="explorer_config">Exploration Config</summary>
+      <div class="controls" style="flex-wrap:wrap;gap:10px;margin-top:12px">
         <input id="exploreUrl" placeholder="https://teaching-platform.com" style="min-width:280px" value="">
         <input id="exploreUser" placeholder="Username" style="width:130px">
         <input id="explorePass" type="password" placeholder="Password" style="width:130px">
         <select id="exploreDepth" style="width:100px">
-          <option value="1">Depth 1</option>
-          <option value="2">Depth 2</option>
-          <option value="3" selected>Depth 3</option>
-          <option value="4">Depth 4</option>
+          <option value="1">Depth 1</option><option value="2">Depth 2</option>
+          <option value="3" selected>Depth 3</option><option value="4">Depth 4</option>
         </select>
         <select id="explorePages" style="width:100px">
-          <option value="10">10 pages</option>
-          <option value="30">30 pages</option>
-          <option value="50" selected>50 pages</option>
-          <option value="100">100 pages</option>
+          <option value="10">10 pages</option><option value="30">30 pages</option>
+          <option value="50" selected>50 pages</option><option value="100">100 pages</option>
         </select>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
           <input type="checkbox" id="exploreHeadless" checked> Headless
         </label>
-        <button class="btn btn-primary" id="exploreStartBtn" onclick="App.exploreStart()">
-          🚀 Start Exploration
-        </button>
-        <button class="btn btn-outline btn-sm" id="exploreCancelBtn" onclick="App.exploreCancel()" style="display:none">
-          ⏹ Cancel
-        </button>
+        <button class="btn btn-primary" id="exploreStartBtn" onclick="App.exploreStart()" data-i18n="explorer_start_btn">🚀 Start Exploration</button>
+        <button class="btn btn-outline btn-sm" id="exploreCancelBtn" onclick="App.exploreCancel()" style="display:none" data-i18n="explorer_cancel_btn">⏹ Cancel</button>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:8px">
-        <span data-i18n="explorer_hint">Leave credentials empty to auto-detect auth. Headless mode recommended for servers.</span>
+        <span data-i18n="explorer_hint">Leave credentials empty to auto-detect auth.</span>
       </div>
     </details>
 
@@ -389,11 +417,11 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
     <!-- Results -->
     <div id="exploreResults" style="display:none">
       <div class="stat-grid" style="grid-template-columns:repeat(6,1fr)">
-        <div class="stat-card"><div class="stat-label">Phases</div><div class="stat-value" id="expPhases">0</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="explorer_phases">Phases</div><div class="stat-value" id="expPhases">0</div></div>
         <div class="stat-card"><div class="stat-label">Lessons</div><div class="stat-value" id="expLessons">0</div></div>
-        <div class="stat-card"><div class="stat-label">Steps</div><div class="stat-value" id="expSteps">0</div></div>
-        <div class="stat-card"><div class="stat-label">API Endpoints</div><div class="stat-value" id="expAPIs">0</div></div>
-        <div class="stat-card"><div class="stat-label">Confidence</div><div class="stat-value" id="expConf">0%</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="explorer_steps">Steps</div><div class="stat-value" id="expSteps">0</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="explorer_apis">APIs</div><div class="stat-value" id="expAPIs">0</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="explorer_conf">Confidence</div><div class="stat-value" id="expConf">0%</div></div>
         <div class="stat-card"><div class="stat-label">Duration</div><div class="stat-value" id="expDur">0s</div></div>
       </div>
 
@@ -405,15 +433,9 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
       <div class="card">
         <div class="card-header"><h3>Actions</h3></div>
         <div class="controls">
-          <button class="btn btn-primary btn-sm" id="expUseSchemaBtn" onclick="App.exploreUseSchema()">
-            ✅ Use This Schema for Evaluation
-          </button>
-          <button class="btn btn-outline btn-sm" onclick="App.exploreViewSchema()">
-            📄 View Schema YAML
-          </button>
-          <button class="btn btn-outline btn-sm" onclick="App.exploreDownloadSchema()">
-            💾 Download Schema
-          </button>
+          <button class="btn btn-primary btn-sm" id="expUseSchemaBtn" onclick="App.exploreUseSchema()" data-i18n="explorer_use_schema">✅ Use This Schema for Evaluation</button>
+          <button class="btn btn-outline btn-sm" onclick="App.exploreViewSchema()" data-i18n="explorer_view_schema">📄 View Schema</button>
+          <button class="btn btn-outline btn-sm" onclick="App.exploreDownloadSchema()" data-i18n="explorer_download_schema">💾 Download Schema</button>
         </div>
       </div>
     </div>
@@ -421,10 +443,10 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
     <!-- History -->
     <div class="card" style="margin-top:16px">
       <div class="card-header"><h3 data-i18n="explorer_history">Exploration History</h3>
-        <button class="btn btn-outline btn-sm" onclick="App.exploreLoadHistory()">Refresh</button>
+        <button class="btn btn-outline btn-sm" onclick="App.exploreLoadHistory()" data-i18n="btn_refresh">Refresh</button>
       </div>
       <div id="exploreHistory" style="max-height:300px;overflow-y:auto">
-        <div class="empty-state">No exploration sessions yet</div>
+        <div class="empty-state" data-i18n="explorer_no_history">No exploration sessions yet</div>
       </div>
     </div>
   </div>
@@ -433,8 +455,8 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
 
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/test/js/i18n.js?v=3.6.4"></script>
-<script src="/test/js/app.js?v=3.6.4"></script>
+<script src="/test/js/chart.umd.min.js?v=3.9.0"></script>
+<script src="/test/js/i18n.js?v=3.9.0"></script>
+<script src="/test/js/app.js?v=3.9.0"></script>
 </body>
 </html>

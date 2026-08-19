@@ -1,0 +1,10 @@
+[Unit]
+Description=Agent C — CI Quick Check (every 30 min)
+Requires=agent-eval-ci.service
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

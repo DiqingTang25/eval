@@ -2,6 +2,7 @@
 
 import asyncio
 import collections
+import json
 import os
 import threading
 import time
@@ -60,6 +61,7 @@ class TestService:
         # 卡点干预: 评测线程遇到卡点时阻塞询问用户
         self._interventions: dict = {}          # session_id -> {event, question, options, timeout_s, default, answer, asked_at}
         self._interventions_lock = threading.Lock()
+        self._audit_lock = threading.Lock()     # 干预审计日志写锁 (data/intervention_log.json)
 
     @property
     def is_running(self) -> bool:
@@ -248,6 +250,8 @@ class TestService:
         _os.chdir(str(project_root))
 
         try:
+            print(f"[MultiAgent] Starting: strategy={strategy} phases={phases} "
+                  f"mode={mode} target_url={target_url} project_root={project_root}", flush=True)
             from src.multi_agent import MultiAgentOrchestrator
 
             def ws_cb(event_type: str, data: dict):
@@ -269,10 +273,22 @@ class TestService:
                 mode=mode,
                 target_url=target_url,
                 # 卡点干预: Schema 缺失等卡点阻塞询问用户
-                ask_user=lambda q, opts=None, t=300, d=None: self.ask_user(
-                    session_id, q, opts, t, d),
+                ask_user=lambda q, opts=None, timeout_s=300, default=None: self.ask_user(
+                    session_id, q, opts, timeout_s, default),
             )
             report = orch.run()
+
+            # DIAG: 写入文件以便排查
+            try:
+                import json as _json
+                _diag = {
+                    "strategy": strategy, "phases_filter": phases,
+                    "report_phases": len(report.verification_results) if report else 0,
+                    "report_pass_rate": report.pass_rate if report else 0,
+                }
+                (project_root / "output" / "ma_diag.json").write_text(_json.dumps(_diag, indent=2, default=str))
+            except Exception:
+                pass
 
             # 广播完成
             if self._main_loop:
@@ -290,8 +306,8 @@ class TestService:
                     self._main_loop,
                 )
         except Exception as e:
-            import traceback
-            logger.error(f"Multi-Agent failed: {e}\n{traceback.format_exc()}")
+            import traceback as _tb2
+            print(f"[MultiAgent] FAILED: {e}\n{_tb2.format_exc()}", flush=True)
             if self._main_loop:
                 asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast({
@@ -332,8 +348,8 @@ class TestService:
             from src.self_healing import apply_self_healing
             apply_self_healing(evaluator)
             # 卡点干预: 登录失败/Day出错时阻塞询问用户
-            evaluator._ask_cb = lambda q, opts=None, t=300, d=None: self.ask_user(
-                session_id, q, opts, t, d)
+            evaluator._ask_cb = lambda q, opts=None, timeout_s=300, default=None: self.ask_user(
+                session_id, q, opts, timeout_s, default)
             # 注入 WebSocket 进度回调
             orig_log = evaluator._log
             def _ws_log(msg, level="info"):
@@ -416,6 +432,13 @@ class TestService:
         with self._interventions_lock:
             self._interventions[session_id] = entry
 
+        # 审计: 记录一次 ask
+        self._append_intervention_log(
+            "ask", session_id,
+            question=question, options=entry["options"],
+            timeout_s=timeout_s, default=default,
+        )
+
         # 广播: 前端弹窗询问
         if self._main_loop:
             try:
@@ -443,6 +466,8 @@ class TestService:
         answer = (stored or entry).get("answer")
         if answered and answer not in (None, ""):
             return str(answer)
+        # 审计: 超时走默认动作
+        self._append_intervention_log("timeout", session_id, answer=default)
         return default if default is not None else "skip"
 
     def respond_intervention(self, session_id: str, answer: str) -> bool:
@@ -453,6 +478,8 @@ class TestService:
             return False  # 已超时或不存在
         entry["answer"] = answer
         entry["event"].set()
+        # 审计: 记录一次 answer
+        self._append_intervention_log("answer", session_id, answer=answer)
         return True
 
     def pending_intervention(self) -> dict | None:
@@ -468,6 +495,37 @@ class TestService:
                     "asked_at": entry["asked_at"],
                 }
         return None
+
+    def _append_intervention_log(self, kind: str, session_id: str, **fields) -> None:
+        """干预审计 — 每次 ask/answer/timeout 追加一条 JSON 到 data/intervention_log.json
+
+        v2 加分项: 线程安全 (audit_lock 串行化读改写); 失败静默, 绝不影响评测主流程。
+        """
+        try:
+            record = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": kind,        # ask | answer | timeout
+                "session_id": session_id,
+            }
+            record.update(fields)
+            log_path = Path(__file__).resolve().parents[2] / "data" / "intervention_log.json"
+            with self._audit_lock:
+                entries = []
+                if log_path.exists():
+                    try:
+                        entries = json.loads(log_path.read_text(encoding="utf-8") or "[]")
+                        if not isinstance(entries, list):
+                            entries = []
+                    except Exception:
+                        entries = []   # 文件损坏时从头开始, 不阻塞
+                entries.append(record)
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text(
+                    json.dumps(entries, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+        except Exception:
+            pass
 
     async def cancel_run(self) -> dict:
         """P0-15: 取消当前评测"""

@@ -6,6 +6,7 @@ Platform Explorer 服务 — 后台线程运行探索器 + 轮询状态
 """
 
 import json
+import logging
 import os
 import threading
 import time
@@ -17,6 +18,9 @@ from typing import Optional
 
 from backend.dependencies import get_sync_db
 from backend.models import ExplorationSession
+from src.question_bridge import QuestionBridge
+
+logger = logging.getLogger(__name__)
 
 
 class ExplorerService:
@@ -28,6 +32,7 @@ class ExplorerService:
         self._thread: Optional[threading.Thread] = None
         self._cancel = threading.Event()
         self._progress_msg = ""  # 当前进度消息, 前端轮询读取
+        self._bridge: Optional[QuestionBridge] = None  # 交互式登录问答桥
 
     @property
     def is_running(self) -> bool:
@@ -57,6 +62,9 @@ class ExplorerService:
 
         self._running = True
         self._cancel.clear()
+
+        # ── 交互式问答桥 (每次探索新建) ──
+        self._bridge = QuestionBridge(enabled=True)
 
         session_id = (
             f"explore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_"
@@ -150,8 +158,9 @@ class ExplorerService:
                 api_threshold=api_threshold,
                 max_depth=max_depth,
                 max_pages=max_pages,
-                verbose=False,
+                verbose=True,  # 启用日志输出方便调试L1.8
             )
+            explorer._session_id = session_id  # 供 profile 使用
 
             # ── L0: 认证 ──
             self._progress_msg = "L0: Detecting auth and logging in..."
@@ -165,11 +174,36 @@ class ExplorerService:
                 self._finish_session(session_id, "cancelled")
                 return
 
+            # ── 交互式问答通道 (非标准登录模式 → 向用户确认) ──
+            # 兼容性: src 侧 ask_callback 支持由 agent5-integration 移植,
+            # 此处探测签名, 不支持时静默跳过, 保证原自动流程零变化。
+            import inspect
+            bridge = self._bridge
+            explore_kwargs = {}
+
+            def ask_cb(text, options=None, context="", context_type="",
+                       timeout_s=180.0, source="", meta=None):
+                if bridge is None:
+                    return {"answer": "", "skipped": True, "timed_out": False}
+                return bridge.ask(
+                    text=text, options=options, context=context,
+                    context_type=context_type, timeout_s=timeout_s,
+                    source=source or "explorer", meta=meta,
+                )
+
+            if "ask_callback" in inspect.signature(explorer.explore).parameters:
+                explore_kwargs["ask_callback"] = ask_cb
+            else:
+                logger.warning(
+                    "PlatformExplorer.explore 不支持 ask_callback, 交互式登录问答未启用"
+                )
+
             # ── 运行完整探索 ──
             schema, report, yaml_path = explorer.explore(
                 target_url=target_url,
                 username=username,
                 password=password,
+                **explore_kwargs,
             )
 
             # ── 检查取消 ──
@@ -230,6 +264,7 @@ class ExplorerService:
         finally:
             self._running = False
             self._current_session_id = None
+            self._bridge = None
 
     def _finish_session(self, session_id: str, status: str, error: str = ""):
         """更新数据库状态"""

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Eval 周报 — 2026.08.12</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #f0f2f5;
+    display: flex; justify-content: center;
+    padding: 20px;
+  }
+  .page {
+    width: 210mm; min-height: 297mm;
+    background: #fff;
+    padding: 20mm 18mm;
+    box-shadow: 0 2px 24px rgba(0,0,0,.1);
+  }
+  h1 {
+    font-size: 22px; font-weight: 800;
+    letter-spacing: -.5px; margin-bottom: 2px;
+  }
+  .sub { font-size: 12px; color: #888; margin-bottom: 18px; }
+  .divider {
+    height: 3px; background: linear-gradient(90deg, #6366f1, #a78bfa);
+    border-radius: 2px; margin-bottom: 18px;
+  }
+
+  .section { margin-bottom: 16px; }
+  .section h2 {
+    font-size: 14px; font-weight: 700; color: #6366f1;
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 8px;
+  }
+  .section h2::before {
+    content: ''; width: 8px; height: 8px;
+    background: #6366f1; border-radius: 2px;
+  }
+
+  /* Architecture diagram */
+  .arch {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 6px; margin: 10px 0 14px;
+  }
+  .arch-box {
+    background: #f5f3ff; border: 1px solid #ddd6fe;
+    border-radius: 8px; padding: 10px 8px; text-align: center;
+    font-size: 10px;
+  }
+  .arch-box strong { display: block; font-size: 12px; color: #4f46e5; margin-bottom: 4px; }
+  .arch-arrow {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #a78bfa;
+  }
+
+  /* Stats row */
+  .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 10px; margin: 10px 0 14px;
+  }
+  .stat {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 8px; padding: 12px; text-align: center;
+  }
+  .stat-val { font-size: 24px; font-weight: 800; color: #1e293b; }
+  .stat-label { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+
+  /* Two columns */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card {
+    background: #fafafa; border: 1px solid #eee;
+    border-radius: 8px; padding: 12px 14px;
+    font-size: 11px; line-height: 1.7;
+  }
+  .card h3 { font-size: 12px; margin-bottom: 6px; color: #333; }
+
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 10px; font-weight: 600;
+  }
+  .tag-green { background: #dcfce7; color: #16a34a; }
+  .tag-blue  { background: #dbeafe; color: #2563eb; }
+  .tag-amber { background: #fef3c7; color: #d97706; }
+
+  ul { padding-left: 16px; }
+  li { margin-bottom: 3px; }
+  .foot {
+    margin-top: 20px; padding-top: 12px;
+    border-top: 1px solid #eee;
+    font-size: 10px; color: #aaa;
+    display: flex; justify-content: space-between;
+  }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>🤖 AI Agent 测评系统 — 周报</h1>
+  <div class="sub">2026年8月5日 → 8月12日 &nbsp;|&nbsp; 西交利物浦大学</div>
+  <div class="divider"></div>
+
+  <!-- ═══ 核心成果 ═══ -->
+  <div class="section">
+    <h2>本周核心成果</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-val">27</div>
+        <div class="stat-label">自动发现教学阶段</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">73%</div>
+        <div class="stat-label">探索置信度</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">6天+</div>
+        <div class="stat-label">云端稳定运行</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">7项</div>
+        <div class="stat-label">自动巡检指标</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 探索器设计 ═══ -->
+  <div class="section">
+    <h2>平台探索器 — 五层自动发现流水线</h2>
+    <p style="font-size:11px;color:#666;margin-bottom:6px">
+      给一个URL + 账号，自动摸清教学平台的全部结构，无需人工配置。
+    </p>
+    <div class="arch">
+      <div class="arch-box"><strong>L0 认证</strong>自动登录<br>React表单注入</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box"><strong>L1 捕获</strong>网络流量拦截<br>页面遍历扫描</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box"><strong>L2 结构</strong>课程层级推断<br>DOM+API融合</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box"><strong>L3 分类</strong>API端点归类<br>隐藏接口发现</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box"><strong>L4 输出</strong>Schema生成<br>对接测评系统</div>
+    </div>
+  </div>
+
+  <!-- ═══ 两列 ═══ -->
+  <div class="cols">
+    <!-- 做了什么 -->
+    <div class="card">
+      <h3>📋 本周完成</h3>
+      <ul>
+        <li><b>梳理全局技术架构</b>：阅读全部 ~150 源文件 + 28 份文档，输出完整架构报告</li>
+        <li><b>发现双重部署问题</b>：仓库 Docker 方案 ≠ 云端 systemd 方案，两套并行从未对齐</li>
+        <li><b>设计六维度对比测试</b>：从启动速度、功能正确性、性能、可靠性、运维效率五个角度实测对比</li>
+        <li><b>完成部署融合</b>：以云端 systemd 为主方案，Docker 降为备用，仓库文档全部更新</li>
+        <li><b>安全加固</b>：发现云端 systemd unit 内联明文密钥，模板已清理</li>
+      </ul>
+    </div>
+
+    <!-- 云端现状 -->
+    <div class="card">
+      <h3>☁️ 云端运行状态</h3>
+      <ul>
+        <li>服务 <span class="tag tag-green">active</span> 已稳定运行 6 天+</li>
+        <li>健康检查 <b>54ms</b> / API 响应 <b>56-80ms</b></li>
+        <li>内存占用仅 <b>260MB</b> (含Playwright)</li>
+        <li>CI 自动巡检每 30 分钟一次 <span class="tag tag-green">healthy</span></li>
+        <li>已执行 <b>29 次</b>平台探索任务</li>
+        <li>多模型 Judge (DeepSeek+GLM+Doubao) 就绪</li>
+        <li>MCP Server 7 Tools 可用</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ═══ 部署架构 ═══ -->
+  <div class="section" style="margin-top:14px">
+    <h2>部署架构（融合后）</h2>
+    <div class="card" style="font-family: monospace; font-size: 11px; text-align: center; padding: 14px;">
+      <b>本地 WSL</b>
+      &nbsp;→ <span style="color:#6366f1">rsync</span> →
+      <b>云端 /opt/agent_eval/</b>
+      &nbsp;→ <span style="color:#6366f1">systemctl restart</span> →
+      <b>Nginx /test/</b>
+      &nbsp;→ <span style="color:#6366f1">uvicorn :8000</span>
+      <br><br>
+      <span style="font-size:10px;color:#888">
+        代码更新 3 秒 &nbsp;|&nbsp; systemd 崩溃自愈 &nbsp;|&nbsp; CI 定时器每30分钟巡检
+      </span>
+    </div>
+  </div>
+
+  <!-- ═══ 下步 ═══ -->
+  <div class="section">
+    <h2>下一步计划</h2>
+    <div class="cols">
+      <div class="card">
+        <span class="tag tag-amber">P0</span> &nbsp;
+        探索器 Step 发现仍然偏少（~10），需打通 SPA 向导页面深度遍历
+      </div>
+      <div class="card">
+        <span class="tag tag-blue">P1</span> &nbsp;
+        Agent C Multi-Agent 全链路打通：Planner→Executor→Verifier→Reporter 闭环验证
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>Agent Eval v3.6 · github.com/DiqingTang25/eval</span>
+    <span>云端: 124.174.108.70/test/</span>
+  </div>
+
+</div>
+</body>
+</html>

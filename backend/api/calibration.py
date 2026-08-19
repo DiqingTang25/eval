@@ -193,10 +193,17 @@ async def get_pool_status():
     }
 
 @router.get("/items")
-async def get_calibration_items(qa_id: str = None, type: str = None):
+async def get_calibration_items(
+    qa_id: str = None,
+    type: str = None,
+    limit: int = None,
+    unscored_only: bool = False,
+):
     """获取校准QA列表或单个QA
 
     type=adversarial: 仅返回对抗性QA (越界/诱导/边界, BAT标准人工校准)
+    limit: 返回条目数限制
+    unscored_only: 仅返回未标注的QA
     """
     cal_data = _load_calibration_data()
     golden_qa = _load_golden_qa()
@@ -231,6 +238,11 @@ async def get_calibration_items(qa_id: str = None, type: str = None):
         qid = qa.get("qa_id", "")
         existing = cal_data["items"].get(qid, {})
         has_scores = bool(existing.get("human_scores"))
+
+        # unscored_only 筛选
+        if unscored_only and has_scores:
+            continue
+
         items.append({
             "qa_id": qid,
             "phase": qa.get("phase", ""),
@@ -243,6 +255,10 @@ async def get_calibration_items(qa_id: str = None, type: str = None):
 
     # 按未标注优先排序
     items.sort(key=lambda x: (x["scored"], x["qa_id"]))
+
+    # limit截断
+    if limit and limit > 0:
+        items = items[:limit]
 
     return {
         "items": items,
@@ -422,21 +438,38 @@ async def get_calibration_progress():
     }
 
 
+class GenerateRequest(BaseModel):
+    size: int = 50
+    type: str = ""
+
+
 @router.post("/generate")
-async def generate_calibration_set(size: int = 50, type: str = None):
+async def generate_calibration_set(
+    size: int = 50,
+    type: str = None,
+    body: GenerateRequest = None,
+):
     """从golden_qa_bank生成校准集
 
     type=adversarial: 仅选取对抗性QA (BAT标准)
+    支持 query params 和 JSON body 两种方式
     """
+    # JSON body 优先 (前端发送 {count: 20})
+    effective_size = size
+    effective_type = type
+    if body:
+        effective_size = body.size or size
+        effective_type = body.type or type
+
     golden_qa = _load_golden_qa()
     if not golden_qa:
         raise HTTPException(400, "golden_qa_bank.json 不存在或为空")
 
-    if type == "adversarial":
+    if effective_type == "adversarial":
         adv_types = ("越界测试", "诱导测试", "边界测试")
         golden_qa = [q for q in golden_qa if q.get("type") in adv_types]
 
-    selected = golden_qa[:min(size, len(golden_qa))]
+    selected = golden_qa[:min(effective_size, len(golden_qa))]
 
     cal_data = {
         "items": {},

@@ -39,6 +39,7 @@ logs/
 # ── 探索输出 (进 exploration 分支) ─────
 eval_output/
 explore_output/
+output/
 data/
 scripts/
 

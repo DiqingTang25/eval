@@ -180,17 +180,21 @@ test:
 
 ## 🌐 部署
 
-目标: 火山引擎 ECS `124.174.108.70`
+**主方案: systemd + venv** (生产运行中)
 
 ```bash
-# 一键同步 + 重启
-bash deploy/sync.sh
+# 从零部署
+sudo bash deploy/deploy-systemd.sh
 
-# 或手动
-rsync -rlptz --delete --exclude .git --exclude venv \
-  -e 'ssh -i ~/.ssh/volc_ecs_rsa' \
-  ./ root@124.174.108.70:/opt/agent_eval/
-ssh -i ~/.ssh/volc_ecs_rsa root@124.174.108.70 'systemctl restart agent-eval'
+# 日常更新 (本地 → 云端)
+bash deploy/sync.sh
+```
+
+**备用方案: Docker**
+
+```bash
+docker build -t agent_eval .
+docker run -d -p 8000:8000 --env-file .env agent_eval
 ```
 
 详见 [deploy/README.md](deploy/README.md)

@@ -261,6 +261,7 @@ class StepTypeClassifier:
                 dom_elements=dom_elements,
                 text_content=page.text_content,
                 page_title=page.title,
+                page_url=page.url,
             )
 
             try:
@@ -306,45 +307,262 @@ class StepTypeClassifier:
 
 class LLMEnumerator:
     """
-    LLM辅助端点枚举器 (借鉴 A2A论文)
+    LLM辅助端点枚举器 (借鉴 A2A论文 — 91.9%发现率)
 
-    Phase 1: 接口占位, 不实际调用 LLM
-    Phase 2: 实现完整的 A2A 风格 LLM 端点枚举
-        - 仅对 gray zone (conf 0.50-0.70) 端点触发
-        - 使用廉价模型 (Haiku)
-        - Prompt: 见 prompts/api_enumeration.txt
+    实现完整的 A2A 风格 LLM 端点枚举:
+        1. 筛选 gray zone (conf 0.50-0.70) 端点
+        2. 构建 Prompt (已知端点 + JS路由片段)
+        3. 调用 LLM (DeepSeek/Haiku) 推断隐藏端点
+        4. 发起 GET/OPTIONS 试探验证
+        5. 返回验证通过的隐藏端点
+
+    成本控制: 仅对 gray_zone 端点触发, 使用廉价模型, 每次最多10个候选
     """
 
+    # Prompt 模板路径
+    PROMPT_TEMPLATE_PATH = Path(__file__).parent / "prompts" / "api_enumeration.txt"
+
     def __init__(self, api_key: str = "", model: str = "deepseek-chat",
-                 verbose: bool = True):
+                 base_url: str = "", verbose: bool = True):
         self.api_key = api_key
         self.model = model
+        self.base_url = base_url or "https://api.deepseek.com/v1"
         self.verbose = verbose
         self._enabled = bool(api_key)
+        self._session = None  # lazy requests.Session
 
     def enumerate(self, known_endpoints: list[ClassifiedEndpoint],
-                  js_bundle_content: str = "") -> list[ClassifiedEndpoint]:
+                  js_bundle_content: str = "",
+                  base_url: str = "") -> list[ClassifiedEndpoint]:
         """
-        枚举隐藏端点
+        枚举隐藏端点 — 完整 A2A 流程
 
-        Phase 1: 返回空列表
-        Phase 2: LLM推断 + GET/OPTIONS验证
+        :param known_endpoints: 已分类的端点列表
+        :param js_bundle_content: JS源码文本 (用于Prompt上下文)
+        :param base_url: 目标网站base URL (用于验证HTTP请求)
+        :returns: 验证通过的隐藏端点列表
         """
         if not self._enabled:
             if self.verbose:
                 print("  ⏭ LLM枚举跳过 (未配置API key)")
             return []
 
-        # Phase 2 实现:
-        # 1. 筛选 gray zone 端点
-        # 2. 构建 Prompt (已知端点 + JS路由片段)
-        # 3. 调用 LLM 推断隐藏端点
-        # 4. 发起 OPTIONS/GET 试探验证
-        # 5. 返回验证通过的隐藏端点
+        # 1. 筛选 gray zone 端点 (conf 0.50-0.70)
+        gray_eps = [ep for ep in known_endpoints
+                    if is_gray_zone(ep.confidence)]
+        if not gray_eps:
+            if self.verbose:
+                print("  ℹ️ 无灰色地带端点, 跳过LLM枚举")
+            return []
 
         if self.verbose:
-            print("  ℹ️ LLM枚举器已启用, 但Phase 1不实际调用")
+            print(f"\n  🧠 LLM枚举: {len(gray_eps)} 个灰色地带端点 → 推断隐藏API...")
+
+        # 2. 构建Prompt
+        prompt = self._build_prompt(gray_eps, js_bundle_content)
+        if not prompt:
+            return []
+
+        # 3. 调用LLM
+        candidates = self._call_llm(prompt)
+        if not candidates:
+            if self.verbose:
+                print("  ⚠️ LLM未返回有效候选端点")
+            return []
+
+        if self.verbose:
+            print(f"  💡 LLM推断出 {len(candidates)} 个候选端点")
+
+        # 4. 验证 (GET/OPTIONS试探)
+        verified = self._verify_candidates(candidates, base_url)
+
+        if self.verbose:
+            print(f"  ✅ 验证通过: {len(verified)} 个隐藏端点")
+
+        return verified
+
+    def _build_prompt(self, gray_eps: list[ClassifiedEndpoint],
+                      js_fragments: str = "") -> str:
+        """构建A2A风格的枚举Prompt"""
+        # 读取模板
+        try:
+            template = self.PROMPT_TEMPLATE_PATH.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            template = self._default_prompt_template()
+
+        # 格式化已知端点列表
+        known_lines = []
+        for ep in gray_eps:
+            known_lines.append(
+                f"  - {ep.method} {ep.path} "
+                f"(category={ep.category.value}, conf={ep.confidence:.2f})"
+            )
+        known_text = "\n".join(known_lines) if known_lines else "(none)"
+
+        # JS片段 (截断到4KB)
+        js_text = js_fragments[:4000] if js_fragments else "(no JS source available)"
+
+        return template.replace("{known_endpoints}", known_text).replace(
+            "{js_fragments}", js_text)
+
+    def _call_llm(self, prompt: str) -> list[dict]:
+        """调用LLM (OpenAI-compatible API)"""
+        import requests as req
+
+        try:
+            resp = req.post(
+                f"{self.base_url.rstrip('/')}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system",
+                         "content": "You are an API discovery expert. "
+                                    "Always respond with valid JSON array only."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 2000,
+                },
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                if self.verbose:
+                    print(f"  ⚠️ LLM API error: {resp.status_code} {resp.text[:200]}")
+                return []
+
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"].strip()
+
+            # 提取JSON (可能被markdown包裹)
+            return self._parse_llm_json(content)
+
+        except Exception as e:
+            if self.verbose:
+                print(f"  ⚠️ LLM调用失败: {e}")
+            return []
+
+    def _parse_llm_json(self, content: str) -> list[dict]:
+        """从LLM响应中提取JSON数组"""
+        import re
+
+        # 尝试直接解析
+        try:
+            result = json.loads(content)
+            if isinstance(result, list):
+                return result
+            if isinstance(result, dict) and "endpoints" in result:
+                return result["endpoints"]
+        except json.JSONDecodeError:
+            pass
+
+        # 尝试提取 ```json ... ``` 代码块
+        m = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', content)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        # 尝试提取任何JSON数组
+        m = re.search(r'\[[\s\S]*\]', content)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        if self.verbose:
+            print(f"  ⚠️ 无法解析LLM响应: {content[:300]}")
         return []
+
+    def _verify_candidates(self, candidates: list[dict],
+                           base_url: str) -> list[ClassifiedEndpoint]:
+        """对LLM推断的端点进行HTTP验证"""
+        import requests as req
+        from urllib.parse import urljoin
+
+        verified = []
+        session = req.Session()
+        session.headers["User-Agent"] = (
+            "Mozilla/5.0 (compatible; PlatformExplorer/1.0)"
+        )
+
+        for cand in candidates[:10]:  # 最多验证10个
+            path = cand.get("path", "")
+            method = cand.get("method", "GET").upper()
+            llm_confidence = cand.get("confidence", "medium")
+            reasoning = cand.get("reasoning", "")
+
+            if not path:
+                continue
+
+            # 构建完整URL
+            if base_url and not path.startswith("http"):
+                full_url = urljoin(base_url, path)
+            else:
+                full_url = path
+
+            try:
+                # 先用GET试探
+                r = session.get(full_url, timeout=10, allow_redirects=False)
+
+                # 验证: 非404/500即认为端点存在
+                if r.status_code < 400:
+                    conf = {"high": 0.75, "medium": 0.60, "low": 0.45}.get(
+                        llm_confidence, 0.55)
+
+                    ep = ClassifiedEndpoint(
+                        path=path,
+                        method=method,
+                        category=APICategory.UNKNOWN,
+                        confidence=conf,
+                        signals={"llm_enumeration": conf,
+                                 "http_verified": 0.80},
+                        inferred_from="llm_enumeration",
+                        is_hidden=True,
+                    )
+                    verified.append(ep)
+
+                    if self.verbose:
+                        print(f"    ✅ {method} {path} → {r.status_code} "
+                              f"(conf={conf:.2f}, {reasoning[:60]})")
+                elif self.verbose:
+                    print(f"    ❌ {method} {path} → {r.status_code} (排除)")
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"    ⚠️ {method} {path} → {str(e)[:50]}")
+
+        return verified
+
+    @staticmethod
+    def _default_prompt_template() -> str:
+        """内置默认Prompt模板 (当模板文件缺失时使用)"""
+        return """You are an API discovery expert. Given known API endpoints and JS source, infer hidden endpoints.
+
+## Known Endpoints
+{known_endpoints}
+
+## JavaScript Source Fragments
+{js_fragments}
+
+## Task
+1. Analyze naming patterns in known endpoints
+2. Look for API path strings in JS fragments
+3. Propose up to 10 hidden endpoints
+4. For each: method, path, confidence (high/medium/low), reasoning
+
+## Output Format
+Return ONLY a JSON array:
+```json
+[{{"path": "/api/v1/example", "method": "GET", "confidence": "medium", "reasoning": "..."}}]
+```
+
+Only propose plausible endpoints based on evidence. Do not hallucinate."""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -355,6 +573,8 @@ def run_l3_classify(
     capture: CaptureResult,
     api_threshold: float = DEFAULT_API_THRESHOLD,
     llm_api_key: str = "",
+    llm_model: str = "deepseek-chat",
+    llm_base_url: str = "",
     verbose: bool = True,
 ) -> tuple[APICatalog, StepCatalog]:
     """
@@ -375,9 +595,15 @@ def run_l3_classify(
     step_classifier = StepTypeClassifier(verbose=verbose)
     steps = step_classifier.classify_pages(capture.pages)
 
-    # Step 3: LLM 枚举 (Phase 2)
-    enumerator = LLMEnumerator(api_key=llm_api_key, verbose=verbose)
-    hidden = enumerator.enumerate(classified)
+    # Step 3: LLM 枚举 (Phase 2 — 完整实现)
+    enumerator = LLMEnumerator(
+        api_key=llm_api_key, model=llm_model,
+        base_url=llm_base_url, verbose=verbose)
+    hidden = enumerator.enumerate(
+        classified,
+        js_bundle_content="",  # TODO: 从 l1_js_analyzer 获取
+        base_url=capture.base_url,
+    )
 
     # Step 4: 构建 API Catalog
     by_category: dict[str, list[ClassifiedEndpoint]] = defaultdict(list)
@@ -385,26 +611,27 @@ def run_l3_classify(
         by_category[ep.category.value].append(ep)
 
     # 提取API前缀
+    from urllib.parse import urlparse as _urlparse
     prefixes = set()
     for ep in classified:
-        path = ep.path.split("?")[0]
-        # 取到第一个非字母数字字符段
-        parts = path.split("/")
-        if len(parts) >= 2:
-            # 收集顶层前缀: /api, /phase3-api, /v1, etc.
-            for part in parts[1:3]:
-                if part and not part[0].isdigit():
-                    prefix = "/" + "/".join(
-                        p for p in parts[1:4] if p and not p[0].isdigit()
-                    )
-                    if prefix and len(prefix) > 2:
-                        prefixes.add(prefix)
-                        break
-            # 如果没找到有意义前缀, 用前两段
-            if len(parts) >= 3 and not any(
-                p and not p[0].isdigit() for p in parts[1:4]
-            ):
-                prefixes.add("/" + "/".join(parts[1:3]))
+        raw_path = ep.path.split("?")[0]
+        # 如果是完整URL, 先提取path部分
+        if raw_path.startswith("http"):
+            parsed = _urlparse(raw_path)
+            path = parsed.path
+        else:
+            path = raw_path
+        parts = [p for p in path.split("/") if p]  # 过滤空段
+        # 前缀: 取到 /v1/ 或 /v2/ 或最后一个非数字段之前
+        for i, part in enumerate(parts):
+            if part in ("v1", "v2", "v3", "api", "graphql"):
+                prefix = "/" + "/".join(parts[:i + 1])
+                prefixes.add(prefix)
+                break
+        else:
+            # Fallback: 前两段 (如 /personalized-secure-api)
+            if len(parts) >= 1:
+                prefixes.add("/" + parts[0])
 
     api_catalog = APICatalog(
         endpoints=classified + hidden,
