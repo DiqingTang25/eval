@@ -128,6 +128,12 @@ async def intervention_pending():
     return {"pending": True, **pending}
 
 
+@router.get("/intervention/history/{session_id}")
+async def intervention_history(session_id: str):
+    """某次评测会话的干预审计记录 (ask/answer/timeout 全链路)"""
+    return {"history": test_service.intervention_history(session_id)}
+
+
 @router.get("/status")
 async def test_status():
     """当前评测状态"""

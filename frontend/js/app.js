@@ -75,6 +75,8 @@ var _dict={
   explorer_chat_starting:{zh:'探索已启动',en:'Exploration started'},
   explorer_chat_start:{zh:'开始探索',en:'Start exploration'},
   explorer_chat_adjust:{zh:'先调整',en:'Adjust first'},
+  intv_reason:{zh:'为什么',en:'Why'},
+  intv_recovery:{zh:'怎么办',en:'What to do'},
   intv_title:{zh:'⚠️ 评测遇到卡点 — 需要你的输入',en:'⚠️ Evaluation blocked — your input needed'},
   intv_submit:{zh:'提交',en:'Submit'},
   intv_timeout:{zh:'秒后自动按默认处理',en:'s before default action'},
@@ -1145,6 +1147,15 @@ function showIntervention(data,mode){
   _intvTimeoutTs=Date.now()+_intvTimeoutS*1000;
   _intvSelOpt='';
   _el('intvQuestion').textContent=data.question;
+  // 六要素求助卡: 为什么(原因) / 怎么办(恢复建议) / 证据摘要
+  var cd=_el('intvCard');
+  if(cd){
+    var c=data.card||{},ch='';
+    if(c.reason)ch+='<div class="intv-row"><b>'+(t('intv_reason')||'为什么')+'</b> '+escHtml(c.reason)+'</div>';
+    if(c.recovery)ch+='<div class="intv-row"><b>'+(t('intv_recovery')||'怎么办')+'</b> '+escHtml(c.recovery)+'</div>';
+    if(c.evidence)ch+='<div class="intv-evidence">'+escHtml(String(c.evidence).slice(0,200))+'</div>';
+    cd.innerHTML=ch;cd.style.display=ch?'':'none';
+  }
   var opts=_el('intvOptions');opts.innerHTML='';
   (data.options||[]).forEach(function(o){
     var b=document.createElement('button');

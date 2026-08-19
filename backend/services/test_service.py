@@ -413,13 +413,23 @@ class TestService:
     def ask_user(
         self, session_id: str, question: str, options: list | None = None,
         timeout_s: int = 300, default: str | None = None,
+        card: dict | None = None,
     ) -> str:
         """阻塞询问用户 — 评测线程在卡点处调用。
 
         1. 记录待回答状态并广播 WS 事件 eval:need_input
         2. 阻塞等待用户 POST /api/tests/intervention/respond
         3. 超时 → 返回 default (自动化优先, 不无限等待)
+
+        card: 六要素求助卡 (error_interpreter.interpret 的产物),
+              随 WS 事件带给前端展示 reason/evidence/recovery/risk。
         """
+        if card:
+            # 求助卡优先: 六要素 + 风险分级超时
+            question = card.get("question") or question
+            options = list(card.get("options") or options or [])
+            default = card.get("default") or default
+            timeout_s = int(card.get("timeout_s") or timeout_s)
         entry = {
             "event": threading.Event(),
             "question": question,
@@ -437,6 +447,7 @@ class TestService:
             "ask", session_id,
             question=question, options=entry["options"],
             timeout_s=timeout_s, default=default,
+            card=card or {},
         )
 
         # 广播: 前端弹窗询问
@@ -451,6 +462,7 @@ class TestService:
                             "options": entry["options"],
                             "timeout_s": timeout_s,
                             "default": default,
+                            "card": card or {},
                         },
                         "running": self._running,
                     }),
@@ -493,8 +505,23 @@ class TestService:
                     "timeout_s": entry["timeout_s"],
                     "default": entry["default"],
                     "asked_at": entry["asked_at"],
+                    "card": entry.get("card") or {},
                 }
         return None
+
+    def intervention_history(self, session_id: str, last_n: int = 50) -> list:
+        """读取某次评测会话的干预审计记录 (ask/answer/timeout)"""
+        try:
+            from pathlib import Path as _P
+            log_path = _P(__file__).resolve().parents[2] / "data" / "intervention_log.json"
+            if not log_path.exists():
+                return []
+            rows = json.loads(log_path.read_text(encoding="utf-8"))
+            if not isinstance(rows, list):
+                return []
+            return [r for r in rows if r.get("session_id") == session_id][-last_n:]
+        except Exception:
+            return []
 
     def _append_intervention_log(self, kind: str, session_id: str, **fields) -> None:
         """干预审计 — 每次 ask/answer/timeout 追加一条 JSON 到 data/intervention_log.json
@@ -718,6 +745,16 @@ class TestService:
         except Exception as e:
             err_detail = f"{e}\n{traceback.format_exc()}"
             print(f"[TestService] 评测异常:\n{err_detail}")
+
+            # 卡点暴露: 意外错误 → LLM 转译成自然语言告知用户 (超时默认终止)
+            try:
+                from backend.services.error_interpreter import interpret
+                card = interpret("eval_exception", str(e), {"agent_id": agent_id})
+                self.ask_user(session_id, card["question"], card["options"],
+                              timeout_s=card["timeout_s"], default=card["default"],
+                              card=card)
+            except Exception:
+                pass
 
             # 更新 session 为错误状态
             try:

@@ -189,6 +189,9 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
 #interventionBox{max-width:520px;width:100%}
 #intvOptions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 #intvOptions .btn.sel{outline:2px solid var(--accent);outline-offset:1px}
+.intv-row{margin:3px 0;line-height:1.5}
+.intv-row b{color:var(--accent)}
+.intv-evidence{margin-top:4px;color:var(--text3);font-size:11px;word-break:break-all}
 </style>
 </head>
 <body>
@@ -335,6 +338,8 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
     <div class="card" id="interventionBox">
       <div class="card-header"><h3 data-i18n="intv_title">⚠️ Evaluation blocked — your input needed</h3></div>
       <div id="intvQuestion" style="font-size:13px;white-space:pre-wrap;margin-bottom:4px"></div>
+      <div id="intvCard" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12px">
+      </div>
       <div id="intvOptions"></div>
       <textarea id="intvText" rows="2" style="width:100%;margin-bottom:10px" placeholder="补充信息（例如 新账号/新密码）或直接点击选项"></textarea>
       <div class="controls">

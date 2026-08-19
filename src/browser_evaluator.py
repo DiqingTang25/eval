@@ -76,15 +76,32 @@ class BrowserEvaluator:
 
     def __init__(self, headless: bool = True, phase_filter: int = None,
                  day_filter: int = None, mode: str = "guided", resume: bool = False,
-                 base_url: str = "", username: str = "", password: str = ""):
+                 base_url: str = "", username: str = "", password: str = "",
+                 phases: list = None):
         self.headless = headless
         self.phase_filter = phase_filter
         self.day_filter = day_filter
         self.mode = mode  # "guided" | "self" | "both"
         self.resume = resume
-        self.base_url = base_url if base_url else BASE_URL
-        self._username = username if username else USERNAME
-        self._password = password if password else PASSWORD
+
+        # ── 配置链: 显式参数 > 平台数据适配(profile/schema) > 环境变量 > 硬编码默认 ──
+        cfg = None
+        try:
+            from src.platform_data_adapter import load_eval_config
+            cfg = load_eval_config()
+        except Exception:
+            cfg = None
+        self.base_url = base_url or (cfg.base_url if cfg else "") \
+            or os.getenv("EVAL_BASE_URL", "") or BASE_URL
+        self._username = username or (cfg.username if cfg else "") \
+            or os.getenv("PLATFORM_USERNAME", "") or USERNAME
+        self._password = password or (cfg.password if cfg else "") \
+            or os.getenv("PLATFORM_PASSWORD", "") or PASSWORD
+        # phases: [{name, days, titles}] — schema 适配优先, 无则回退硬编码 PHASES
+        self.phases = phases or (cfg.phases if cfg and cfg.has_phases else None) or None
+        if self.phases:
+            self._log(f"平台数据适配: {len(self.phases)} 个阶段来自 schema/profile "
+                      f"(base_url={self.base_url})")
 
         # 加载已有报告 — 保留未重跑的 Phase 数据
         existing = self._load_existing_report()
@@ -140,6 +157,52 @@ class BrowserEvaluator:
             except Exception as e:
                 self._log(f"ask_user 回调失败: {e}", "warn")
         return default if default is not None else "skip"
+
+    def ask_card(self, kind: str, error: str = "", context: dict | None = None) -> str:
+        """经 LLM 转译的卡点求助 — 报错 → 自然语言求助卡 → 询问用户
+
+        error_interpreter 不可用/无 key 时自动降级为固定模板, 永不抛异常。
+        返回用户回答 (未注入 _ask_cb 时返回默认动作, 保持自动化优先)。
+
+        防骚扰: 同一类卡点每轮最多问 2 次, 之后静默走默认动作 (市场调研结论:
+        只在关键点打断用户)。
+        """
+        card = None
+        try:
+            from backend.services.error_interpreter import interpret
+            card = interpret(kind, error, context)
+        except Exception:
+            pass
+        counts = getattr(self, "_ask_counts", None)
+        if counts is None:
+            counts = {}
+            self._ask_counts = counts
+        n = counts.get(kind, 0) + 1
+        counts[kind] = n
+        default = (card or {}).get("default", "skip")
+        if n > 2:
+            self._log(f"卡点[{kind}]第{n}次 — 本轮已问过2次, 自动按默认动作「{default}」处理", "warn")
+            return default
+        if card:
+            return self.ask_user(
+                card.get("question", ""),
+                card.get("options", []),
+                timeout_s=card.get("timeout_s", 300),
+                default=card.get("default", "skip"),
+            )
+        return self.ask_user(f"测评卡点: {error or kind}", ["跳过继续", "终止测评"],
+                             timeout_s=120, default="跳过继续")
+
+    def _phase_days(self, phase_num: int) -> int:
+        """阶段天数 — schema 适配优先, 回退硬编码 PHASES"""
+        if self.phases and 1 <= phase_num <= len(self.phases):
+            return int(self.phases[phase_num - 1].get("days") or 0)
+        return PHASES.get(phase_num, {}).get("days", 0)
+
+    def _phase_name(self, phase_num: int) -> str:
+        if self.phases and 1 <= phase_num <= len(self.phases):
+            return self.phases[phase_num - 1].get("name", f"Phase {phase_num}")
+        return PHASES.get(phase_num, {}).get("name", f"Phase {phase_num}")
 
     @staticmethod
     def _parse_credentials(text: str) -> Optional[dict]:
@@ -682,6 +745,14 @@ class BrowserEvaluator:
                     "body_before": body_before, "body_after": body_after}
         else:
             self._log("无可用 textarea", "error")
+            # 卡点暴露: AI 助教无响应 → LLM 转译求助 (超时默认跳过 — 自动化优先)
+            ans = (self.ask_card(
+                "agent_no_response",
+                error="no textarea",
+                context={"url": self.page.url if self.page else ""},
+            ) or "").strip()
+            if ans == "终止测评":
+                return {"ok": False, "error": "no textarea", "terminate": True}
             return {"ok": False, "error": "no textarea"}
 
     def go_next_step(self) -> bool:
@@ -894,6 +965,9 @@ class BrowserEvaluator:
                     step_result.agent_reply = str(agent_result.get("body_delta", ""))
                     self._log(f"Agent: Δ{agent_result.get('body_delta', 0)} 字符",
                              "ok" if agent_result.get("ok") else "warn")
+                    if agent_result.get("terminate"):
+                        result.error = "用户要求终止测评"
+                        return result
 
                 # 如果不是最后一步，点"下一步"
                 if step_idx < total_steps:
@@ -964,6 +1038,17 @@ class BrowserEvaluator:
                 else:
                     self._log("⚠️ 未检测到答案自动显示", "warn")
 
+                # 卡点暴露: 检测到题目但没答上 → LLM 转译求助 (超时默认跳过 — 自动化优先)
+                if quiz_result["answered"] == 0 and not quiz_result["auto_graded"]:
+                    ans = (self.ask_card(
+                        "quiz_blocked",
+                        error=f"quiz detected but no answer submitted (questions={quiz_result['questions']})",
+                        context={"phase": phase_num, "day": day_num},
+                    ) or "").strip()
+                    if ans == "终止测评":
+                        result.error = "用户要求终止测评"
+                        return result
+
                 self._ss(f"quiz_result_{test_mode}")
 
             mode_results.append({
@@ -1033,11 +1118,10 @@ class BrowserEvaluator:
                 attempt = 0
                 while not login_ok and attempt < 3:
                     attempt += 1
-                    ans = (self.ask_user(
-                        "登录失败 — 平台无法通过当前凭证进入。\n"
-                        "请提供新凭证 (格式: 账号/密码)，或选择一个处理方式。",
-                        ["重试登录", "提供新凭证", "终止测评"],
-                        timeout_s=300, default="终止测评",
+                    ans = (self.ask_card(
+                        "login_failed",
+                        error=f"登录失败 (第{attempt}次尝试)",
+                        context={"url": self.base_url, "attempt": attempt},
                     ) or "").strip()
                     if ans == "重试登录":
                         login_ok = self.login()
@@ -1065,7 +1149,11 @@ class BrowserEvaluator:
 
                     phase_key = f"phase_{phase_num}"
                     self.results["phases"][phase_key] = {"days": []}
-                    days_count = PHASES[phase_num]["days"]
+                    days_count = self._phase_days(phase_num)
+                    if days_count <= 0:
+                        # schema 中没有该阶段的课时数据 → 静默跳过, 不打扰用户
+                        self._log(f"Phase {phase_num}: ⏭️ 跳过 (schema 无课时数据)", "warn")
+                        continue
 
                     for day_num in range(1, days_count + 1):
                         if self.day_filter and day_num != self.day_filter:
@@ -1090,12 +1178,18 @@ class BrowserEvaluator:
 
                         if day_result.error:
                             self._log(f"Day {day_num} 出错: {day_result.error}", "error")
-                            # 卡点暴露: 询问用户如何处理 (超时默认跳过继续 — 自动化优先)
-                            ans = (self.ask_user(
-                                f"Phase {phase_num} Day {day_num} 测评卡住: {day_result.error}\n"
-                                f"如何处理？",
-                                ["跳过此Day继续", "终止测评"],
-                                timeout_s=120, default="跳过此Day继续",
+                            # 卡点暴露: 报错经 LLM 转译成自然语言求助卡 (超时默认跳过 — 自动化优先)
+                            if "用户终止" in day_result.error:
+                                self.results["errors"].append(
+                                    f"Phase{phase_num} Day{day_num}: {day_result.error}"
+                                )
+                                self._save_report()
+                                return self.results
+                            kind = "navigation_failed" if "导航" in day_result.error else "day_error"
+                            ans = (self.ask_card(
+                                kind,
+                                error=day_result.error,
+                                context={"phase": phase_num, "day": day_num},
                             ) or "跳过此Day继续").strip()
                             if ans == "终止测评":
                                 self.results["errors"].append(
@@ -1136,6 +1230,14 @@ class BrowserEvaluator:
                     "traceback": traceback.format_exc(),
                 })
                 self._save_report()  # 💾 异常时也保存
+                # 卡点暴露: 意外错误 → LLM 转译成自然语言告知用户 (超时默认终止)
+                ans = (self.ask_card(
+                    "eval_exception",
+                    error=str(e),
+                    context={"url": self.base_url},
+                ) or "").strip()
+                if ans == "重试一次":
+                    self._log("用户选择重试 — 已保存当前结果, 请重新发起一次评测", "warn")
             finally:
                 browser.close()
 

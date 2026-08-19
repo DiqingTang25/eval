@@ -673,6 +673,8 @@
   "explorer_chat_start": "Start exploration",
   "explorer_chat_adjust": "Adjust first",
   "intv_title": "⚠️ Evaluation blocked — your input needed",
+  "intv_reason": "Why",
+  "intv_recovery": "What to do",
   "intv_submit": "Submit",
   "intv_timeout": "s before default action",
   "ma_api": "Ma Api",
