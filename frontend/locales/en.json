@@ -670,6 +670,8 @@
   "explorer_chat_hint": "Describe the exploration in natural language — I will ask for what is missing.",
   "explorer_chat_send": "Send",
   "explorer_chat_starting": "Exploration started",
+  "explorer_chat_start": "Start exploration",
+  "explorer_chat_adjust": "Adjust first",
   "intv_title": "⚠️ Evaluation blocked — your input needed",
   "intv_submit": "Submit",
   "intv_timeout": "s before default action",

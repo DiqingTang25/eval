@@ -36,18 +36,29 @@ LLM_TIMEOUT_SECONDS = 25     # LLM 调用超时
 _SYSTEM_PROMPT = (
     "你是平台探索助手, 帮助用户用自然语言配置并启动教学平台的自动探索。\n"
     "从用户消息中提取探索参数, 输出严格的 JSON 对象, 不要输出任何其他文字。\n"
-    'JSON 字段: {"intent": "confirm|status|cancel|info|update", "target_url": "", '
+    'JSON 字段: {"intent": "confirm|status|cancel|info|update|edit", "target_url": "", '
     '"username": "", "password": "", "headless": true, "max_depth": 3, '
     '"max_pages": 50, "no_login": false, "use_last_profile": false}\n'
     "规则:\n"
     "- intent=confirm: 用户明确表示开始/确认探索 (开始/启动/go/start/确认)\n"
     "- intent=cancel: 用户要取消\n"
     "- intent=status: 用户询问进度/状态\n"
-    "- intent=update: 用户补充参数 (URL/账号/密码/深度/页数)\n"
+    "- intent=update: 用户首次补充参数 (URL/账号/密码/深度/页数)\n"
+    "- intent=edit: 用户在已有参数上做修改 (把深度改成5/换个平台/改成免登录)\n"
     "- no_login=true: 用户表示平台无需登录\n"
     "- use_last_profile=true: 用户说「用上次的平台/继续上次的」\n"
     "- 字段没提到就保持原值: 用空字符串表示未提供, null 表示未提及\n"
 )
+
+# 必填字段白名单 — 缺则阻塞追问, 绝不静默猜测
+FIELD_SPEC = {
+    "target_url": {"required": True, "label": "目标平台 URL"},
+    "auth": {"required": True, "label": "登录方式 (账号密码 | 免登录)"},
+}
+# 可选字段默认值 — 用户不提就用默认, 不阻塞
+OPTIONAL_DEFAULTS = {"headless": True, "max_depth": 3, "max_pages": 50}
+
+MASK = "******"
 
 
 class ExplorerChatService:
@@ -123,7 +134,8 @@ class ExplorerChatService:
             msgs = [{"role": "system", "content": _SYSTEM_PROMPT}]
             for m in history:
                 role = "assistant" if m["role"] == "assistant" else "user"
-                msgs.append({"role": role, "content": m["content"]})
+                # 凭证脱敏: 明文密码绝不进入 LLM 上下文
+                msgs.append({"role": role, "content": self._mask_secret(m["content"], chat)})
 
             payload = json.dumps({
                 "model": provider.model_id,
@@ -163,9 +175,42 @@ class ExplorerChatService:
         return None
 
     @staticmethod
+    def _is_valid_url(url: str) -> bool:
+        return bool(re.match(r"^https?://[^\s，。；]+", (url or "").strip()))
+
+    @staticmethod
+    def _normalize_edits(text: str) -> str:
+        """把常见修改句式归一化为可解析句式 (确定性路径的 edit 意图支持)
+
+        「把深度改 5」→「深度 5」  「页数改成 30」→「页数 30」
+        「改成免登录」→「无需登录」 「换成 https://x」→「https://x」
+        """
+        t = re.sub(
+            r"(?:把|请)?\s*(?:深度|depth)\s*(?:改|改成|改为|调到|调整到|设为|设置)\s*[:：]?\s*(\d)",
+            r"深度 \1", text, flags=re.I,
+        )
+        t = re.sub(
+            r"(?:把|请)?\s*(?:页数|pages?)\s*(?:改|改成|改为|调到|调整到|设为|设置)\s*[:：]?\s*(\d+)",
+            r"页数 \1", t, flags=re.I,
+        )
+        t = re.sub(r"(?:改|换)\s*(?:成|为)?\s*免登录|不用登录了", "无需登录", t, flags=re.I)
+        t = re.sub(r"(?:改|换)\s*(?:成|为)?\s*(https?://[^\s，。；]+)", r"\1", t, flags=re.I)
+        return t
+
+    def _mask_secret(self, text: str, chat: dict | None = None) -> str:
+        """凭证脱敏 — 明文密码绝不外发 (LLM prompt / history / plan 回复)"""
+        pwd = (chat or {}).get("params", {}).get("password", "")
+        if pwd:
+            text = text.replace(pwd, MASK)
+        return re.sub(
+            r"(密码|password|passwd|pwd)\s*[:：=]?\s*\S+",
+            r"\1: " + MASK, text, flags=re.I,
+        )
+
+    @staticmethod
     def _extract_deterministic(text: str) -> dict:
         """无 LLM 时的确定性解析 (正则兜底)"""
-        t = text.strip()
+        t = ExplorerChatService._normalize_edits(text).strip()
         intent = "info"
         if re.search(r"取消|cancel", t, re.I):
             intent = "cancel"
@@ -245,6 +290,87 @@ class ExplorerChatService:
             f"回复「开始」启动探索；需要调整请直接告诉我。"
         )
 
+    def _build_plan(self, chat: dict) -> dict:
+        """结构化探索计划 (前端渲染可编辑确认卡)
+
+        必填字段在 steps 中 editable=true; 凭证密码绝不外发。
+        """
+        p = chat["params"]
+        auth_value = "免登录" if chat.get("no_login") else f"账号 {p['username']} / 密码 {MASK}"
+        return {
+            "params": {k: (v if k != "password" else MASK) for k, v in p.items()},
+            "steps": [
+                {"field": "target_url", "label": "目标平台", "value": p["target_url"], "editable": True},
+                {"field": "auth", "label": "登录方式", "value": auth_value, "editable": True},
+                {"field": "headless", "label": "无头浏览器", "value": "是" if p["headless"] else "否", "editable": False},
+                {"field": "max_depth", "label": "探索深度", "value": str(p["max_depth"]), "editable": True},
+                {"field": "max_pages", "label": "最大页数", "value": str(p["max_pages"]), "editable": True},
+            ],
+        }
+
+    def _summarize_result(self, chat: dict) -> str:
+        """探索完成后的自然语言总结 — LLM 优先, 模板兜底"""
+        try:
+            from src.profile_paths import load_profile
+            prof = load_profile() or {}
+        except Exception:
+            prof = {}
+
+        stats = {
+            "phases": prof.get("phases_found", "?"),
+            "steps": prof.get("steps_found", "?"),
+            "apis": prof.get("api_endpoints_found", "?"),
+            "confidence": prof.get("overall_confidence", "?"),
+        }
+
+        # LLM 总结 (仅发送统计数字, 无凭证)
+        try:
+            from src.platform_probe.api_keys import get_api_keys
+            provider = get_api_keys().get_text_llm()
+            if provider:
+                import urllib.request as _ur
+                payload = json.dumps({
+                    "model": provider.model_id,
+                    "messages": [
+                        {"role": "system", "content": (
+                            "你是平台探索助手的播报员。用 2-3 句通俗中文告诉非技术用户探索结果"
+                            "意味着什么, 并建议下一步 (去评测)。不要编造细节, 不要输出 JSON。"
+                        )},
+                        {"role": "user", "content": (
+                            f"刚完成平台 {chat['params'].get('target_url','')} 的自动探索: "
+                            f"发现学习模块 {stats['phases']} 个, 学习步骤 {stats['steps']} 个, "
+                            f"API 接口 {stats['apis']} 个, 置信度 {stats['confidence']}。"
+                        )},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 300,
+                }).encode("utf-8")
+                req = _ur.Request(
+                    f"{provider.base_url.rstrip('/')}/chat/completions",
+                    data=payload,
+                    headers={"Content-Type": "application/json",
+                             "Authorization": f"Bearer {provider.api_key}"},
+                )
+                with _ur.urlopen(req, timeout=20) as resp:
+                    body = json.loads(resp.read().decode("utf-8"))
+                text = body["choices"][0]["message"]["content"].strip()
+                if text:
+                    return f"✅ 探索完成。\n\n{text}"
+        except Exception as e:
+            logger.warning("ExplorerChat summary LLM failed: %s", e)
+
+        # 模板兜底
+        return (
+            f"✅ 探索完成！我帮你看懂了 {chat['params'].get('target_url', '这个平台')} 的结构：\n"
+            f"  • 学习模块: {stats['phases']} 个\n"
+            f"  • 学习步骤: {stats['steps']} 个\n"
+            f"  • API 接口: {stats['apis']} 个\n"
+            f"  • 置信度: {stats['confidence']}\n\n"
+            f"系统已自动生成平台画像和评测配置。\n"
+            f"下一步：到「Test Runner」页面点开始评测，我会按照这个画像自动完成平台测评。\n"
+            f"想探索别的平台，直接说「换个平台」再给网址即可。"
+        )
+
     # ── 对外接口 ──────────────────────────────────────────────
 
     def start_chat(self, defaults: dict | None = None) -> dict:
@@ -261,6 +387,8 @@ class ExplorerChatService:
             chat["status"] = "confirm"
             greeting = f"你好！已从表单预填探索参数:\n{self._plan_text(chat)}"
             missing = []
+            return self._reply(chat, greeting, missing_fields=missing,
+                               action="none", plan=self._build_plan(chat))
         elif p["target_url"]:
             greeting = (
                 f"你好！我负责帮你探索教学平台。\n"
@@ -309,7 +437,9 @@ class ExplorerChatService:
                             f"探索进行中: {st.get('progress', '')}",
                             action="status",
                         )
-                    return self._reply(chat, "探索已结束，可查看下方结果。", action="status")
+                    # 探索刚结束 → 自然语言解释产出 + 引导下一步
+                    chat["status"] = "done"
+                    return self._reply(chat, self._summarize_result(chat), action="done")
                 return self._reply(
                     chat,
                     "探索正在后台运行。你可以问我进度，或者说「取消」。",
@@ -341,7 +471,15 @@ class ExplorerChatService:
                     self._push(chat, "assistant",
                                f"已载入上次探索的平台: {p['target_url'] or '(未记录)'}")
             if parsed.get("target_url"):
-                p["target_url"] = parsed["target_url"]
+                # 必填字段校验: URL 必须是合法 http(s) 地址
+                if not self._is_valid_url(parsed["target_url"]):
+                    return self._reply(
+                        chat,
+                        "这个地址看起来不对。请提供完整的平台网址，以 http:// 或 https:// 开头，\n"
+                        "例如「探索 https://teaching.example.com」。",
+                        missing_fields=["target_url"], action="none",
+                    )
+                p["target_url"] = parsed["target_url"].strip()
             if parsed.get("username"):
                 p["username"] = parsed["username"]
             if parsed.get("password"):
@@ -376,7 +514,10 @@ class ExplorerChatService:
             if parsed.get("intent") == "confirm":
                 return await self._do_start(chat)
             chat["status"] = "confirm"
-            return self._reply(chat, self._plan_text(chat), action="none", params=dict(p))
+            return self._reply(
+                chat, self._plan_text(chat), action="none",
+                plan=self._build_plan(chat),
+            )
 
     async def _do_start(self, chat: dict) -> dict:
         """确认后启动探索 (复用现有流水线)"""
@@ -419,10 +560,19 @@ class ExplorerChatService:
             chat = self._chats.get(chat_id)
         if not chat:
             return {"chat_id": chat_id, "messages": [], "expired": True}
+        # 凭证脱敏: params 与消息文本中的明文密码一律遮蔽
+        masked_params = {
+            k: (MASK if k == "password" and v else v)
+            for k, v in chat["params"].items()
+        }
+        masked_messages = [
+            {**m, "content": self._mask_secret(m["content"], chat)}
+            for m in chat["messages"]
+        ]
         return {
             "chat_id": chat_id,
             "status": chat["status"],
-            "params": dict(chat["params"]),
+            "params": masked_params,
             "explore_session_id": chat.get("explore_session_id", ""),
-            "messages": list(chat["messages"]),
+            "messages": masked_messages,
         }

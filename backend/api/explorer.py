@@ -1,5 +1,6 @@
 """Platform Explorer API 路由 — 对话式探索器 + 表单路径 (合并 v4.0 与 chat 端点)"""
 
+import asyncio
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -16,6 +17,11 @@ def _get_service():
     if _explorer_service is None:
         from backend.services.explorer_service import ExplorerService
         _explorer_service = ExplorerService()
+    # 注入当前事件循环 → 探索中途提问可通过 WS 推送到前端弹窗
+    try:
+        _explorer_service.set_main_loop(asyncio.get_running_loop())
+    except RuntimeError:
+        pass
     return _explorer_service
 
 
@@ -290,3 +296,39 @@ async def chat_history(chat_id: str):
     """获取对话历史"""
     svc = _get_chat_service()
     return svc.get_history(chat_id)
+
+
+# ═══════════════════════════════════════════════════════════
+# 探索中途问答 (QuestionBridge → 前端弹窗, WS 实时 + HTTP 轮询兜底)
+# ═══════════════════════════════════════════════════════════
+
+class QuestionAnswerRequest(BaseModel):
+    answer: str = ""
+    skipped: bool = False
+
+
+@router.get("/questions/current")
+async def get_current_question():
+    """当前待回答的探索问题; 无则 {pending: false}"""
+    svc = _get_service()
+    q = svc.current_question()
+    if not q:
+        return {"pending": False}
+    q = dict(q)
+    q["pending"] = True
+    return q
+
+
+@router.post("/questions/answer")
+async def answer_question(body: QuestionAnswerRequest):
+    """回答当前探索问题 (任意内容/跳过); 问题已超时则返回 timeout"""
+    svc = _get_service()
+    ok = svc.answer_question(answer=body.answer, skipped=body.skipped)
+    return {"status": "ok" if ok else "timeout"}
+
+
+@router.get("/questions/history")
+async def question_history():
+    """最近一次探索的问答历史"""
+    svc = _get_service()
+    return {"history": svc.question_history()}

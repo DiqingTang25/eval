@@ -73,6 +73,8 @@ var _dict={
   explorer_chat_hint:{zh:'用自然语言描述探索任务，缺什么我会问你',en:'Describe the exploration in natural language — I will ask for what is missing.'},
   explorer_chat_send:{zh:'发送',en:'Send'},
   explorer_chat_starting:{zh:'探索已启动',en:'Exploration started'},
+  explorer_chat_start:{zh:'开始探索',en:'Start exploration'},
+  explorer_chat_adjust:{zh:'先调整',en:'Adjust first'},
   intv_title:{zh:'⚠️ 评测遇到卡点 — 需要你的输入',en:'⚠️ Evaluation blocked — your input needed'},
   intv_submit:{zh:'提交',en:'Submit'},
   intv_timeout:{zh:'秒后自动按默认处理',en:'s before default action'},
@@ -799,7 +801,12 @@ function connectWS(){
       try{
         var m=JSON.parse(e.data);
         // ── 卡点干预: 评测线程 ask_user → 弹窗询问用户 (Agent 2 契约) ──
-        if(m.type==='eval:need_input'){showIntervention(m.data);return}
+        if(m.type==='eval:need_input'){showIntervention(m.data,'eval');return}
+        // ── 探索中途提问: QuestionBridge → 弹窗 (探索器问答) ──
+        if(m.type==='explorer:need_input'){
+          showIntervention({question:m.data.question,options:m.data.options,timeout_s:m.data.timeout_s},'explore');
+          return;
+        }
         // ── Multi-Agent 事件 (Agent C) ──
         if(m.type&&m.type.indexOf('multi_agent:')===0){
           var mp=_el('maPanel');if(mp&&mp.style.display==='none')mp.style.display='';
@@ -1048,6 +1055,37 @@ function exploreChatBubble(role,text){
   msgs.scrollTop=msgs.scrollHeight;
 }
 
+// 探索计划确认卡 — 字段列表 + [开始探索] / [先调整]
+function exploreChatPlanCard(plan){
+  var msgs=_el('exploreChatMsgs');if(!msgs||!plan||!plan.steps)return;
+  var d=document.createElement('div');
+  d.className='chat-msg assistant plan-card';
+  var rows=(plan.steps||[]).map(function(s){
+    return '<div class="plan-row"><span class="plan-label">'+escHtml(s.label)+'</span>'+
+      '<span class="plan-value">'+escHtml(String(s.value==null?'':s.value))+'</span>'+
+      (s.editable?'<span class="plan-edit-hint">可修改</span>':'')+'</div>';
+  }).join('');
+  d.innerHTML='<div class="plan-box">'+rows+
+    '<div class="plan-actions">'+
+    '<button class="btn btn-primary btn-sm" onclick="App.exploreChatQuickStart()" data-i18n="explorer_chat_start">开始探索</button>'+
+    '<button class="btn btn-outline btn-sm" onclick="App.exploreChatFocusInput()" data-i18n="explorer_chat_adjust">先调整</button>'+
+    '</div></div>';
+  msgs.appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function exploreChatQuickStart(){
+  var inp=_el('exploreChatInput');if(!inp)return;
+  inp.value='开始';
+  exploreChatSend();
+}
+
+function exploreChatFocusInput(){
+  var inp=_el('exploreChatInput');if(!inp)return;
+  inp.focus();
+  toast('告诉我哪里要改，例如「把深度改 5」或「无需登录」','info');
+}
+
 function exploreChatStart(){
   if(_exploreChatStarted)return;_exploreChatStarted=true;
   var body={
@@ -1059,7 +1097,7 @@ function exploreChatStart(){
     max_pages:parseInt((_el('explorePages')||{}).value)||50
   };
   post('/api/explorer/chat/start',body).then(function(r){
-    if(r&&r.chat_id){_exploreChatId=r.chat_id;exploreChatBubble('assistant',r.reply||t('explorer_chat_title'))}
+    if(r&&r.chat_id){_exploreChatId=r.chat_id;exploreChatBubble('assistant',r.reply||t('explorer_chat_title'));if(r.plan)exploreChatPlanCard(r.plan)}
   }).catch(function(e){_exploreChatStarted=false;toast('Chat start failed: '+e.message,'error')});
 }
 
@@ -1073,6 +1111,7 @@ function exploreChatSend(){
   post('/api/explorer/chat/message',{chat_id:_exploreChatId,message:text}).then(function(r){
     if(btn)btn.disabled=false;
     exploreChatBubble('assistant',r.reply||'(no reply)');
+    if(r.plan)exploreChatPlanCard(r.plan);
     if(r.action==='started'&&r.explore_session_id){
       _exploreSessionId=r.explore_session_id;
       localStorage.setItem('lastExploreSid',r.explore_session_id);
@@ -1094,11 +1133,13 @@ function exploreChatSend(){
 }
 
 // ═══════════════════ 卡点干预 (评测卡点暴露 — 询问用户) ═══════════════════
-var _intvSessionId='',_intvTimeoutTs=0,_intvTimeoutS=0,_intvTimer=null,_intvSelOpt='';
+var _intvSessionId='',_intvTimeoutTs=0,_intvTimeoutS=0,_intvTimer=null,_intvSelOpt='',_intvMode='eval';
 
-function showIntervention(data){
+// mode: 'eval' (评测卡点) | 'explore' (探索中途提问) — 共用同一弹窗
+function showIntervention(data,mode){
   if(!data||!data.question)return;
   var ov=_el('interventionOverlay');if(!ov)return;
+  _intvMode=mode||'eval';
   _intvSessionId=data.session_id||'';
   _intvTimeoutS=data.timeout_s||0;
   _intvTimeoutTs=Date.now()+_intvTimeoutS*1000;
@@ -1132,7 +1173,13 @@ function intvSubmit(){
   if(!answer){toast('请选择一个选项或输入信息','error');return}
   var ov=_el('interventionOverlay');if(ov)ov.classList.remove('show');
   if(_intvTimer){clearInterval(_intvTimer);_intvTimer=null}
-  var sid=_intvSessionId;_intvSessionId='';_intvSelOpt='';
+  var sid=_intvSessionId,_mode=_intvMode;_intvSessionId='';_intvSelOpt='';_intvMode='eval';
+  if(_mode==='explore'){
+    post('/api/explorer/questions/answer',{answer:answer,skipped:false}).then(function(r){
+      if(r&&r.status==='ok')toast('已提交 — 探索继续');else toast('问题已超时, 探索按默认动作继续','error');
+    }).catch(function(){toast('提交失败','error')});
+    return;
+  }
   post('/api/tests/intervention/respond',{session_id:sid,answer:answer}).then(function(r){
     if(r&&r.status==='ok')toast('已提交 — 评测继续');else toast('卡点已超时, 评测按默认动作继续','error');
   }).catch(function(){toast('提交失败','error')});
@@ -1143,12 +1190,18 @@ setInterval(function(){
   var ov=_el('interventionOverlay');if(ov&&ov.classList.contains('show'))return;
   if(_ws&&_ws.readyState===1)return; // WS 已连接 → 实时事件足够
   get('/api/tests/intervention/pending').then(function(r){
-    if(r&&r.pending)showIntervention({session_id:r.session_id,question:r.question,options:r.options,timeout_s:r.timeout_s});
+    if(r&&r.pending)showIntervention({session_id:r.session_id,question:r.question,options:r.options,timeout_s:r.timeout_s},'eval');
   }).catch(function(){});
+  // 探索中途提问轮询兜底 (探索运行时)
+  if(_exploreSessionId){
+    get('/api/explorer/questions/current').then(function(r){
+      if(r&&r.pending&&r.text)showIntervention({question:r.text,options:r.options,timeout_s:r.timeout_s},'explore');
+    }).catch(function(){});
+  }
 },10000);
 
 // ═══════════════════ Export ═══════════════════
-window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,phTriggerFull:phTriggerFull,trLoad:trLoad,trStart:trStart,trStop:trStop,trConfirmStart:trConfirmStart,trCancelPreflight:trCancelPreflight,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,rpDownload:rpDownload,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult,exploreChatStart:exploreChatStart,exploreChatSend:exploreChatSend,intvSubmit:intvSubmit,showIntervention:showIntervention};
+window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,phTriggerFull:phTriggerFull,trLoad:trLoad,trStart:trStart,trStop:trStop,trConfirmStart:trConfirmStart,trCancelPreflight:trCancelPreflight,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,rpDownload:rpDownload,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult,exploreChatStart:exploreChatStart,exploreChatSend:exploreChatSend,exploreChatQuickStart:exploreChatQuickStart,exploreChatFocusInput:exploreChatFocusInput,intvSubmit:intvSubmit,showIntervention:showIntervention};
 
 document.addEventListener('DOMContentLoaded',function(){
   // ── 页面可见: DOMContentLoaded 已触发 ──

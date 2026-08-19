@@ -71,7 +71,44 @@ async def test_chat_flow():
     # 7. 过期会话
     r = await svc.handle_message("nonexistent_id", "你好")
     assert r["status"] == "expired", r
-    print("✅ chat 状态机冒烟 7 项 PASS")
+
+    # ── v2 增强: 脱敏 / 计划卡 / edit / URL 校验 ──
+    svc3 = ExplorerChatService(explorer_service=fake)
+    svc3._call_llm = lambda chat: None
+    r = svc3.start_chat()
+    cid3 = r["chat_id"]
+    r = await svc3.handle_message(cid3, "探索 https://example.edu 账号 alice 密码 s3cret123")
+    assert r["status"] == "confirm", r
+    # 8. 计划卡结构化 + 密码脱敏
+    assert r.get("plan") and len(r["plan"]["steps"]) == 5, r.get("plan")
+    assert "s3cret123" not in r["reply"], r
+    assert "******" in r["plan"]["steps"][1]["value"], r["plan"]
+    # 9. history 脱敏 (params + messages)
+    hist = svc3.get_history(cid3)
+    assert hist["params"]["password"] == "******", hist["params"]
+    assert all("s3cret123" not in m["content"] for m in hist["messages"]), hist["messages"]
+    # 10. edit 归一化: 把深度改 5
+    r = await svc3.handle_message(cid3, "把深度改 5")
+    assert r.get("plan", {}).get("steps", [{}])[3]["value"] == "5", r
+    # 11. 非法 URL 拒绝 (模拟 LLM 路径解析出坏 URL)
+    orig_extract = svc3._extract_deterministic
+    svc3._extract_deterministic = lambda t: {"intent": "update", "target_url": "not-a-url"}
+    r = await svc3.handle_message(cid3, "换个平台 not-a-url")
+    svc3._extract_deterministic = orig_extract
+    assert "http" in r["reply"] and r["missing_fields"] == ["target_url"], r
+    # 12. 完成总结 (running → status → done)
+    class FakeDoneSvc(FakeExplorerSvc):
+        async def get_status(self):
+            return {"running": False}
+    svc4 = ExplorerChatService(explorer_service=FakeDoneSvc())
+    svc4._call_llm = lambda chat: None
+    r = svc4.start_chat({"target_url": "https://example.edu", "username": "u", "password": "p"})
+    cid4 = r["chat_id"]
+    r = await svc4.handle_message(cid4, "开始")
+    assert r["action"] == "started", r
+    r = await svc4.handle_message(cid4, "进度如何")
+    assert r["action"] == "done" and "探索完成" in r["reply"], r
+    print("✅ chat 状态机冒烟 12 项 PASS")
 
 
 def test_question_bridge():

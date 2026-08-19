@@ -5,6 +5,7 @@ Platform Explorer 服务 — 后台线程运行探索器 + 轮询状态
       WebSocket 推送是可选的 (Phase 2)。
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -18,6 +19,7 @@ from typing import Optional
 
 from backend.dependencies import get_sync_db
 from backend.models import ExplorationSession
+from backend.ws import ws_manager
 from src.question_bridge import QuestionBridge
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,49 @@ class ExplorerService:
         self._thread: Optional[threading.Thread] = None
         self._cancel = threading.Event()
         self._progress_msg = ""  # 当前进度消息, 前端轮询读取
-        self._bridge: Optional[QuestionBridge] = None  # 交互式登录问答桥
+        self._bridge: Optional[QuestionBridge] = None  # 交互式登录问答桥 (当前/最近一次探索)
+        self._main_loop: Optional[asyncio.AbstractEventLoop] = None  # WS 广播用
+
+    def set_main_loop(self, loop: Optional[asyncio.AbstractEventLoop]):
+        """由 API 层注入事件循环 (WS 广播用)"""
+        self._main_loop = loop
+
+    def _on_bridge_question(self, q: dict):
+        """QuestionBridge 新问题回调 — WS 推送 explorer:need_input (前端弹窗)"""
+        if self._main_loop is None:
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(
+                ws_manager.broadcast({
+                    "type": "explorer:need_input",
+                    "data": {
+                        "qid": q.get("qid", ""),
+                        "question": q.get("text", ""),
+                        "options": q.get("options", []),
+                        "context": q.get("context", ""),
+                        "source": q.get("source", "explorer"),
+                        "timeout_s": q.get("timeout_s", 180),
+                    },
+                    "running": self._running,
+                }),
+                self._main_loop,
+            )
+        except Exception:
+            pass  # WS 不可用不影响问答流程 (HTTP 轮询兜底)
+
+    # ── 问答桥访问器 (API 层调用) ──
+
+    def current_question(self) -> Optional[dict]:
+        """当前待回答的探索问题; 无则 None"""
+        return self._bridge.current_question() if self._bridge else None
+
+    def answer_question(self, answer: str = "", skipped: bool = False) -> bool:
+        """回答当前探索问题。返回是否命中 (问题已超时/不存在则 False)"""
+        return bool(self._bridge and self._bridge.answer_any(answer=answer, skipped=skipped))
+
+    def question_history(self, last_n: int = 30) -> list:
+        """最近一次探索的问答历史"""
+        return self._bridge.history(last_n) if self._bridge else []
 
     @property
     def is_running(self) -> bool:
@@ -63,8 +107,10 @@ class ExplorerService:
         self._running = True
         self._cancel.clear()
 
-        # ── 交互式问答桥 (每次探索新建) ──
+        # ── 交互式问答桥 (每次探索新建; 保留到下一次探索, 供 history 查询) ──
         self._bridge = QuestionBridge(enabled=True)
+        # 探索中途向用户提问时, 通过 WS 推送到前端弹窗 (HTTP 轮询兜底在 API 层)
+        self._bridge.set_on_question(self._on_bridge_question)
 
         session_id = (
             f"explore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_"
@@ -264,7 +310,7 @@ class ExplorerService:
         finally:
             self._running = False
             self._current_session_id = None
-            self._bridge = None
+            # 保留 _bridge — 供 /questions/history 查询本次探索的问答记录
 
     def _finish_session(self, session_id: str, status: str, error: str = ""):
         """更新数据库状态"""
