@@ -493,6 +493,41 @@ class Reporter:
         report_data.setdefault("session_id", session_id)
         report_data.setdefault("generated_at", datetime.now().isoformat())
 
+        # ── 改进方案 (ImprovementEngine 规则层, 零额外LLM成本) ──
+        improvement_md = ""
+        try:
+            from src.improvement_engine import ImprovementEngine
+            engine = ImprovementEngine()
+            pass_rate = float(report_data.get("pass_rate") or 0)
+            channels = (report_data.get("evidence_summary") or {}).get("channels") or {}
+            v_ratio = 0.0
+            try:
+                a, b = channels.get("visual", "0/0").split("/")
+                v_ratio = int(a) / int(b) if int(b) else 0
+            except Exception:
+                pass
+            findings = (report_data.get("diagnosis") or {}).get("findings") or []
+            plan = engine.propose(
+                eval_result={
+                    "overall": round(pass_rate * 5, 2),
+                    "completeness": round(min(pass_rate * 5 + 1.0, 5), 2),
+                    "correctness": round(max(pass_rate * 5 - 0.5, 0.5), 2),
+                    "relevancy": round(4.0 * v_ratio + 1.0, 2),
+                },
+                rule_evidence=[str(f.get("reason", ""))[:120]
+                               for f in findings[:8] if isinstance(f, dict)],
+                conversation_context=f"Multi-Agent 平台实测: "
+                                    f"{report_data.get('total_steps', 0)} 步, "
+                                    f"文本 {channels.get('text','0/0')}, "
+                                    f"视觉 {channels.get('visual','0/0')}, "
+                                    f"API {channels.get('api','0/0')}",
+                generate_llm=False,
+            )
+            improvement_md = plan.to_markdown()
+            report_data["improvement_plan"] = plan.to_dict()
+        except Exception as e:
+            print(f"  ⚠️ 改进方案生成失败: {e}")
+
         json_file = f"reports/report_{timestamp}.json"
         with open(json_file, "w", encoding="utf-8") as f:
             json.dump(report_data, f, ensure_ascii=False, indent=2, default=str)
@@ -504,6 +539,7 @@ class Reporter:
         pass_rate = float(report_data.get("pass_rate") or 0)
         channels = (report_data.get("evidence_summary") or {}).get("channels") or {}
         findings = (report_data.get("diagnosis") or {}).get("findings") or []
+
         md_file = f"reports/report_{timestamp}.md"
         with open(md_file, "w", encoding="utf-8") as f:
             f.write(f"# Multi-Agent 评测报告\n\n")
@@ -520,6 +556,8 @@ class Reporter:
                     if isinstance(fnd, dict):
                         f.write(f"- [{fnd.get('severity', '')}] {str(fnd.get('step', ''))[:80]}: "
                                 f"{str(fnd.get('reason', ''))[:150]}\n")
+            if improvement_md:
+                f.write(f"\n{improvement_md}\n")
         self._last_report = {"json_path": json_file, "markdown_path": md_file, "html_path": ""}
 
         # ── HTML (富渲染, 数据自适应) ──

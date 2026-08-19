@@ -154,6 +154,14 @@ class ExplorerChatService:
             with urllib.request.urlopen(req, timeout=LLM_TIMEOUT_SECONDS) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
             content = body["choices"][0]["message"]["content"]
+            # token 记账 (失败静默)
+            try:
+                from src.token_tracker import track_call
+                track_call("explorer_chat.intent",
+                           prompt_text="\n".join(m["content"] for m in msgs),
+                           completion_text=content or "", model=provider.model_id)
+            except Exception:
+                pass
             return self._parse_llm_json(content)
         except Exception as e:
             logger.warning("ExplorerChat LLM call failed: %s", e)

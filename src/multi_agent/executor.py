@@ -470,6 +470,12 @@ class ExecutorAgent:
         self._playwright = p
         if self._evaluator is None:
             self._evaluator = BrowserEvaluator(headless=self.headless, base_url=self.target_url)
+        # 四层定位器自愈 (L0原始→L1语义→L2结构→L3 AI) — 提升无人值守导航成功率
+        try:
+            from src.self_healing import apply_self_healing
+            apply_self_healing(self._evaluator)
+        except Exception:
+            pass
         return _BrowserContext(page, browser, p)
 
     def _get_auth_credentials(self) -> dict:

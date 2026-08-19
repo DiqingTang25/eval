@@ -154,6 +154,14 @@ def _call_llm(kind: str, error: str, context: dict | None) -> Optional[dict]:
         with urllib.request.urlopen(req, timeout=20) as resp:
             body = json.loads(resp.read().decode("utf-8"))
         content = body["choices"][0]["message"]["content"]
+        # token 记账 (失败静默)
+        try:
+            from src.token_tracker import track_call
+            track_call("error_interpreter.translate",
+                       prompt_text=json.dumps({"kind": kind, "error": error}, ensure_ascii=False),
+                       completion_text=content or "", model=provider.model_id)
+        except Exception:
+            pass
         m = re.search(r"\{.*\}", content, re.S)
         if not m:
             return None

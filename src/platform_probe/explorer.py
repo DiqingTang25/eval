@@ -413,6 +413,34 @@ class PlatformExplorer:
                     _diag.append("L2+Deep: merged {} deep steps (total: {})".format(
                         len(_all_deep_steps), len(teaching_structure.steps)))
 
+                # ═══════════════════════════════════════════════
+                # Phase 2C — 视觉理解 (可选, l2_vision VLM 页面分析)
+                # 补充 DOM/LLM 盲区: 登录后弹窗/图表类页面/Shadow DOM
+                # VLM key 不可用时静默跳过, 不影响主流程
+                # ═══════════════════════════════════════════════
+                _vision_notes = ""
+                try:
+                    from .l2_vision import VisualAnalyzer
+                    va = VisualAnalyzer(verbose=self.verbose)
+                    if va._vlm_enabled:
+                        vres = va.analyze_page(page)
+                        vres = vres or {}
+                        bits = []
+                        for k in ("has_agent_panel", "shadow_dom_detected",
+                                  "page_type", "has_modal"):
+                            v = vres.get(k)
+                            if v not in (None, "", False):
+                                bits.append(f"{k}={v}")
+                        if vres.get("dom_regions"):
+                            bits.append(f"regions={len(vres['dom_regions'])}")
+                        _vision_notes = "; ".join(bits)[:300]
+                        if _vision_notes:
+                            _diag.append(f"L2C Vision: {_vision_notes}")
+                            if self.verbose:
+                                print(f"  👁 L2C 视觉理解: {_vision_notes}")
+                except Exception as _ve:
+                    _diag.append(f"L2C Vision 跳过: {str(_ve)[:100]}")
+
                 # 写入诊断文件
                 (self.output_dir / "l1_9_diag.txt").write_text("\n".join(_diag))
 

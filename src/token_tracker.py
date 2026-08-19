@@ -7,7 +7,10 @@ Token 成本估算工具
 - 如果 API 返回了真实 usage.token_count, 优先使用真实值
 """
 
+import json
 import re
+from datetime import datetime
+from pathlib import Path
 
 # ── DeepSeek 定价 (USD per 1M tokens) ──
 # https://api-docs.deepseek.com/quick_start/pricing
@@ -94,6 +97,44 @@ def estimate_cost(
         "model": model,
         "estimated": estimated,
     }
+
+
+def track_call(
+    caller: str,
+    prompt_text: str = "",
+    completion_text: str = "",
+    model: str = DEFAULT_MODEL,
+) -> dict:
+    """统一 LLM 调用记账 — 追加到 data/token_usage.json (失败静默, 绝不阻塞主流程)
+
+    各 LLM 调用点 (explorer_chat / error_interpreter / executor 等) 调用本函数,
+    成本数据在 Dashboard 可展示 (见后端 metrics API 扩展)。
+    """
+    try:
+        est = estimate_cost(prompt_text=prompt_text, completion_text=completion_text,
+                            model=model)
+        rec = {
+            "ts": datetime.now().isoformat(),
+            "caller": (caller or "")[:40],
+            "model": model,
+            **est,
+        }
+        p = Path(__file__).resolve().parent.parent / "data" / "token_usage.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        entries = []
+        if p.exists():
+            try:
+                entries = json.loads(p.read_text(encoding="utf-8") or "[]")
+                if not isinstance(entries, list):
+                    entries = []
+            except Exception:
+                entries = []
+        entries.append(rec)
+        entries = entries[-500:]  # 保留最近 500 条
+        p.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+        return est
+    except Exception:
+        return {}
 
 
 def estimate_conversation_cost(
