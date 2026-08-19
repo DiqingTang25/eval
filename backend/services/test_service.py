@@ -311,6 +311,8 @@ class TestService:
             exit_type = EXIT_COMPLETED_DEGRADED if report.failures else EXIT_COMPLETED
             self._record_run_metrics("multi_agent", exit_type, session_id,
                                      errors_n=report.failures)
+            # 报告持久化 → Reports 页面可见
+            self._persist_multi_agent_report(session_id, project_root, report, "")
         except Exception as e:
             import traceback as _tb2
             print(f"[MultiAgent] FAILED: {e}\n{_tb2.format_exc()}", flush=True)
@@ -543,6 +545,95 @@ class TestService:
                     "card": entry.get("card") or {},
                 }
         return None
+
+    def _persist_multi_agent_report(self, session_id: str, project_root: Path,
+                                    report, report_path: str):
+        """Multi-Agent 结果持久化到 reports 表 — Reports 页面立即可见
+
+        (此前 multi_agent 结果只写 eval_output 文件, 前端 Reports 页读不到 —
+         用户跑完评测却找不到结果, 这是交付缺口)
+        """
+        try:
+            from backend.models import Report as ReportModel, TestSession as TestSessionModel
+            import glob as _glob
+            # 找到本次运行的报告文件 (Reporter 写入 eval_output/multi_agent/)
+            if not report_path:
+                cands = sorted(
+                    _glob.glob(str(project_root / "eval_output" / "multi_agent" / "multi_agent_report_*.json")),
+                    reverse=True)
+                report_path = cands[0] if cands else ""
+            markdown = ""
+            try:
+                if report_path and Path(report_path).exists():
+                    import json as _json
+                    data = _json.loads(Path(report_path).read_text(encoding="utf-8"))
+                    diag = data.get("diagnosis") or {}
+                    findings = diag.get("findings") or []
+                    lines = [
+                        f"# Multi-Agent 评测报告",
+                        f"",
+                        f"- 会话: {session_id}",
+                        f"- 策略: {data.get('strategy', '')}",
+                        f"- 通过率: {data.get('pass_rate', 0):.0%}",
+                        f"- 验证步骤: {data.get('total_steps', 0)} | 失败: {data.get('failures', 0)}",
+                        f"- 致命失败: {data.get('critical_failures', 0)}",
+                        f"",
+                        f"## 关键发现",
+                    ]
+                    for f in findings[:10]:
+                        lines.append(f"- [{f.get('severity', '')}] {str(f.get('step', ''))[:80]}: "
+                                     f"{str(f.get('reason', ''))[:150]}")
+                    markdown = "\n".join(lines)
+            except Exception:
+                pass
+
+            db = get_sync_db()
+            try:
+                # TestSession (report 外键依赖)
+                ts = db.query(TestSessionModel).filter_by(session_id=session_id).first()
+                if not ts:
+                    ts = TestSessionModel(
+                        session_id=session_id, agent_id="multi_agent",
+                        profile="standard", status="success",
+                        total_scenarios=getattr(report, "total_steps", 0) or 0,
+                        started_at=datetime.now(timezone.utc),
+                        finished_at=datetime.now(timezone.utc),
+                    )
+                    db.add(ts)
+                    db.flush()
+                # Report
+                existing = db.query(ReportModel).filter_by(session_id=ts.id).first()
+                summary = {
+                    "agent_id": "multi_agent",
+                    "total": getattr(report, "total_steps", 0) or 0,
+                    "avg_scores": {"overall": round((getattr(report, "pass_rate", 0) or 0) * 100, 1)},
+                    "pass_rate": getattr(report, "pass_rate", 0),
+                    "failures": getattr(report, "failures", 0),
+                    "critical_failures": getattr(report, "critical_failures", 0),
+                    "strategy": getattr(report, "strategy", ""),
+                    "diagnosis": getattr(report, "diagnosis", None) if hasattr(report, "diagnosis") else None,
+                }
+                if existing:
+                    existing.summary_json = summary
+                    existing.markdown_content = markdown
+                    existing.json_path = report_path or existing.json_path
+                else:
+                    db.add(ReportModel(
+                        session_id=ts.id,
+                        timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                        summary_json=summary,
+                        markdown_content=markdown,
+                        json_path=report_path,
+                    ))
+                db.commit()
+            finally:
+                db.close()
+        except Exception:
+            try:
+                db.rollback()
+                db.close()
+            except Exception:
+                pass
 
     def _record_run_metrics(self, run_type: str, exit_type: str, session_id: str,
                             errors_n: int = 0, note: str = ""):
