@@ -16,6 +16,9 @@ from backend.config import settings
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.sync_database_url)
+# script_location 改为绝对路径 — alembic.ini 里是相对路径 "alembic",
+# 从其他 cwd 调用 alembic 时会解析失败
+config.set_main_option("script_location", str(Path(__file__).parent))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

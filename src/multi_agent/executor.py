@@ -462,8 +462,9 @@ class ExecutorAgent:
         creds = {}
         # 1. 从 platform_profile.json 读取 (最优先: 探索时保存的凭证)
         try:
-            profile_path = Path("output/platform_probe/platform_profile.json")
-            if profile_path.exists():
+            from src.profile_paths import resolve_profile_path
+            profile_path = resolve_profile_path()
+            if profile_path is not None:
                 import json as _json
                 profile = _json.loads(profile_path.read_text(encoding="utf-8"))
                 pc = profile.get("credentials", {})

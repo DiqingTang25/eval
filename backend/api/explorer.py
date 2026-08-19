@@ -132,9 +132,10 @@ async def get_latest_profile():
     Health Check / Test Runner / Frontend 通过此端点自动获取平台信息。
     """
     from pathlib import Path
-    profile_path = Path(__file__).parent.parent.parent / "output" / "platform_probe" / "platform_profile.json"
+    from src.profile_paths import resolve_profile_path
+    profile_path = resolve_profile_path()
 
-    if not profile_path.exists():
+    if profile_path is None:
         return {"available": False, "message": "No exploration profile yet. Run an exploration first."}
 
     try:

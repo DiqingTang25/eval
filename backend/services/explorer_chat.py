@@ -220,14 +220,11 @@ class ExplorerChatService:
     @staticmethod
     def _latest_profile() -> dict | None:
         """读取最近一次探索的 platform_profile.json (用于「用上次的平台」)"""
-        from pathlib import Path
-        p = Path(__file__).parent.parent.parent / "output" / "platform_probe" / "platform_profile.json"
         try:
-            if p.exists():
-                return json.loads(p.read_text(encoding="utf-8"))
+            from src.profile_paths import load_profile
+            return load_profile()
         except Exception:
-            pass
-        return None
+            return None
 
     @staticmethod
     def _reply(chat: dict, text: str, **extra) -> dict:
