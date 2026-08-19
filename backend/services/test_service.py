@@ -563,6 +563,7 @@ class TestService:
                     reverse=True)
                 report_path = cands[0] if cands else ""
             markdown = ""
+            html = ""
             try:
                 if report_path and Path(report_path).exists():
                     import json as _json
@@ -584,6 +585,14 @@ class TestService:
                         lines.append(f"- [{f.get('severity', '')}] {str(f.get('step', ''))[:80]}: "
                                      f"{str(f.get('reason', ''))[:150]}")
                     markdown = "\n".join(lines)
+                    # 富 HTML 报告 (与旧版测评报告同一渲染体系, 数据自适应)
+                    try:
+                        from src.html_reporter import HTMLReporter
+                        html = HTMLReporter.render_multi_agent(data)
+                        html_path = Path(report_path).with_suffix(".html")
+                        html_path.write_text(html, encoding="utf-8")
+                    except Exception:
+                        html = ""
             except Exception:
                 pass
 
@@ -616,6 +625,8 @@ class TestService:
                 if existing:
                     existing.summary_json = summary
                     existing.markdown_content = markdown
+                    if html:
+                        existing.html_content = html
                     existing.json_path = report_path or existing.json_path
                 else:
                     db.add(ReportModel(
@@ -623,6 +634,7 @@ class TestService:
                         timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
                         summary_json=summary,
                         markdown_content=markdown,
+                        html_content=html,
                         json_path=report_path,
                     ))
                 db.commit()

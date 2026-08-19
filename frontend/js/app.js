@@ -708,6 +708,14 @@ function rpSelect(id){
     var overall=(r.overall||r.overall_score||0);
     var html='<h3 style="margin-bottom:4px">'+escHtml(r.agent_id||'Report #'+r.id)+'</h3>';
     html+='<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+(r.created_at||'')+'</div>';
+    // Multi-Agent 报告: 富 HTML 自适应渲染 (跳过旧版 /5.0 维度卡)
+    if((r.summary_json||{}).agent_id==='multi_agent'){
+      html+='<div style="margin-top:12px"><button class="btn btn-outline btn-sm" onclick="App.rpDownload(\''+id+'\')">'+t('rp_download')+'</button></div>';
+      if(r.html_content)html+='<div style="margin-top:16px;overflow-x:auto">'+r.html_content+'</div>';
+      else if(r.markdown_content)html+='<pre style="white-space:pre-wrap;font-size:12px;margin-top:12px;background:var(--bg);padding:12px;border-radius:8px;max-height:400px;overflow-y:auto">'+escHtml(r.markdown_content.substring(0,5000))+'</pre>';
+      el.innerHTML=html;
+      return;
+    }
     // Score summary
     var scoreColor=overall>=4?'var(--green)':overall>=3?'var(--amber)':'var(--red)';
     html+='<div style="text-align:center;margin:16px 0"><div style="font-size:48px;font-weight:800;color:'+scoreColor+'">'+overall.toFixed(1)+'</div><div style="font-size:12px;color:var(--text2)">/ 5.0</div></div>';

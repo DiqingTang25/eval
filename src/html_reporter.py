@@ -284,6 +284,136 @@ class HTMLReporter:
     def _vtext(lv):
         return {"excellent":"✅ 优秀","good":"👍 良好","warning":"⚠️ 需改进","poor":"❌ 不合格"}.get(lv,"")
 
+    # ── Multi-Agent 平台实测报告 (schema 驱动 + 三通道验证) ──
+
+    @classmethod
+    def render_multi_agent(cls, data: dict) -> str:
+        """把 Multi-Agent DiagnosticReport 渲染为完整 HTML 报告
+
+        数据自适应的富渲染: 通过率环 / 三通道覆盖率 / 阶段明细 /
+        关键发现 (严重度分级) / 诊断结论。与 render_agent_eval 同一视觉语言。
+        """
+        pass_rate = float(data.get("pass_rate") or 0)
+        total = int(data.get("total_steps") or 0)
+        failures = int(data.get("failures") or 0)
+        critical = int(data.get("critical_failures") or 0)
+        strategy = data.get("strategy", "")
+        session_id = data.get("session_id", "")
+        ts = (data.get("generated_at", "") or "")[:19]
+        score100 = round(pass_rate * 100, 1)
+        lv = cls._level100(score100)
+
+        ev = data.get("evidence_summary") or {}
+        channels = ev.get("channels") or {"text": "0/0", "visual": "0/0", "api": "0/0"}
+
+        def _cov(frac: str):
+            try:
+                a, b = frac.split("/")
+                return int(a), int(b)
+            except Exception:
+                return 0, 0
+
+        c_text = _cov(channels.get("text", "0/0"))
+        c_vis = _cov(channels.get("visual", "0/0"))
+        c_api = _cov(channels.get("api", "0/0"))
+        degradation = ev.get("degradation") or {}
+
+        details = data.get("verification_details") or []
+        findings = (data.get("diagnosis") or {}).get("findings") or []
+        diagnosis_pass = (data.get("diagnosis") or {}).get("pass_rate")
+        diag_critical = (data.get("diagnosis") or {}).get("critical_failures")
+
+        h = ['<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+             '<meta name="viewport" content="width=device-width,initial-scale=1">'
+             '<title>平台实测评测报告 (Multi-Agent)</title>'
+             '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>'
+             f'<style>{CSS}{EXTRA_CSS}</style></head><body><div class="container">']
+
+        # ── Hero ──
+        h.append('<div class="hero">'
+                 '<h1>🕵️ 教学平台实测评测报告 <span class="muted">(Multi-Agent · Schema 驱动)</span></h1>'
+                 f'<span class="verdict-tag {lv}">{cls._vtext(lv)} · 通过率 {score100}%</span>'
+                 f'<div class="meta">会话: {session_id} | 策略: {strategy} | 生成: {ts} | '
+                 f'验证步骤: {total} | 失败: {failures} | 致命失败: {critical}</div></div>')
+
+        # ── 通过率环 + 三通道覆盖 ──
+        h.append('<div class="section"><h2>🎯 总体通过率 &amp; 三通道验证覆盖</h2><div class="two-col">')
+        h.append(f'<div class="ring {lv}"><div class="rv">{score100:.1f}</div><div class="rl">% 通过率 ({total} 步)</div></div>')
+        h.append('<div style="flex:1;min-width:280px"><table><thead><tr>'
+                 '<th>验证通道</th><th>覆盖</th><th>覆盖率</th><th>状态</th></tr></thead><tbody>')
+        for label, cov, degrade_key in (
+            ("📝 文本验证 (步骤完成)", c_text, "text"),
+            ("👁 视觉验证 (截图确认)", c_vis, "visual"),
+            ("🔌 API 验证 (接口断言)", c_api, "api"),
+        ):
+            a, b = cov
+            pct = round(a * 100 / b, 1) if b else 0.0
+            skipped = bool(degradation.get(f"{degrade_key}_skipped"))
+            h.append(f'<tr><td><strong>{label}</strong></td><td>{a}/{b}</td>'
+                     f'<td style="font-weight:700">{pct}%</td>'
+                     f'<td>{"⏭ 已跳过(降级)" if skipped else "✅ 启用"}</td></tr>')
+        h.append('</tbody></table></div></div></div>')
+
+        # ── 阶段明细 ──
+        if details:
+            # 按 phase 聚合
+            by_phase = {}
+            order = []
+            for d in details:
+                if not isinstance(d, dict):
+                    continue
+                ph = d.get("phase") or "(未分类)"
+                if ph not in by_phase:
+                    by_phase[ph] = {"steps": 0, "passed": 0, "lessons": {}}
+                    order.append(ph)
+                st = by_phase[ph]
+                st["steps"] += 1
+                if d.get("verdict") in ("pass", "passed") or d.get("text_pass") and not d.get("visual_pass", True) and d.get("api_pass", True):
+                    pass
+                if d.get("verdict") in ("pass", "passed"):
+                    st["passed"] += 1
+                else:
+                    # 文本通过即半程通过标记 (verdict 缺省时按 text_pass 计)
+                    if d.get("text_pass") and not d.get("visual_pass") and not d.get("api_pass"):
+                        st["passed"] += 1
+            h.append('<div class="section"><h2>🗺 阶段评测明细</h2>'
+                     '<table><thead><tr><th>阶段</th><th>步骤</th><th>通过</th><th>通过率</th><th>条形</th></tr></thead><tbody>')
+            for ph in order:
+                st = by_phase[ph]
+                pct = round(st["passed"] * 100 / st["steps"], 1) if st["steps"] else 0
+                lvl = cls._level100(pct)
+                h.append(f'<tr><td><strong>{ph[:40]}</strong></td><td>{st["steps"]}</td>'
+                         f'<td style="font-weight:700">{st["passed"]}</td><td>{pct}%</td>'
+                         f'<td><div class="bar-wrap"><div class="bar-fill {lvl}" style="width:{pct}%"></div></div></td></tr>')
+            h.append('</tbody></table></div>')
+
+        # ── 关键发现 (严重度分级) ──
+        if findings:
+            sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "⚪"}
+            h.append('<div class="section"><h2>🔍 关键发现</h2><table><thead><tr>'
+                     '<th>严重度</th><th>步骤</th><th>判定</th><th>原因</th></tr></thead><tbody>')
+            for f in findings[:20]:
+                if not isinstance(f, dict):
+                    continue
+                sev = f.get("severity", "low")
+                h.append(f'<tr><td>{sev_icon.get(sev, "⚪")} {sev}</td>'
+                         f'<td>{str(f.get("step", ""))[:70]}</td>'
+                         f'<td><strong>{f.get("verdict", "")}</strong></td>'
+                         f'<td>{str(f.get("reason", ""))[:160]}</td></tr>')
+            if len(findings) > 20:
+                h.append(f'<tr><td colspan="4" class="muted">… 另有 {len(findings) - 20} 条, 完整清单见 JSON 报告</td></tr>')
+            h.append('</tbody></table></div>')
+
+        # ── 诊断结论 ──
+        h.append('<div class="section"><h2>🧾 诊断结论</h2><div class="info-cards">'
+                 f'<span>📊 诊断通过率: {diagnosis_pass if diagnosis_pass is not None else score100/100:.2f}</span>'
+                 f'<span>💀 致命失败: {diag_critical if diag_critical is not None else critical}</span>'
+                 f'<span>📝 文本验证 {channels.get("text","0/0")} | 👁 视觉 {channels.get("visual","0/0")} | 🔌 API {channels.get("api","0/0")}</span>'
+                 '</div></div>')
+
+        h.append('</div></body></html>')
+        return "\n".join(h)
+
     # ── Agent Report ──
 
     # 10 维元数据 (顺序 = 呈现顺序)
