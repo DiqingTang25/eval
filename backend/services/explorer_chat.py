@@ -264,7 +264,14 @@ class ExplorerChatService:
 
     @staticmethod
     def _latest_profile() -> dict | None:
-        """读取最近一次探索的 platform_profile.json (用于「用上次的平台」)"""
+        """读取最近一次探索的平台画像 (用于「用上次的平台」) — 平台库优先"""
+        try:
+            from src.platform_profile_store import latest_platform_profile
+            prof = latest_platform_profile()
+            if prof:
+                return prof
+        except Exception:
+            pass
         try:
             from src.profile_paths import load_profile
             return load_profile()

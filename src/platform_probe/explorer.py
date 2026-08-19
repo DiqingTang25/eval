@@ -519,6 +519,12 @@ class PlatformExplorer:
                 # 同时写一份到全局位置 (供API读取)
                 global_profile = Path(self.output_dir).parent / "platform_profile.json"
                 global_profile.write_text(_json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+                # 平台库归档 — 按 URL 指纹保存, 换平台探索不丢历史 (自演化基础)
+                try:
+                    from src.platform_profile_store import archive_profile
+                    archive_profile(profile)
+                except Exception:
+                    pass
 
                 if self.verbose:
                     print(f"\n{'='*70}")

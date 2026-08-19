@@ -529,38 +529,67 @@ class BrowserEvaluator:
     # ═══════════════════════════════════════════════════════════
 
     def navigate_to_day(self, phase_num: int, day_num: int) -> bool:
-        """导航到指定 Phase 的指定 Day 的模式选择页"""
+        """导航到指定 Phase 的指定 Day 的模式选择页
+
+        成功路径固化: 走过一次后, 下次优先重放固化的点击路径 (Skyvern 思路),
+        重放失败自动回退原导航流程。
+        """
         self._log(f"导航: Phase {phase_num} → Day {day_num}")
 
         # 回到首页
         self.page.goto(self.base_url, timeout=60000)
         self._wait_stable(2)
 
+        # ── L0: 固化路径重放 (历史成功路径优先) ──
+        fast = None
+        try:
+            from src.fast_path import get_navigation
+            fast = get_navigation(self.base_url, phase_num, day_num)
+        except Exception:
+            fast = None
+        if fast and fast.get("phase_text") and fast.get("day_text"):
+            ok_p, pt = self._find_and_click([fast["phase_text"]])
+            if ok_p:
+                self._wait_stable(2)
+                ok_d, dt = self._find_and_click([fast["day_text"]])
+                if ok_d:
+                    self._log(f"固化路径重放成功: {pt} → {dt}", "ok")
+                    self._ss(f"nav_day{day_num}")
+                    return True
+            self._log("固化路径重放失败, 回退常规导航", "warn")
+
         # 点击 Phase 按钮
-        ok, text = self._find_and_click([f"Phase 0{phase_num}"])
+        ok, phase_text = self._find_and_click([f"Phase 0{phase_num}"])
         if not ok:
             self._log(f"找不到 Phase {phase_num} 按钮", "error")
             return False
-        self._log(f"点击: {text}")
+        self._log(f"点击: {phase_text}")
         self._wait_stable(2)
         self._ss(f"nav_phase{phase_num}")
 
         # 点击 Day 按钮
-        ok, text = self._find_and_click([f"Day {day_num}"])
+        ok, day_text = self._find_and_click([f"Day {day_num}"])
         if not ok:
             # 尝试更宽泛匹配
             for btn in self.page.locator("button.lesson-card, button[class*=lesson]").all():
                 t = (btn.text_content() or "").strip()
                 if f"Day {day_num}" in t and not btn.is_disabled():
                     btn.click()
-                    ok, text = True, t[:80]
+                    ok, day_text = True, t[:80]
                     break
         if not ok:
             self._log(f"找不到 Day {day_num} 按钮 (可能被锁定)", "warn")
             return False
-        self._log(f"点击: {text}")
+        self._log(f"点击: {day_text}")
         self._wait_stable(3)
         self._ss(f"nav_day{day_num}")
+
+        # 固化本次成功路径 (下次直接重放)
+        try:
+            from src.fast_path import record_navigation
+            record_navigation(self.base_url, phase_num, day_num, phase_text, day_text)
+        except Exception:
+            pass
         return True
 
     # ═══════════════════════════════════════════════════════════

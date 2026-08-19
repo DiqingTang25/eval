@@ -77,6 +77,10 @@ var _dict={
   explorer_chat_adjust:{zh:'先调整',en:'Adjust first'},
   intv_reason:{zh:'为什么',en:'Why'},
   intv_recovery:{zh:'怎么办',en:'What to do'},
+  tr_metrics_runs:{zh:'累计运行',en:'Total runs'},
+  tr_metrics_success:{zh:'成功率',en:'Success rate'},
+  tr_metrics_help:{zh:'求助率',en:'Help rate'},
+  tr_metrics_failed:{zh:'失败',en:'Failed'},
   intv_title:{zh:'⚠️ 评测遇到卡点 — 需要你的输入',en:'⚠️ Evaluation blocked — your input needed'},
   intv_submit:{zh:'提交',en:'Submit'},
   intv_timeout:{zh:'秒后自动按默认处理',en:'s before default action'},
@@ -486,6 +490,7 @@ var _trRunning=false,_trSid=null;
 var _trTimerInterval=null;
 function trLoad(){
   trSessions();
+  trLoadMetrics();
   var hint=_el('trSchemaHint');
   if(hint){hint.style.display=localStorage.getItem('schemaDriven')==='true'?'none':''}
   document.getElementById('trStartBtn').onclick=trStart;
@@ -849,13 +854,15 @@ function connectWS(){
           var logEl2=document.getElementById('trEventLog');
           if(logEl2)logEl2.innerHTML+='<div class="log-line" style="color:var(--green)">'+t('eval_complete')+'</div>';
           setTimeout(loadDashboard,2000);
-          setTimeout(trSessions,3000)
+          setTimeout(trSessions,3000);
+          setTimeout(trLoadMetrics,4000)
         }
         if(ev==='browser_error'){
           _evalProgress.action=t('eval_error');
           trRenderProgress();
           var logEl3=document.getElementById('trEventLog');
-          if(logEl3)logEl3.innerHTML+='<div class="log-line" style="color:var(--red)">'+t('eval_error')+': '+escHtml(data.error||'')+'</div>'
+          if(logEl3)logEl3.innerHTML+='<div class="log-line" style="color:var(--red)">'+t('eval_error')+': '+escHtml(data.error||'')+'</div>';
+          setTimeout(trLoadMetrics,2000)
         }
       }catch(ex){console.error('WS handler error',ex)}
     }
@@ -1196,6 +1203,21 @@ function intvSubmit(){
   }).catch(function(){toast('提交失败','error')});
 }
 
+// 运行指标 — 退出类型统计 (成功率/求助率) 显示在 Test Runner 页
+function trLoadMetrics(){
+  get('/api/tests/metrics').then(function(r){
+    var el=_el('trMetrics');if(!el||!r||!r.available){if(el)el.textContent='';return}
+    var et=r.exit_types||{};
+    var pct=function(n){return Math.round((n/r.total_runs)*100)+'%'};
+    el.innerHTML=escHtml(
+      (t('tr_metrics_runs')||'累计运行')+': '+r.total_runs+' · '+
+      (t('tr_metrics_success')||'成功率')+': '+pct(r.success_rate* r.total_runs)+' · '+
+      (t('tr_metrics_help')||'求助率')+': '+pct(r.help_rate*r.total_runs)+' · '+
+      (t('tr_metrics_failed')||'失败')+': '+(et.failed_permanently||0)
+    );
+  }).catch(function(){});
+}
+
 // 轮询兜底: 仅 WS 断开(或未连上)时轮询 intervention/pending (10s); WS 在线时走实时通道
 setInterval(function(){
   var ov=_el('interventionOverlay');if(ov&&ov.classList.contains('show'))return;
@@ -1212,7 +1234,7 @@ setInterval(function(){
 },10000);
 
 // ═══════════════════ Export ═══════════════════
-window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,phTriggerFull:phTriggerFull,trLoad:trLoad,trStart:trStart,trStop:trStop,trConfirmStart:trConfirmStart,trCancelPreflight:trCancelPreflight,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,rpDownload:rpDownload,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult,exploreChatStart:exploreChatStart,exploreChatSend:exploreChatSend,exploreChatQuickStart:exploreChatQuickStart,exploreChatFocusInput:exploreChatFocusInput,intvSubmit:intvSubmit,showIntervention:showIntervention};
+window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,phTriggerFull:phTriggerFull,trLoad:trLoad,trStart:trStart,trStop:trStop,trLoadMetrics:trLoadMetrics,trConfirmStart:trConfirmStart,trCancelPreflight:trCancelPreflight,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,rpDownload:rpDownload,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult,exploreChatStart:exploreChatStart,exploreChatSend:exploreChatSend,exploreChatQuickStart:exploreChatQuickStart,exploreChatFocusInput:exploreChatFocusInput,intvSubmit:intvSubmit,showIntervention:showIntervention};
 
 document.addEventListener('DOMContentLoaded',function(){
   // ── 页面可见: DOMContentLoaded 已触发 ──

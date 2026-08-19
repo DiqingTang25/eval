@@ -134,6 +134,13 @@ async def intervention_history(session_id: str):
     return {"history": test_service.intervention_history(session_id)}
 
 
+@router.get("/metrics")
+async def run_metrics():
+    """运行指标 — 退出类型统计 (成功率/求助率/降级完成率)"""
+    from src.run_metrics import summarize_runs
+    return summarize_runs()
+
+
 @router.get("/status")
 async def test_status():
     """当前评测状态"""

@@ -255,13 +255,28 @@ class ExecutorAgent:
 
             import json as _json
             btn_json = _json.dumps(buttons, ensure_ascii=False)
+            # 历史经验注入 — 同平台过往失败/修复记录 (用得越多越准)
+            exp_lines = ""
+            try:
+                from src.experience_store import (
+                    retrieve_experiences, experiences_as_prompt_lines,
+                    TASK_EVALUATION)
+                from src.platform_profile_store import platform_fingerprint
+                fp = platform_fingerprint(self.target_url or "")
+                exps = retrieve_experiences(
+                    task_type=TASK_EVALUATION, platform=fp,
+                    keywords=[intent], limit=4)
+                exp_lines = experiences_as_prompt_lines(exps)
+            except Exception:
+                exp_lines = ""
+            exp_block = f"\n\n历史经验 (同平台的过往成败, 供参考):\n{exp_lines}" if exp_lines else ""
             prompt = f"""你是Web自动化专家。当前页面上有以下按钮:
 
 {btn_json}
 
 页面文本片段:
 {page_text[:600]}
-
+{exp_block}
 请找出语义最接近 "{intent}" 的按钮, 输出其 text。
 - 如果找到 → {{"text": "按钮文字", "reason": "一句话解释"}}
 - 如果找不到 → {{"text": "", "reason": "解释"}}

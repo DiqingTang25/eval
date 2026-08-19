@@ -302,6 +302,22 @@ class ExplorerService:
             traceback_str = traceback.format_exc()
             self._progress_msg = f"Failed: {e}"
 
+            # 经验库: 探索失败反思 → 下次探索同类平台时注入 (自演化)
+            try:
+                from src.experience_store import (
+                    record_experience, TASK_EXPLORATION, EXIT_FAILED_PERMANENT)
+                record_experience(
+                    task_type=TASK_EXPLORATION,
+                    trigger=str(e)[:200],
+                    action="探索终止",
+                    outcome="探索失败",
+                    exit_type=EXIT_FAILED_PERMANENT,
+                    platform=target_url,
+                    note=traceback_str[-200:],
+                )
+            except Exception:
+                pass
+
             try:
                 self._finish_session(session_id, "failed", error=traceback_str)
             except Exception:

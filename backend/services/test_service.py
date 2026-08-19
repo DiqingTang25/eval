@@ -62,6 +62,7 @@ class TestService:
         self._interventions: dict = {}          # session_id -> {event, question, options, timeout_s, default, answer, asked_at}
         self._interventions_lock = threading.Lock()
         self._audit_lock = threading.Lock()     # 干预审计日志写锁 (data/intervention_log.json)
+        self._human_sessions: set = set()       # 本轮得到过人工回答的 session (退出类型 needs_human 判定)
 
     @property
     def is_running(self) -> bool:
@@ -305,9 +306,16 @@ class TestService:
                     }),
                     self._main_loop,
                 )
+            # 退出类型指标
+            from src.run_metrics import EXIT_COMPLETED, EXIT_COMPLETED_DEGRADED
+            exit_type = EXIT_COMPLETED_DEGRADED if report.failures else EXIT_COMPLETED
+            self._record_run_metrics("multi_agent", exit_type, session_id,
+                                     errors_n=report.failures)
         except Exception as e:
             import traceback as _tb2
             print(f"[MultiAgent] FAILED: {e}\n{_tb2.format_exc()}", flush=True)
+            self._record_run_metrics("multi_agent", "failed_permanently",
+                                     session_id, note=str(e)[:200])
             if self._main_loop:
                 asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast({
@@ -394,8 +402,18 @@ class TestService:
                             "coverage": coverage_report.get("overall") if coverage_report else None,
                         },
                     }), self._main_loop)
+
+            # 退出类型指标: 完成 (带错误=降级完成) / 人工介入过=needs_human
+            from src.run_metrics import (
+                EXIT_COMPLETED, EXIT_COMPLETED_DEGRADED)
+            errors_n = len(result.get("errors") or [])
+            exit_type = EXIT_COMPLETED_DEGRADED if errors_n else EXIT_COMPLETED
+            self._record_run_metrics("browser_eval", exit_type, session_id,
+                                     errors_n=errors_n)
         except Exception as e:
             import traceback
+            self._record_run_metrics("browser_eval", "failed_permanently",
+                                     session_id, note=str(e)[:200])
             if self._main_loop:
                 asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast({
@@ -477,6 +495,23 @@ class TestService:
 
         answer = (stored or entry).get("answer")
         if answered and answer not in (None, ""):
+            # 标记: 本次运行得到过人工介入 → 退出类型判定用
+            with self._interventions_lock:
+                self._human_sessions.add(session_id)
+            # 经验库: 失败+人工修复 → 下次同类任务先查这条经验 (自演化)
+            try:
+                from src.experience_store import record_experience, TASK_EVALUATION, EXIT_NEEDS_HUMAN
+                record_experience(
+                    task_type=TASK_EVALUATION,
+                    trigger=question[:200],
+                    action=str(answer)[:200],
+                    outcome="已按用户回答继续",
+                    exit_type=EXIT_NEEDS_HUMAN,
+                    note="评测卡点人工干预",
+                )
+            except Exception:
+                pass
+            self._append_intervention_log("answer", session_id, answer=answer)
             return str(answer)
         # 审计: 超时走默认动作
         self._append_intervention_log("timeout", session_id, answer=default)
@@ -508,6 +543,20 @@ class TestService:
                     "card": entry.get("card") or {},
                 }
         return None
+
+    def _record_run_metrics(self, run_type: str, exit_type: str, session_id: str,
+                            errors_n: int = 0, note: str = ""):
+        """退出类型指标落盘 (output/metrics/runs.jsonl) — 失败静默"""
+        try:
+            from src.run_metrics import record_run
+            with self._interventions_lock:
+                had_human = session_id in self._human_sessions
+            record_run(
+                run_type=run_type, exit_type=exit_type, session_id=session_id,
+                had_human=had_human, errors_n=errors_n, note=note,
+            )
+        except Exception:
+            pass
 
     def intervention_history(self, session_id: str, last_n: int = 50) -> list:
         """读取某次评测会话的干预审计记录 (ask/answer/timeout)"""
@@ -730,6 +779,11 @@ class TestService:
                 ts.finished_at = datetime.now(timezone.utc)
                 db.commit()
 
+            # 退出类型指标 (取消的 run 不记)
+            if ts and ts.status == "success":
+                from src.run_metrics import EXIT_COMPLETED
+                self._record_run_metrics("test_runner", EXIT_COMPLETED, session_id)
+
         except WatchdogCancelled as e:
             # P0-15: 看门狗触发的取消
             print(f"[TestService] 评测被取消: {e.reason}")
@@ -753,6 +807,23 @@ class TestService:
                 self.ask_user(session_id, card["question"], card["options"],
                               timeout_s=card["timeout_s"], default=card["default"],
                               card=card)
+            except Exception:
+                pass
+
+            # 退出类型指标 + 经验库
+            self._record_run_metrics("test_runner", "failed_permanently",
+                                     session_id, note=str(e)[:200])
+            try:
+                from src.experience_store import (
+                    record_experience, TASK_EVALUATION, EXIT_FAILED_PERMANENT)
+                record_experience(
+                    task_type=TASK_EVALUATION,
+                    trigger=str(e)[:200],
+                    action="评测终止",
+                    outcome="评测失败",
+                    exit_type=EXIT_FAILED_PERMANENT,
+                    note="TestRunner 异常",
+                )
             except Exception:
                 pass
 
