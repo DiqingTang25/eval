@@ -81,6 +81,24 @@ var _dict={
   tr_metrics_success:{zh:'成功率',en:'Success rate'},
   tr_metrics_help:{zh:'求助率',en:'Help rate'},
   tr_metrics_failed:{zh:'失败',en:'Failed'},
+  fv_welcome_title:{zh:'欢迎使用教学平台自动测评系统',en:'Welcome to the Teaching Platform Auto-Evaluator'},
+  fv_welcome_body:{zh:'这个系统会自动看懂你的教学平台，然后像真实学生一样完成学习和提问，给出测评报告。全程你只需要回答简单的问题。',en:'This system automatically understands your teaching platform, then learns and asks questions like a real student, and produces an evaluation report. You only need to answer simple questions along the way.'},
+  fv_welcome_flow:{zh:'流程: ① 填写平台信息 → ② 系统自动探索 → ③ 系统自动评测 → ④ 查看报告',en:'Flow: ① Enter platform info → ② Auto-explore → ③ Auto-evaluate → ④ View report'},
+  fv_step2_title:{zh:'第一步: 告诉我你的平台',en:'Step 1: Tell me about your platform'},
+  fv_url:{zh:'平台网址 (必填)',en:'Platform URL (required)'},
+  fv_user:{zh:'登录账号 (选填, 平台需登录时填)',en:'Login username (optional, only if platform requires login)'},
+  fv_pass:{zh:'登录密码 (选填)',en:'Password (optional)'},
+  fv_user_ph:{zh:'例如: student001',en:'e.g. student001'},
+  fv_pass_ph:{zh:'密码',en:'password'},
+  fv_step3_title:{zh:'第二步: 自动探索平台',en:'Step 2: Auto-explore the platform'},
+  fv_step3_body:{zh:'接下来我会自动打开浏览器，理解平台结构、课程、学习步骤和 AI 助教入口。你可以在对话里随时问我进度。',en:'Next I will automatically open a browser and understand the platform structure, courses, learning steps, and the AI assistant. You can ask me about progress in the chat anytime.'},
+  fv_step3_hint:{zh:'如果平台登录方式特殊 (验证码等)，我会弹窗问你。',en:'If the login is special (e.g. captcha), I will pop up and ask you.'},
+  fv_step4_title:{zh:'第三步: 自动评测',en:'Step 3: Auto-evaluate'},
+  fv_step4_body:{zh:'探索完成后，到 Test Runner 页面点「开始评测」。系统会模拟真实学生完成学习、向 AI 助教提问、做测验，最后给出评分报告。遇到卡点我会用大白话问你。',en:'After exploration, go to Test Runner and click Start. The system will learn like a real student, ask the AI assistant, take quizzes, and produce a scored report. If stuck, I will ask you in plain language.'},
+  fv_finish:{zh:'完成',en:'Finish'},
+  fv_next:{zh:'下一步',en:'Next'},
+  fv_url_invalid:{zh:'请填写以 http(s):// 开头的平台网址',en:'Please enter a platform URL starting with http(s)://'},
+  fv_done:{zh:'向导完成! 探索结束后回到这里点开始评测',en:'Wizard done! Come back and click Start after exploration'},
   intv_title:{zh:'⚠️ 评测遇到卡点 — 需要你的输入',en:'⚠️ Evaluation blocked — your input needed'},
   intv_submit:{zh:'提交',en:'Submit'},
   intv_timeout:{zh:'秒后自动按默认处理',en:'s before default action'},
@@ -1203,6 +1221,69 @@ function intvSubmit(){
   }).catch(function(){toast('提交失败','error')});
 }
 
+// ═══════════════════ 首访引导向导 (零门槛: 4步从零到评测) ═══════════════════
+var _fvStep=0;
+function fvSteps(){
+  return [
+    {title:t('fv_welcome_title')||'欢迎使用平台测评系统',
+     body:'<p>'+t('fv_welcome_body')+'</p><p style="color:var(--text2)">'+t('fv_welcome_flow')+'</p>'},
+    {title:t('fv_step2_title')||'第一步: 告诉我你的平台',
+     body:'<label>'+t('fv_url')+'</label><input class="fv-field" id="fvUrl" placeholder="https://example.com">'+
+          '<label>'+t('fv_user')+'</label><input class="fv-field" id="fvUser" placeholder="'+t('fv_user_ph')+'">'+
+          '<label>'+t('fv_pass')+'</label><input class="fv-field" id="fvPass" type="password" placeholder="'+t('fv_pass_ph')+'">'},
+    {title:t('fv_step3_title')||'第二步: 自动探索平台',
+     body:'<p>'+t('fv_step3_body')+'</p><p style="color:var(--text2)">'+t('fv_step3_hint')+'</p>'},
+    {title:t('fv_step4_title')||'第三步: 自动评测',
+     body:'<p>'+t('fv_step4_body')+'</p>'},
+  ];
+}
+function fvShow(){
+  var ov=_el('firstVisitOverlay');if(!ov)return;
+  if(localStorage.getItem('firstVisitDone'))return;
+  _fvStep=0;fvRender();
+  ov.classList.add('show');
+}
+function fvRender(){
+  var s=fvSteps()[_fvStep];
+  _el('fvTitle').textContent=s.title;
+  _el('fvBody').innerHTML=s.body;
+  _el('fvSteps').textContent=(_fvStep+1)+' / 4';
+  var nb=_el('fvNextBtn');
+  nb.textContent=_fvStep===3?(t('fv_finish')||'Finish'):(t('fv_next')||'Next');
+  var sb=_el('fvSkipBtn');if(sb)sb.style.display=_fvStep===0?'':'none';
+}
+function fvNext(){
+  if(_fvStep===1){
+    var u=(_el('fvUrl')?_el('fvUrl').value.trim():'');
+    if(!/^https?:\/\//.test(u)){toast(t('fv_url_invalid')||'请填写以 http(s):// 开头的平台网址','error');return}
+    // 同步到探索表单 + 全局 target
+    _targetUrl=u;
+    var eu=_el('exploreUrl');if(eu)eu.value=u;
+    var us=_el('exploreUser');if(us&&_el('fvUser'))us.value=_el('fvUser').value.trim();
+    var ps=_el('explorePass');if(ps&&_el('fvPass'))ps.value=_el('fvPass').value.trim();
+    try{localStorage.setItem('schemaDriven','false')}catch(e){}
+  }
+  if(_fvStep===2){
+    // 跳到探索页并开启对话 (自动预填)
+    _el('firstVisitOverlay').classList.remove('show');
+    showPage('explorer');
+    try{exploreChatStart()}catch(e){}
+    return;
+  }
+  if(_fvStep===3){
+    try{localStorage.setItem('firstVisitDone','1')}catch(e){}
+    _el('firstVisitOverlay').classList.remove('show');
+    showPage('test-runner');
+    toast(t('fv_done')||'向导完成! 探索结束后回到这里点开始评测','success');
+    return;
+  }
+  _fvStep++;fvRender();
+}
+function fvSkip(){
+  try{localStorage.setItem('firstVisitDone','1')}catch(e){}
+  var ov=_el('firstVisitOverlay');if(ov)ov.classList.remove('show');
+}
+
 // 运行指标 — 退出类型统计 (成功率/求助率) 显示在 Test Runner 页
 function trLoadMetrics(){
   get('/api/tests/metrics').then(function(r){
@@ -1234,7 +1315,7 @@ setInterval(function(){
 },10000);
 
 // ═══════════════════ Export ═══════════════════
-window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,phTriggerFull:phTriggerFull,trLoad:trLoad,trStart:trStart,trStop:trStop,trLoadMetrics:trLoadMetrics,trConfirmStart:trConfirmStart,trCancelPreflight:trCancelPreflight,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,rpDownload:rpDownload,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult,exploreChatStart:exploreChatStart,exploreChatSend:exploreChatSend,exploreChatQuickStart:exploreChatQuickStart,exploreChatFocusInput:exploreChatFocusInput,intvSubmit:intvSubmit,showIntervention:showIntervention};
+window.App={showPage:showPage,loadDashboard:loadDashboard,startEval:startEval,onProfileChange:onProfileChange,toggleTheme:toggleTheme,toggleLang:toggleLang,setTargetUrl:setTargetUrl,phLoad:phLoad,phTriggerFull:phTriggerFull,trLoad:trLoad,trStart:trStart,trStop:trStop,trLoadMetrics:trLoadMetrics,fvNext:fvNext,fvSkip:fvSkip,trConfirmStart:trConfirmStart,trCancelPreflight:trCancelPreflight,reportsLoad:reportsLoad,reportsCompare:reportsCompare,reportsExitCompare:reportsExitCompare,rpSelect:rpSelect,rpDownload:rpDownload,calInit:calInit,calSelect:calSelect,calScore:calScore,calSubmit:calSubmit,calSkip:calSkip,testStart:trStart,testStop:trStop,exploreStart:exploreStart,exploreCancel:exploreCancel,exploreUseSchema:exploreUseSchema,exploreViewSchema:exploreViewSchema,exploreDownloadSchema:exploreDownloadSchema,exploreLoadHistory:exploreLoadHistory,exploreLoadResult:exploreLoadResult,exploreChatStart:exploreChatStart,exploreChatSend:exploreChatSend,exploreChatQuickStart:exploreChatQuickStart,exploreChatFocusInput:exploreChatFocusInput,intvSubmit:intvSubmit,showIntervention:showIntervention};
 
 document.addEventListener('DOMContentLoaded',function(){
   // ── 页面可见: DOMContentLoaded 已触发 ──
@@ -1247,5 +1328,6 @@ document.addEventListener('DOMContentLoaded',function(){
   try{onProfileChange()}catch(e){console.error('onProfileChange',e)}
   try{connectWS()}catch(e){console.error('connectWS',e)}
   setInterval(function(){_profilePolling=false;loadProfile()},30000);
+  try{fvShow()}catch(e){console.error('fvShow',e)}
 });
 })();

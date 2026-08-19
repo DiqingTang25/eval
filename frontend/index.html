@@ -186,6 +186,10 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
 /* 卡点干预弹窗 (评测卡点暴露 — 询问用户) */
 #interventionOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
 #interventionOverlay.show{display:flex}
+#firstVisitOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:20px}
+#firstVisitOverlay.show{display:flex}
+#firstVisitBox{max-width:520px;width:100%}
+.fv-field{width:100%;margin:6px 0}
 #interventionBox{max-width:520px;width:100%}
 #intvOptions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 #intvOptions .btn.sel{outline:2px solid var(--accent);outline-offset:1px}
@@ -347,6 +351,19 @@ details.card[open]>summary{border-bottom:1px solid var(--border);margin-bottom:1
         <button class="btn btn-primary" id="intvSubmitBtn" onclick="App.intvSubmit()" data-i18n="intv_submit">Submit</button>
       </div>
       <div style="font-size:11px;color:var(--text3)" id="intvTimeoutHint"></div>
+    </div>
+  </div>
+
+  <!-- 首访引导向导 (4步: 欢迎→平台信息→探索→评测) -->
+  <div id="firstVisitOverlay">
+    <div class="card" id="firstVisitBox">
+      <div class="card-header"><h3 id="fvTitle">👋 Welcome</h3></div>
+      <div id="fvBody" style="min-height:110px;font-size:13px;line-height:1.6"></div>
+      <div class="controls" id="fvControls" style="margin-top:14px">
+        <button class="btn btn-primary" id="fvNextBtn" onclick="App.fvNext()">Next</button>
+        <button class="btn btn-outline" id="fvSkipBtn" onclick="App.fvSkip()">Skip</button>
+      </div>
+      <div id="fvSteps" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
     </div>
   </div>
 
